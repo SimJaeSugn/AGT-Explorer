@@ -1,9 +1,9 @@
 {
-  "name": "explorer",
+  "name": "agt-finder",
   "version": "0.1.0",
-  "description": "멀티 디렉토리 파일탐색기 (Electron + React)",
+  "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
-  "author": "Explorer Team",
+  "author": "AGT-Finder Team",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
@@ -22,6 +22,7 @@
     "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
     "verify:persistence": "esbuild scripts/verify-persistence.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-persistence.cjs && node ./out/verify-persistence.cjs",
     "verify:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-scan.cjs && node ./out/verify-scan.cjs",
+    "verify:watch": "esbuild scripts/verify-watch.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-watch.cjs && node ./out/verify-watch.cjs",
     "verify:p6": "esbuild scripts/verify-p6-backend.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-p6-backend.cjs && node ./out/verify-p6-backend.cjs",
     "verify:open-with": "esbuild scripts/verify-open-with.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-open-with.cjs && node ./out/verify-open-with.cjs",
     "verify:shell-h4h6": "esbuild scripts/verify-shell-h4h6.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --alias:electron=./scripts/stub-electron-icon.ts --outfile=./out/verify-shell-h4h6.cjs && node ./out/verify-shell-h4h6.cjs",
@@ -34,7 +35,10 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "dompurify": "^3.4.8",
+    "highlight.js": "^11.11.1",
     "immer": "^10.1.1",
+    "marked": "^18.0.5",
     "recharts": "^3.8.1",
     "zod": "^3.25.76",
     "zustand": "^4.5.5"
@@ -43,6 +47,7 @@
     "node": ">=20.11 <21 || >=22 <23"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20.16.5",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",

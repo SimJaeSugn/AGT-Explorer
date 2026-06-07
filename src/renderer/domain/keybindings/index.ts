@@ -104,22 +104,6 @@ const baseBindings: KeyBinding[] = [
     group: '패널 분할'
   },
 
-  // ── 패널 작업(P4 동작 연결) ─────────────────────────────────────────
-  {
-    chord: 'f5',
-    commandId: 'panel.copyToOther',
-    context: 'global',
-    label: '다른 패널로 복사',
-    group: '패널 작업'
-  },
-  {
-    chord: 'f6',
-    commandId: 'panel.moveToOther',
-    context: 'global',
-    label: '다른 패널로 이동',
-    group: '패널 작업'
-  },
-
   // ── 탐색 ────────────────────────────────────────────────────────────
   {
     chord: 'alt+arrowleft',

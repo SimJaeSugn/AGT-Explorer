@@ -21,6 +21,8 @@ export interface SidebarSlice {
   readonly sidebarCollapsed: boolean
   /** 즐겨찾기 경로 목록(P5b, 사이드바 고정). */
   readonly favorites: string[]
+  /** 즐겨찾기 별칭 맵(path → label, J8). 없으면 UI 가 basename 폴백. */
+  readonly favoriteLabels: Record<string, string>
   /** 최근 방문 위치(최신 우선, recentLimit 적용, P5b). */
   readonly recent: string[]
 
@@ -42,6 +44,10 @@ export interface SidebarSlice {
   toggleFavorite(path: string): void
   /** 경로가 즐겨찾기인지. */
   isFavorite(path: string): boolean
+  /** 즐겨찾기 별칭 설정(빈 문자열이면 별칭 제거 → basename 표시, J8). */
+  setFavoriteLabel(path: string, label: string): void
+  /** 즐겨찾기 별칭 조회(없으면 undefined → UI 가 basename 폴백, J8). */
+  favoriteLabelOf(path: string): string | undefined
   /**
    * 최근 방문 기록(맨 앞으로 이동·중복 제거·"내 PC" 제외).
    * recentLimit(uiSlice)로 잘라 보관한다.
@@ -51,9 +57,10 @@ export interface SidebarSlice {
   removeRecent(path: string): void
   /** 최근 전체 비우기. */
   clearRecent(): void
-  /** 세션 복원: 즐겨찾기·최근·폭·접힘 일괄 주입. */
+  /** 세션 복원: 즐겨찾기·별칭·최근·폭·접힘 일괄 주입. */
   hydrateSidebar(data: {
     favorites: string[]
+    favoriteLabels?: Record<string, string>
     recent: string[]
     width: number
     collapsed: boolean
@@ -99,6 +106,7 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
     sidebarWidth: 240,
     sidebarCollapsed: false,
     favorites: [],
+    favoriteLabels: {},
     recent: [],
 
     loadDrives() {
@@ -157,6 +165,8 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
     removeFavorite(path) {
       set((s) => {
         s.favorites = s.favorites.filter((p) => p !== path)
+        // 고아 라벨 정리(J8).
+        if (s.favoriteLabels[path] !== undefined) delete s.favoriteLabels[path]
       })
     },
 
@@ -168,6 +178,18 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
 
     isFavorite(path) {
       return get().favorites.includes(path)
+    },
+
+    setFavoriteLabel(path, label) {
+      const trimmed = label.trim()
+      set((s) => {
+        if (trimmed === '') delete s.favoriteLabels[path]
+        else s.favoriteLabels[path] = trimmed
+      })
+    },
+
+    favoriteLabelOf(path) {
+      return get().favoriteLabels[path]
     },
 
     recordRecent(path) {
@@ -195,6 +217,15 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
       const limit = Math.max(0, Math.trunc(get().recentLimit ?? 10))
       set((s) => {
         s.favorites = [...data.favorites]
+        // 별칭 맵: favorites 에 존재하는 키만 보존(고아 제거).
+        const labels: Record<string, string> = {}
+        if (data.favoriteLabels) {
+          const favSet = new Set(data.favorites)
+          for (const [k, v] of Object.entries(data.favoriteLabels)) {
+            if (favSet.has(k) && typeof v === 'string' && v.trim() !== '') labels[k] = v
+          }
+        }
+        s.favoriteLabels = labels
         s.recent = data.recent.slice(0, limit)
         s.sidebarWidth = Math.max(160, Math.min(560, data.width))
         s.sidebarCollapsed = data.collapsed

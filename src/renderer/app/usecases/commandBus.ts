@@ -2,7 +2,7 @@
  * CommandBus — commandId → 유스케이스 실행 (SA §7.1 명령 패턴).
  *
  * 단축키(Dispatcher)·메뉴·버튼이 같은 commandId 를 발행하면 여기서 단일 처리.
- * 스토어 액션을 조합한다. P4 에서 동작 연결할 명령(file.*·panel.copyToOther 등)은
+ * 스토어 액션을 조합한다. P4 에서 동작 연결할 명령(file.* 등)은
  * 키 등록은 되어 있으나 여기서는 안내 토스트 또는 no-op 로 둔다(roadmap P3).
  *
  * P2/P3 에서 실제 동작하는 명령: tab.* / panel.focus* / layout.toggleSplit2 /
@@ -16,9 +16,7 @@ import {
   clipboardCopy,
   clipboardCut,
   clipboardPaste,
-  copyToOtherPanel,
   createNewFolder,
-  moveToOtherPanel,
   requestPermanentDelete,
   startRenameSelected,
   trashSelected
@@ -179,14 +177,6 @@ export function execCommand(commandId: string): boolean {
       }
       return true
     }
-
-    // ── 패널 간 복사/이동(F5/F6) ─────────────────────────────────────
-    case 'panel.copyToOther':
-      void copyToOtherPanel()
-      return true
-    case 'panel.moveToOther':
-      void moveToOtherPanel()
-      return true
 
     // ── 파일 작업(P4 연결) ───────────────────────────────────────────
     case 'file.copy':

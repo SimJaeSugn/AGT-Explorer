@@ -20,10 +20,18 @@ import { getCachedIcon, iconKeyFor, requestIcon, subscribeIcon } from '@renderer
 import { commitRename } from '@renderer/app/usecases/fileOps'
 import { openEmptyContextMenu, openRowContextMenu } from '@renderer/app/usecases/contextMenu'
 import { highlightRange } from '@renderer/domain/rules/filter'
-import { tokens } from '@renderer/ui/theme/tokens'
+import { normalizeRect, indicesInRect } from '@renderer/domain/rules/boxSelect'
+import type { SelectionState } from '@renderer/domain/rules/selection'
+import { tokens, gridCellFor } from '@renderer/ui/theme/tokens'
 import { useDragSource, useDropTarget, useDragState } from '@renderer/ui/dnd/useDrag'
 
 const OVERSCAN = 6
+/** 박스 선택 시작 임계(클릭과 구분). DnD threshold 와 동일. */
+const BOX_THRESHOLD = 5
+/** 자동 스크롤 임계 영역(뷰포트 상/하단 px). */
+const AUTOSCROLL_EDGE = 24
+/** 자동 스크롤 1프레임당 이동 px. */
+const AUTOSCROLL_STEP = 12
 
 interface Props {
   readonly panelId: string
@@ -65,10 +73,15 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const selection = useRootStore((s) => s.selection[panelId])
   const showExtensions = useRootStore((s) => s.showExtensions)
   const renameTarget = useRootStore((s) => s.renameTarget)
+  // J2: 워처발 갱신 시 1회성 스크롤 복원 플래그(보존). null=평상시 no-op.
+  const pendingScrollRestore = useRootStore((s) => s.panels[panelId]?.pendingScrollRestore ?? null)
+  const setStoreScroll = useRootStore((s) => s.setScrollTop)
+  const clearPendingScrollRestore = useRootStore((s) => s.clearPendingScrollRestore)
 
   const clickSelect = useRootStore((s) => s.clickSelect)
   const selectAll = useRootStore((s) => s.selectAll)
   const moveSelect = useRootStore((s) => s.moveSelect)
+  const boxSelect = useRootStore((s) => s.boxSelect)
   const setActivePanel = useRootStore((s) => s.setActivePanel)
   const activeTabId = useRootStore((s) => s.activeTabId)
 
@@ -123,16 +136,34 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   )
   const visiblePaths = useMemo(() => visible.map((e) => e.path), [visible])
 
-  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop)
-  }, [])
+  // store scrollTop 미러(보존 캡처·세션 복원 출처). rAF 디바운스로 immer 과갱신 억제.
+  const scrollMirrorRef = useRef<{ raf: number | null; pending: number }>({ raf: null, pending: 0 })
+  const onScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const top = e.currentTarget.scrollTop
+      setScrollTop(top) // 윈도잉용 로컬(즉시)
+      // store 반영(rAF 1프레임 병합) → capturePreserve 가 최신 scrollTop 을 읽는다.
+      const m = scrollMirrorRef.current
+      m.pending = top
+      if (m.raf === null) {
+        m.raf = requestAnimationFrame(() => {
+          m.raf = null
+          setStoreScroll(panelId, m.pending)
+        })
+      }
+    },
+    [panelId, setStoreScroll]
+  )
 
-  const isGrid = false // grid 보기는 Should(P6). P2 는 list/details 만.
+  const viewMode = view?.viewMode ?? 'details'
+  const isGrid = viewMode.startsWith('icons-')
   const rowH = tokens.rowHeight
+  const gridCell = isGrid ? gridCellFor(viewMode) : null
 
-  // 윈도잉 계산.
-  const colCount = isGrid ? Math.max(1, Math.floor(viewportW / tokens.gridCell.w)) : 1
-  const cellH = isGrid ? tokens.gridCell.h : rowH
+  // 윈도잉 계산. 그리드는 보기별 셀 폭/높이, 비그리드는 1열·rowHeight.
+  const cellW = gridCell ? gridCell.w : viewportW
+  const colCount = gridCell ? Math.max(1, Math.floor(viewportW / gridCell.w)) : 1
+  const cellH = gridCell ? gridCell.h : rowH
   const rowCount = Math.ceil(visible.length / colCount)
   const totalHeight = rowCount * cellH
   const startRow = Math.max(0, Math.floor(scrollTop / cellH) - OVERSCAN)
@@ -194,16 +225,25 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   // 키보드: ↑/↓ 이동, Ctrl+A(전역 디스패처도 처리하지만 list 포커스 시 직접도 허용).
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const isArrow =
+        e.key === 'ArrowDown' ||
+        e.key === 'ArrowUp' ||
+        ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && colCount > 1)
+      if (isArrow) {
         e.preventDefault()
         const cur = selection && selection.anchorIndex >= 0 ? selection.anchorIndex : -1
-        const delta = e.key === 'ArrowDown' ? 1 : -1
+        // 그리드는 ↑↓ ±colCount, ←→ ±1. list/details(colCount=1)는 ↑↓ ±1만.
+        let delta = 0
+        if (e.key === 'ArrowDown') delta = colCount
+        else if (e.key === 'ArrowUp') delta = -colCount
+        else if (e.key === 'ArrowRight') delta = 1
+        else if (e.key === 'ArrowLeft') delta = -1
         const next = Math.max(0, Math.min(visible.length - 1, cur + delta))
         moveSelect(panelId, visiblePaths, next)
-        // 가시 영역으로 스크롤.
+        // 가시 영역으로 스크롤(그리드는 행 단위).
         const el = scrollRef.current
         if (el) {
-          const top = next * cellH
+          const top = Math.floor(next / colCount) * cellH
           if (top < el.scrollTop) el.scrollTop = top
           else if (top + cellH > el.scrollTop + el.clientHeight) {
             el.scrollTop = top + cellH - el.clientHeight
@@ -214,8 +254,172 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         selectAll(panelId, visiblePaths)
       }
     },
-    [selection, visible.length, moveSelect, panelId, visiblePaths, cellH, selectAll]
+    [selection, visible.length, moveSelect, panelId, visiblePaths, cellH, colCount, selectAll]
   )
+
+  // ── 박스 선택(러버밴드, J1) ─────────────────────────────────────────────
+  // 오버레이 렌더용 상태(콘텐츠 좌표계 사각형). 드래그 중에만 non-null.
+  const [boxRect, setBoxRect] = useState<{
+    top: number
+    left: number
+    width: number
+    height: number
+  } | null>(null)
+  // 드래그 세션(시작점·수정자·base 선택·자동스크롤 rAF). useState 리렌더 회피.
+  const dragRef = useRef<{
+    startX: number // 콘텐츠 좌표(scrollTop 포함)
+    startY: number
+    curClientX: number // 뷰포트 좌표(자동스크롤 임계 판정)
+    curClientY: number
+    mode: 'replace' | 'add' | 'toggle'
+    base: SelectionState
+    started: boolean // BOX_THRESHOLD 초과로 실제 시작했는지
+    rafId: number | null
+  } | null>(null)
+
+  // 최신 윈도잉 파라미터를 리스너에서 참조하기 위한 ref(이벤트는 closure 고정).
+  const geomRef = useRef({ colCount, cellH, cellW, count: visible.length })
+  geomRef.current = { colCount, cellH, cellW, count: visible.length }
+  const visiblePathsRef = useRef(visiblePaths)
+  visiblePathsRef.current = visiblePaths
+
+  const applyBox = useCallback(() => {
+    const d = dragRef.current
+    const el = scrollRef.current
+    if (!d || !el) return
+    const rect = el.getBoundingClientRect()
+    // 현재 포인터의 콘텐츠 좌표(스크롤 포함).
+    const curX = d.curClientX - rect.left + el.scrollLeft
+    const curY = d.curClientY - rect.top + el.scrollTop
+    const r = normalizeRect(d.startX, d.startY, curX, curY)
+    setBoxRect({ top: r.top, left: r.left, width: r.right - r.left, height: r.bottom - r.top })
+    const g = geomRef.current
+    const indices = indicesInRect(r, g)
+    boxSelect(panelId, visiblePathsRef.current, indices, d.mode, d.base)
+  }, [boxSelect, panelId])
+
+  const stopBox = useCallback(() => {
+    const d = dragRef.current
+    if (d?.rafId !== null && d?.rafId !== undefined) cancelAnimationFrame(d.rafId)
+    dragRef.current = null
+    setBoxRect(null)
+    window.removeEventListener('pointermove', onBoxPointerMove)
+    window.removeEventListener('pointerup', onBoxPointerUp)
+  }, [])
+
+  // 자동 스크롤 rAF 루프: 커서가 뷰포트 상/하단 임계 안이면 스크롤 후 박스 재계산.
+  const autoScrollTick = useCallback(() => {
+    const d = dragRef.current
+    const el = scrollRef.current
+    if (!d || !el) return
+    const rect = el.getBoundingClientRect()
+    let dy = 0
+    if (d.curClientY < rect.top + AUTOSCROLL_EDGE) dy = -AUTOSCROLL_STEP
+    else if (d.curClientY > rect.bottom - AUTOSCROLL_EDGE) dy = AUTOSCROLL_STEP
+    if (dy !== 0) {
+      const before = el.scrollTop
+      el.scrollTop = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, before + dy))
+      if (el.scrollTop !== before) {
+        setScrollTop(el.scrollTop)
+        applyBox()
+      }
+    }
+    d.rafId = requestAnimationFrame(autoScrollTick)
+  }, [applyBox])
+
+  const onBoxPointerMove = useCallback(
+    (e: PointerEvent) => {
+      const d = dragRef.current
+      const el = scrollRef.current
+      if (!d || !el) return
+      d.curClientX = e.clientX
+      d.curClientY = e.clientY
+      if (!d.started) {
+        const rect = el.getBoundingClientRect()
+        const curX = e.clientX - rect.left + el.scrollLeft
+        const curY = e.clientY - rect.top + el.scrollTop
+        if (Math.abs(curX - d.startX) < BOX_THRESHOLD && Math.abs(curY - d.startY) < BOX_THRESHOLD) {
+          return
+        }
+        d.started = true
+        d.rafId = requestAnimationFrame(autoScrollTick)
+      }
+      applyBox()
+    },
+    [applyBox, autoScrollTick]
+  )
+
+  const onBoxPointerUp = useCallback(() => {
+    stopBox()
+  }, [stopBox])
+
+  const onContainerPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      // 좌클릭·빈 영역(행/리네임/버튼이 아닌)에서만 박스 선택 시작.
+      if (e.button !== 0) return
+      const target = e.target as HTMLElement
+      // 행(role=row)·input·button 위에서 시작한 포인터는 무시(기존 클릭/D&D/리네임 우선).
+      if (target.closest('[role="row"]') || target.closest('input') || target.closest('button')) {
+        return
+      }
+      const el = scrollRef.current
+      if (!el) return
+      if (!active) setActivePanel(activeTabId, panelId)
+      const rect = el.getBoundingClientRect()
+      const startX = e.clientX - rect.left + el.scrollLeft
+      const startY = e.clientY - rect.top + el.scrollTop
+      const cur = useRootStore.getState().selection[panelId]
+      const base: SelectionState = cur ?? { anchorIndex: -1, selectedPaths: new Set() }
+      const mode = e.ctrlKey || e.metaKey ? 'add' : e.shiftKey ? 'toggle' : 'replace'
+      dragRef.current = {
+        startX,
+        startY,
+        curClientX: e.clientX,
+        curClientY: e.clientY,
+        mode,
+        base,
+        started: false,
+        rafId: null
+      }
+      window.addEventListener('pointermove', onBoxPointerMove)
+      window.addEventListener('pointerup', onBoxPointerUp)
+    },
+    [active, activeTabId, panelId, setActivePanel, onBoxPointerMove, onBoxPointerUp]
+  )
+
+  // 언마운트 시 리스너·rAF 누수 방지(박스 선택 + 스크롤 미러 rAF).
+  useEffect(() => {
+    return () => {
+      const d = dragRef.current
+      if (d?.rafId !== null && d?.rafId !== undefined) cancelAnimationFrame(d.rafId)
+      const m = scrollMirrorRef.current
+      if (m.raf !== null) cancelAnimationFrame(m.raf)
+      window.removeEventListener('pointermove', onBoxPointerMove)
+      window.removeEventListener('pointerup', onBoxPointerUp)
+    }
+  }, [onBoxPointerMove, onBoxPointerUp])
+
+  // J2: 워처발 갱신 스크롤 복원 — pendingScrollRestore 1회성 플래그 기반.
+  // status==='ready' + totalHeight 확정일 때만 클램프 적용 후 즉시 소거(휴리스틱 없음).
+  // Hooks 규칙 준수: early return 이전에 선언(내부에서 status/높이 가드).
+  useEffect(() => {
+    if (pendingScrollRestore == null) return // 평상시 no-op(수동 스크롤·navigate 무간섭)
+    const el = scrollRef.current
+    if (!el || directory?.status !== 'ready') return // 높이 미확정이면 다음 status/height 변화에서 재시도
+    const max = Math.max(0, el.scrollHeight - el.clientHeight)
+    const clamped = Math.min(pendingScrollRestore, max) // 콘텐츠 축소 시 클램프(빈 공간 0)
+    el.scrollTop = clamped
+    setScrollTop(clamped) // 로컬 윈도잉 동기화
+    setStoreScroll(panelId, clamped) // store 미러도 일치
+    clearPendingScrollRestore(panelId) // 즉시 1회성 소거
+  }, [
+    pendingScrollRestore,
+    directory?.status,
+    totalHeight,
+    panelId,
+    setStoreScroll,
+    clearPendingScrollRestore
+  ])
 
   if (!directory || !view) return <div />
 
@@ -276,12 +480,13 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         entry={entry}
         index={i}
         top={top}
-        left={isGrid ? col * tokens.gridCell.w : 0}
-        width={isGrid ? tokens.gridCell.w : '100%'}
+        left={gridCell ? col * gridCell.w : 0}
+        width={gridCell ? gridCell.w : '100%'}
         height={cellH}
         selected={selected}
         active={active}
         details={view.viewMode === 'details'}
+        grid={gridCell ? { icon: gridCell.icon } : null}
         showExt={showExtensions}
         query={filter?.open ? filter.query : ''}
         panelId={panelId}
@@ -303,6 +508,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       onScroll={onScroll}
       onKeyDown={onKeyDown}
       onContextMenu={onEmptyContext}
+      onPointerDown={onContainerPointerDown}
       onPointerEnter={emptyAreaDrop.onPointerEnter}
       onPointerLeave={emptyAreaDrop.onPointerLeave}
       tabIndex={0}
@@ -319,7 +525,26 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         boxShadow: panelDropHighlight ? `inset 0 0 0 2px ${tokens.color.accent}` : undefined
       }}
     >
-      <div style={{ height: totalHeight, position: 'relative' }}>{rows}</div>
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {rows}
+        {boxRect && (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: boxRect.top,
+              left: boxRect.left,
+              width: boxRect.width,
+              height: boxRect.height,
+              background: tokens.color.bgSelected,
+              opacity: 0.35,
+              border: `1px solid ${tokens.color.accent}`,
+              pointerEvents: 'none',
+              zIndex: 2
+            }}
+          />
+        )}
+      </div>
       {directory.status === 'streaming' && (
         <div
           style={{
@@ -349,6 +574,8 @@ interface RowProps {
   selected: boolean
   active: boolean
   details: boolean
+  /** 아이콘 그리드 셀 모드(J4). null 이면 list/details 행. icon=아이콘 px. */
+  grid: { icon: number } | null
   showExt: boolean
   query: string
   panelId: string
@@ -372,6 +599,7 @@ function FileRow({
   selected,
   active,
   details,
+  grid,
   showExt,
   query,
   panelId,
@@ -401,6 +629,78 @@ function FileRow({
     destDir: entry.path,
     overEntryPath: entry.isDir ? entry.path : null
   })
+
+  // ── 아이콘 그리드 셀(J4): 아이콘 위·이름 아래(2줄 ellipsis·중앙정렬) ──────
+  if (grid) {
+    return (
+      <div
+        role="row"
+        aria-selected={selected}
+        aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
+        onMouseDown={(e) => onClick(index, e)}
+        onContextMenu={(e) => onContext(index, entry, e)}
+        onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
+        onPointerEnter={entry.isDir ? folderDrop.onPointerEnter : undefined}
+        onPointerLeave={entry.isDir ? folderDrop.onPointerLeave : undefined}
+        onDoubleClick={() => onDouble(entry)}
+        title={entry.path}
+        style={{
+          position: 'absolute',
+          top,
+          left,
+          width,
+          height,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 4,
+          padding: 6,
+          boxSizing: 'border-box',
+          fontSize: 12,
+          color: tokens.color.text,
+          opacity: dim,
+          background: bg,
+          borderRadius: 4,
+          outline: dropHighlight ? `2px solid ${tokens.color.accent}` : undefined,
+          outlineOffset: -2,
+          cursor: 'default',
+          userSelect: 'none',
+          textAlign: 'center'
+        }}
+      >
+        <span
+          style={{
+            flex: '0 0 auto',
+            width: grid.icon,
+            height: grid.icon,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <OSIcon entry={entry} size={grid.icon} />
+        </span>
+        {renaming ? (
+          <RenameInput panelId={panelId} path={entry.path} initialName={initialName} />
+        ) : (
+          <span
+            style={{
+              width: '100%',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word',
+              lineHeight: 1.3
+            }}
+          >
+            <HighlightedName name={name} query={query} />
+          </span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -506,7 +806,7 @@ function FileRow({
  * in-flight 디듀프. 캐시는 패널 store 무관 전역이라 셀렉터 격리(SA §5.2)를 지킨다.
  * 아이콘 크기는 rowHeight(26) 안의 16×16 박스에 정합한다.
  */
-function OSIcon({ entry }: { entry: FileEntryDTO }): JSX.Element {
+function OSIcon({ entry, size = 16 }: { entry: FileEntryDTO; size?: number }): JSX.Element {
   const key = iconKeyFor(entry)
   const dataUrl = useSyncExternalStore(subscribeIcon, () => getCachedIcon(key))
 
@@ -516,9 +816,19 @@ function OSIcon({ entry }: { entry: FileEntryDTO }): JSX.Element {
   }, [key, entry])
 
   if (dataUrl) {
-    return <img src={dataUrl} width={16} height={16} alt="" draggable={false} />
+    // OS 아이콘은 저해상도(16/32)일 수 있으나 그리드 셀 크기에 맞춰 확대 렌더.
+    return (
+      <img
+        src={dataUrl}
+        width={size}
+        height={size}
+        alt=""
+        draggable={false}
+        style={{ imageRendering: size > 32 ? 'auto' : undefined }}
+      />
+    )
   }
-  return <span aria-hidden>{entry.isDir ? '📁' : '📄'}</span>
+  return <span aria-hidden style={{ fontSize: size > 16 ? size * 0.8 : undefined }}>{entry.isDir ? '📁' : '📄'}</span>
 }
 
 /**

@@ -16,9 +16,12 @@ import type { PreviewData } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { readPreview } from '@renderer/app/usecases/preview'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
 import { PREVIEW_RENDERERS } from './renderers'
+import { PreviewInfoCard } from './PreviewInfoCard'
 
-const PANEL_WIDTH = 320
+/** 미리보기 기본 폭(더블클릭 복귀값). uiSlice.previewWidth 초기값과 일치. */
+const DEFAULT_PREVIEW_WIDTH = 320
 
 /** 활성 패널의 단일 선택 경로(정확히 1개일 때만). 아니면 null. */
 function useSingleSelectedPath(): string | null {
@@ -30,8 +33,15 @@ function useSingleSelectedPath(): string | null {
   return only ?? null
 }
 
-export function PreviewPanel(): JSX.Element | null {
+interface Props {
+  /** J7: SplitDivider 의 비율→px 환산 기준(App 본문 row 컨테이너). */
+  readonly containerRef: React.RefObject<HTMLElement>
+}
+
+export function PreviewPanel({ containerRef }: Props): JSX.Element | null {
   const open = useRootStore((s) => s.previewOpen)
+  const width = useRootStore((s) => s.previewWidth)
+  const setPreviewWidth = useRootStore((s) => s.setPreviewWidth)
   const path = useSingleSelectedPath()
 
   const [data, setData] = useState<PreviewData | null>(null)
@@ -75,36 +85,56 @@ export function PreviewPanel(): JSX.Element | null {
 
   if (!open) return null
 
+  // J7: 좌측 경계 divider 드래그 → 컨테이너 폭 기준 비율(ratio)을 px 폭으로 환산.
+  // 미리보기는 컨테이너 우측에 붙으므로 우측 폭 = (1-ratio) * containerWidth.
+  function onDividerDrag(ratio: number): void {
+    const el = containerRef.current
+    const cw = el ? el.getBoundingClientRect().width : 0
+    if (cw <= 0) return
+    setPreviewWidth((1 - ratio) * cw)
+  }
+
   return (
-    <div
-      style={{
-        flex: `0 0 ${PANEL_WIDTH}px`,
-        width: PANEL_WIDTH,
-        minWidth: PANEL_WIDTH,
-        display: 'flex',
-        flexDirection: 'column',
-        borderLeft: `1px solid ${tokens.color.borderStrong}`,
-        background: tokens.color.bg,
-        overflow: 'hidden'
-      }}
-      aria-label="미리보기"
-    >
+    <>
+      <SplitDivider
+        orientation="vertical"
+        containerRef={containerRef}
+        onDrag={onDividerDrag}
+        onReset={() => setPreviewWidth(DEFAULT_PREVIEW_WIDTH)}
+      />
       <div
         style={{
-          flex: '0 0 auto',
-          padding: '6px 12px',
-          fontSize: 12,
-          fontWeight: 600,
-          color: tokens.color.textMuted,
-          borderBottom: `1px solid ${tokens.color.border}`
+          flex: `0 0 ${width}px`,
+          width,
+          minWidth: width,
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: `1px solid ${tokens.color.borderStrong}`,
+          background: tokens.color.bg,
+          overflow: 'hidden'
         }}
+        aria-label="미리보기"
       >
-        미리보기
+        <div
+          style={{
+            flex: '0 0 auto',
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 600,
+            color: tokens.color.textMuted,
+            borderBottom: `1px solid ${tokens.color.border}`
+          }}
+        >
+          미리보기
+        </div>
+        {/* 상단: 파일 정보 카드 (J6) */}
+        <PreviewInfoCard data={data} path={path} />
+        {/* 하단: 형식별 뷰어 */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {renderBody({ path, loading, error, data })}
+        </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {renderBody({ path, loading, error, data })}
-      </div>
-    </div>
+    </>
   )
 }
 

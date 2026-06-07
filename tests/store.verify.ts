@@ -162,6 +162,131 @@ if (sid) {
   ok('스트림 streamId 설정', false)
 }
 
+// ── J2: 워처발 갱신 시 선택/스크롤 보존(softRefresh) ──────────────────
+// 정렬·필터가 걸린 패널에서 anchor 를 computeVisible 기준으로 환산·복원하고,
+// 재-list 후 사라진 항목만 선택 해제·나머지 유지, scrollTop 1회성 복원을 검증.
+{
+  type Ent = {
+    name: string
+    path: string
+    isDir: boolean
+    size: number
+    mtime: number
+    ctime: number
+    ext: string
+    attrs: { hidden: boolean; readonly: boolean; system: boolean; symlink: boolean }
+  }
+  const mk = (name: string, isDir = false): Ent => ({
+    name,
+    path: `D:\\j2\\${name}`,
+    isDir,
+    size: 1,
+    mtime: 0,
+    ctime: 0,
+    ext: isDir ? '' : 'txt',
+    attrs: { hidden: false, readonly: false, system: false, symlink: false }
+  })
+
+  // 새 탭에 패널을 만들어 D:\j2 로 navigate(스트림 적재 경로).
+  s().newTab('C:\\')
+  const jp = s().activePanelId()!
+  s().navigate(jp, 'D:\\j2', true)
+  await Promise.resolve()
+  await Promise.resolve()
+  const sid1 = s().panels[jp]!.directory.streamId!
+  ok('J2 초기 스트림 streamId', !!sid1)
+
+  // 초기 항목 5개(폴더 first + 이름 desc 정렬 적용 → computeVisible 순서가 raw 와 다름).
+  s()._onChunk(jp, sid1, [mk('b.txt'), mk('a.txt'), mk('c.txt'), mk('dir1', true), mk('d.txt')])
+  s()._onDone(jp, sid1, 5, false)
+  // 정렬: 폴더 우선 + 이름 desc → [dir1, d, c, b, a].
+  s().toggleFolderFirst(jp) // 기본 true 였으나 위 setSort 영향 없게 명시 — 폴더 우선 유지 확인
+  s().toggleFolderFirst(jp) // 두 번 토글 = 원복(폴더 우선 true)
+  s().setSort(jp, 'name') // 같은 키 재클릭 → desc 토글
+  ok('J2 정렬 desc', s().panels[jp]!.view.sortDir === 'desc')
+
+  // computeVisible 순서 확인용으로 store 의 visibleEntries 대신 selection 동작으로 검증.
+  // visible = [dir1, d.txt, c.txt, b.txt, a.txt]. index 1(d.txt), 3(b.txt) 선택 + anchor=3.
+  const vis = (): string[] => {
+    const p = s().panels[jp]!
+    // 헤드리스: computeVisible 은 selectors 에 있으나 여기선 selection 결과로 간접 검증.
+    return p.directory.entries.map((e) => e.path)
+  }
+  void vis
+  // clickSelect 로 d.txt(visible idx1) 단일 → ctrl b.txt(visible idx3) 추가. anchor=3(b.txt).
+  const visiblePaths = ['D:\\j2\\dir1', 'D:\\j2\\d.txt', 'D:\\j2\\c.txt', 'D:\\j2\\b.txt', 'D:\\j2\\a.txt']
+  s().clickSelect(jp, visiblePaths, 1, false, false) // d.txt
+  s().clickSelect(jp, visiblePaths, 3, true, false) // +b.txt, anchor=3
+  ok('J2 선택 2개', s().selection[jp]!.selectedPaths.size === 2)
+  ok('J2 anchor=3(b.txt)', s().selection[jp]!.anchorIndex === 3)
+
+  // scrollTop 설정(보존 캡처 입력).
+  s().setScrollTop(jp, 320)
+  ok('J2 scrollTop 설정', s().panels[jp]!.scrollTop === 320)
+
+  // softRefresh → 보존 캡처(현재 시점). b.txt 를 삭제한 새 항목집합으로 재-list.
+  s().softRefresh(jp)
+  await Promise.resolve()
+  await Promise.resolve()
+  const sid2 = s().panels[jp]!.directory.streamId!
+  ok('J2 softRefresh 새 streamId', !!sid2 && sid2 === 'sid-1')
+  // 새 집합: b.txt 삭제(나머지 4개). 정렬 desc 폴더우선 → [dir1, d, c, a].
+  s()._onChunk(jp, sid2, [mk('a.txt'), mk('c.txt'), mk('dir1', true), mk('d.txt')])
+  s()._onDone(jp, sid2, 4, false)
+
+  // 교집합: d.txt 유지, b.txt(삭제) 해제 → size 1.
+  const keptSel = s().selection[jp]!
+  ok('J2 보존: 사라진 b.txt 해제', !keptSel.selectedPaths.has('D:\\j2\\b.txt'))
+  ok('J2 보존: 잔존 d.txt 유지', keptSel.selectedPaths.has('D:\\j2\\d.txt'))
+  ok('J2 보존: 선택 1개로 축소', keptSel.selectedPaths.size === 1)
+  // anchor 였던 b.txt 가 사라졌으니 잔존 선택(d.txt, 새 visible 인덱스=1) 으로 best-effort.
+  // 새 visible = [dir1, d.txt, c.txt, a.txt] → d.txt 인덱스 1.
+  ok('J2 보존: anchor 재탐색(d.txt=1)', keptSel.anchorIndex === 1)
+
+  // scrollTop 1회성 복원 플래그 set 확인.
+  ok('J2 pendingScrollRestore set(320)', s().panels[jp]!.pendingScrollRestore === 320)
+  // FileListView 가 소비하는 동작을 헤드리스로 모사: clear 후 null.
+  s().clearPendingScrollRestore(jp)
+  ok('J2 pendingScrollRestore 1회 소거 → null', s().panels[jp]!.pendingScrollRestore === null)
+
+  // anchor 가 잔존하는 케이스: c.txt(visible idx2) 단일선택 후 softRefresh(아무것도 안 사라짐).
+  s().clickSelect(jp, ['D:\\j2\\dir1', 'D:\\j2\\d.txt', 'D:\\j2\\c.txt', 'D:\\j2\\a.txt'], 2, false, false)
+  ok('J2 c.txt 단일선택 anchor=2', s().selection[jp]!.anchorIndex === 2)
+  s().softRefresh(jp)
+  await Promise.resolve()
+  await Promise.resolve()
+  const sid3 = s().panels[jp]!.directory.streamId!
+  s()._onChunk(jp, sid3, [mk('a.txt'), mk('c.txt'), mk('dir1', true), mk('d.txt')])
+  s()._onDone(jp, sid3, 4, false)
+  ok('J2 anchor 잔존(c.txt=2) 보존', s().selection[jp]!.anchorIndex === 2)
+  ok('J2 c.txt 선택 유지', s().selection[jp]!.selectedPaths.has('D:\\j2\\c.txt'))
+
+  // navigate(경로 변경) → 선택 초기화 + pendingScrollRestore 미설정.
+  s().setScrollTop(jp, 200)
+  s().navigate(jp, 'D:\\other', true)
+  ok('J2 navigate 선택 초기화', s().selection[jp]!.selectedPaths.size === 0)
+  ok('J2 navigate anchor -1', s().selection[jp]!.anchorIndex === -1)
+  ok('J2 navigate scrollTop 0', s().panels[jp]!.scrollTop === 0)
+  // navigate 는 보존 미적용 → done 시 pendingScrollRestore set 안 됨.
+  await Promise.resolve()
+  await Promise.resolve()
+  const sidN = s().panels[jp]!.directory.streamId!
+  s()._onChunk(jp, sidN, [mk('x.txt')])
+  s()._onDone(jp, sidN, 1, false)
+  ok('J2 navigate 후 pendingScrollRestore null', s().panels[jp]!.pendingScrollRestore === null)
+
+  // error 시 보존 스냅샷 폐기(복원 안 함).
+  s().clickSelect(jp, ['D:\\other\\x.txt'], 0, false, false)
+  s().setScrollTop(jp, 150)
+  s().softRefresh(jp)
+  await Promise.resolve()
+  await Promise.resolve()
+  const sidE = s().panels[jp]!.directory.streamId!
+  s()._onError(jp, sidE, 'EUNKNOWN', 'boom')
+  ok('J2 error 상태', s().panels[jp]!.directory.status === 'error')
+  ok('J2 error 시 pendingScrollRestore 미설정', s().panels[jp]!.pendingScrollRestore === null)
+}
+
 // ── H-5: setSplitRatio 클램프(0.15~0.85, 축별) ───────────────────────
 {
   // 2분할 탭 하나 준비(split-2-h → col 축 사용).

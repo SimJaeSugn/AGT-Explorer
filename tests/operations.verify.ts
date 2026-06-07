@@ -136,8 +136,6 @@ const fakeApi = {
 import { useRootStore } from '../src/renderer/app/stores/rootStore'
 import {
   panelPaths,
-  copyToOtherPanel,
-  moveToOtherPanel,
   clipboardCopy,
   clipboardCut,
   clipboardPaste,
@@ -261,18 +259,7 @@ if (sid) s()._onChunk(left, sid, [mkEntry('a.txt', false, 'C:\\src\\a.txt'), mkE
 s().selectAll(left, ['C:\\src\\a.txt', 'C:\\src\\b.txt'])
 ok('선택 2개', s().selection[left]!.selectedPaths.size === 2)
 
-// F5: copy to other(D:\dst)
-reset()
-await copyToOtherPanel()
-ok('F5 op:start copy', cap.opStart.length === 1 && cap.opStart[0]!.kind === 'copy')
-ok('F5 destDir = other(D:\\dst)', cap.opStart[0]!.destDir === 'D:\\dst')
-ok('F5 sources = 선택 2개', cap.opStart[0]!.sources.length === 2)
-ok('operationsSlice 등록됨', s().activeOperations().length >= 1)
-
-// F6: move to other
-reset()
-await moveToOtherPanel()
-ok('F6 op:start move', cap.opStart.length === 1 && cap.opStart[0]!.kind === 'move')
+// (J3) F5/F6 다른 패널 복사·이동은 제거됨 — 클립보드/D&D 경로만 유지.
 
 // ════════════════════════════════════════════════════════════════════════
 // 3) 클립보드 copy/cut/paste

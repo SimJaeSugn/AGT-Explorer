@@ -29,6 +29,21 @@ export const tokens = {
     highlight: 'var(--c-highlight)'
   },
   rowHeight: 26,
-  gridCell: { w: 104, h: 96 },
+  /**
+   * 아이콘 그리드 셀 크기(J4 보기 5종). 보기별 셀 폭·높이·아이콘 픽셀.
+   * medium 은 기존 단일 gridCell(104×96) 호환값.
+   */
+  gridCell: {
+    large: { w: 128, h: 120, icon: 64 },
+    medium: { w: 104, h: 96, icon: 48 },
+    small: { w: 80, h: 72, icon: 32 }
+  },
   font: 'system-ui, "Segoe UI", sans-serif'
 } as const
+
+/** ViewMode(icons-*) → 그리드 셀 크기. 비그리드는 호출 안 함. */
+export function gridCellFor(viewMode: string): { w: number; h: number; icon: number } {
+  if (viewMode === 'icons-large') return tokens.gridCell.large
+  if (viewMode === 'icons-small') return tokens.gridCell.small
+  return tokens.gridCell.medium
+}

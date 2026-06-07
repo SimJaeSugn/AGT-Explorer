@@ -34,7 +34,14 @@ const THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>([
 ])
 const SORT_KEYS: ReadonlySet<SortKey> = new Set<SortKey>(['name', 'size', 'ext', 'mtime'])
 const SORT_DIRS: ReadonlySet<SortDir> = new Set<SortDir>(['asc', 'desc'])
-const VIEW_MODES: ReadonlySet<ViewMode> = new Set<ViewMode>(['list', 'details'])
+// J4: 보기 5종(아이콘 대/중/소·목록·자세히). 미지/구버전 값은 coercePanel 이 'details' 폴백.
+const VIEW_MODES: ReadonlySet<ViewMode> = new Set<ViewMode>([
+  'icons-large',
+  'icons-medium',
+  'icons-small',
+  'list',
+  'details'
+])
 const LAYOUTS = new Set(['single', 'split-2-h', 'split-2-v', 'grid-4'])
 
 /** 분할 비율 클램프 경계(feat-H3 §3.4). 반대편도 최소 0.15 확보 → 0.15~0.85. */
@@ -42,6 +49,10 @@ const SPLIT_MIN_RATIO = 0.15
 const SPLIT_MAX_RATIO = 0.85
 /** 미사용 축/누락 축 기본 비율(균등). */
 const SPLIT_DEFAULT_RATIO = 0.5
+
+/** 미리보기 패널 폭 클램프 경계(J7). 기본 320, 240~720 범위. */
+const PREVIEW_WIDTH_MIN = 240
+const PREVIEW_WIDTH_MAX = 720
 
 // ────────────────────────────────────────────────────────────────────────
 // 설정 기본값 (features E6 / F장: 숨김 off, 확장자 on, 테마 system)
@@ -67,7 +78,8 @@ export const DEFAULT_TELEMETRY_OPT_IN = false
 // ────────────────────────────────────────────────────────────────────────
 
 export function defaultSidebar(): SidebarSnapshot {
-  return { favorites: [], recent: [], width: 240, collapsed: false }
+  // J8: favoriteLabels(별칭 맵)은 기본 빈 맵 — 별칭 없으면 UI 가 basename 폴백.
+  return { favorites: [], favoriteLabels: {}, recent: [], width: 240, collapsed: false }
 }
 
 /** 손상/미존재 시 부팅할 안전 폴백 세션("내 PC" 단일 탭, SA §5.3). */
@@ -189,12 +201,35 @@ function coerceWindow(raw: unknown): WindowSnapshot | undefined {
   return { tabs, activeTabId }
 }
 
+/**
+ * 즐겨찾기 별칭 맵(J8) 정규화.
+ * - 입력이 객체가 아니거나(구버전: favoriteLabels 키 없음) 값이 string 이 아니면 제외.
+ * - **키가 실제 favorites 에 존재하는 것만** 보존(즐겨찾기에서 빠진 고아 라벨 제거).
+ * - 빈 문자열 라벨은 "별칭 없음"과 동일하므로 보존하지 않는다(UI basename 폴백).
+ * 비파괴·구버전 호환: 구버전 `string[]`(라벨 없음) → 빈 맵 `{}`.
+ */
+function coerceFavoriteLabels(raw: unknown, favorites: readonly string[]): Record<string, string> {
+  const o = asObj(raw)
+  if (!o) return {}
+  const fav = new Set(favorites)
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(o)) {
+    if (!fav.has(key)) continue // 고아 키 제거(즐겨찾기에 없는 경로)
+    const v = o[key]
+    if (typeof v !== 'string' || v.length === 0) continue
+    out[key] = v
+  }
+  return out
+}
+
 function coerceSidebar(raw: unknown, recentLimit: number): SidebarSnapshot {
   const o = asObj(raw)
   const d = defaultSidebar()
   if (!o) return d
+  const favorites = asStrArray(o['favorites'])
   return {
-    favorites: asStrArray(o['favorites']),
+    favorites,
+    favoriteLabels: coerceFavoriteLabels(o['favoriteLabels'], favorites),
     // recentLimit 적용(최신 우선이 앞에 있다고 가정 — 앞에서 자른다).
     recent: asStrArray(o['recent']).slice(0, Math.max(0, recentLimit)),
     width: Math.max(120, asNum(o['width'], d.width)),
@@ -215,13 +250,22 @@ export function coerceSession(raw: unknown, recentLimit: number): SessionSnapsho
     : []
   const ui = asObj(o['ui'])
   const theme = ui?.['theme']
+  // J7: previewWidth — 유한수면 240~720 클램프, 아니면(누락/비유한수) 필드 생략(undefined)
+  //     → 복원 측이 기본 320 폴백. 구버전 세션(previewWidth 없음) 호환·비파괴.
+  const rawPreviewWidth = ui?.['previewWidth']
+  const previewWidth =
+    typeof rawPreviewWidth === 'number' && Number.isFinite(rawPreviewWidth)
+      ? Math.max(PREVIEW_WIDTH_MIN, Math.min(PREVIEW_WIDTH_MAX, rawPreviewWidth))
+      : undefined
   return {
     version: SESSION_SCHEMA_VERSION,
     windows,
     sidebar: coerceSidebar(o['sidebar'], recentLimit),
     ui: {
       theme: typeof theme === 'string' && THEME_MODES.has(theme as ThemeMode) ? (theme as ThemeMode) : 'system',
-      previewOpen: asBool(ui?.['previewOpen'], false)
+      previewOpen: asBool(ui?.['previewOpen'], false),
+      // 누락/비유한수면 키 생략(구버전 round-trip 동등 보존).
+      ...(previewWidth !== undefined ? { previewWidth } : {})
     }
   }
 }

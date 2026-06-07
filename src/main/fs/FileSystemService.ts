@@ -57,14 +57,83 @@ const PREVIEW_IMAGE_MIME: Readonly<Record<string, string>> = {
 }
 
 /**
+ * 확장자 → 구문강조 언어 코드(highlight.js 언어명, J6). 텍스트로 판정된 파일에만
+ * `PreviewData.lang` 으로 채운다. 미상은 undefined(렌더러 plain 폴백 또는 auto).
+ * highlight.js `lib/common` 에 포함되는 흔한 언어 위주(렌더러 트리셰이킹과 정합).
+ */
+const PREVIEW_CODE_LANG: Readonly<Record<string, string>> = {
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  mts: 'typescript',
+  cts: 'typescript',
+  json: 'json',
+  jsonc: 'json',
+  css: 'css',
+  scss: 'scss',
+  less: 'less',
+  html: 'xml',
+  htm: 'xml',
+  xml: 'xml',
+  svg: 'xml',
+  vue: 'xml',
+  py: 'python',
+  rb: 'ruby',
+  go: 'go',
+  rs: 'rust',
+  java: 'java',
+  kt: 'kotlin',
+  cs: 'csharp',
+  c: 'c',
+  h: 'c',
+  cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  hxx: 'cpp',
+  php: 'php',
+  sh: 'bash',
+  bash: 'bash',
+  zsh: 'bash',
+  ps1: 'powershell',
+  bat: 'dos',
+  cmd: 'dos',
+  sql: 'sql',
+  yaml: 'yaml',
+  yml: 'yaml',
+  toml: 'ini',
+  ini: 'ini',
+  cfg: 'ini',
+  conf: 'ini',
+  dockerfile: 'dockerfile',
+  makefile: 'makefile',
+  md: 'markdown',
+  markdown: 'markdown',
+  swift: 'swift',
+  dart: 'dart',
+  scala: 'scala',
+  lua: 'lua',
+  r: 'r',
+  pl: 'perl',
+  groovy: 'groovy'
+}
+
+/**
  * 텍스트로 취급할 확장자(앞부분만 읽어 표시). 무확장자('')도 텍스트 시도 후
- * NUL 휴리스틱으로 바이너리면 unsupported 로 폴백한다.
+ * NUL 휴리스틱으로 바이너리면 unsupported 로 폴백한다. J6 으로 코드 확장자 다수 확대.
  */
 const PREVIEW_TEXT_EXTS: ReadonlySet<string> = new Set([
-  'txt', 'md', 'markdown', 'json', 'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'less',
-  'html', 'htm', 'xml', 'svg', 'csv', 'tsv', 'log', 'ini', 'cfg', 'conf', 'env',
-  'yaml', 'yml', 'toml', 'sh', 'bash', 'ps1', 'bat', 'cmd', 'py', 'rb', 'go', 'rs',
-  'c', 'h', 'cpp', 'hpp', 'cc', 'java', 'kt', 'cs', 'php', 'sql', 'gitignore', ''
+  'txt', 'md', 'markdown', 'rst', 'json', 'jsonc', 'js', 'jsx', 'mjs', 'cjs',
+  'ts', 'tsx', 'mts', 'cts', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'svg',
+  'vue', 'svelte', 'csv', 'tsv', 'log', 'ini', 'cfg', 'conf', 'env', 'properties',
+  'yaml', 'yml', 'toml', 'sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd', 'py', 'pyw',
+  'rb', 'go', 'rs', 'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hxx', 'java', 'kt',
+  'kts', 'cs', 'php', 'sql', 'swift', 'dart', 'scala', 'lua', 'r', 'pl', 'pm',
+  'groovy', 'gradle', 'dockerfile', 'makefile', 'gitignore', 'gitattributes',
+  'editorconfig', 'patch', 'diff', 'm', ''
 ])
 
 /** 진행 중인 스트림 1개의 핸들(취소 토큰). */
@@ -350,6 +419,9 @@ export class FileSystemService {
         return { kind: 'unsupported', name, path, size, mtime, ext, reason: '바이너리' }
       }
       const text = buf.toString('utf8')
+      // J6: 구문강조 언어 힌트(미상이면 생략) + 마크다운 여부(텍스트 kind 에만 채움).
+      const lang = PREVIEW_CODE_LANG[ext]
+      const isMarkdown = ext === 'md' || ext === 'markdown'
       return {
         kind: 'text',
         name,
@@ -358,6 +430,8 @@ export class FileSystemService {
         mtime,
         ext,
         text,
+        ...(lang ? { lang } : {}),
+        ...(isMarkdown ? { isMarkdown: true } : {}),
         ...(truncated ? { truncated: true } : {})
       }
     }

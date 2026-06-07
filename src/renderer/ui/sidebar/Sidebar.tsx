@@ -7,7 +7,7 @@
  *
  * 셀렉터 격리: 트리 노드 평탄 맵에서 자기 노드만 구독.
  */
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
@@ -96,22 +96,108 @@ const clearBtnStyle: React.CSSProperties = {
   textDecoration: 'underline'
 }
 
-/** 즐겨찾기 항목 1개(클릭=이동, ✕=제거). */
+/**
+ * 즐겨찾기 항목 1개(클릭=이동, ✎/더블클릭=별칭 편집, ✕=제거, J8).
+ * 표시 라벨 = 별칭(favoriteLabel) 우선, 없으면 basename. tooltip 은 fullPath 유지.
+ */
 function FavoriteRow({ path }: { path: string }): JSX.Element {
   const navigateActive = useNavigateActive()
   const removeFavorite = useRootStore((s) => s.removeFavorite)
+  const label = useRootStore((s) => s.favoriteLabels[path])
+  const setFavoriteLabel = useRootStore((s) => s.setFavoriteLabel)
   const activePath = useActivePanelPath()
   const selected = activePath === path
+  const [editing, setEditing] = useState(false)
+  const display = label && label.trim() !== '' ? label : baseName(path)
+
+  if (editing) {
+    return (
+      <FavoriteLabelInput
+        initial={label ?? ''}
+        onCommit={(v) => {
+          setFavoriteLabel(path, v)
+          setEditing(false)
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    )
+  }
+
   return (
     <PinnedRow
       icon="📂"
-      label={baseName(path)}
+      label={display}
       fullPath={path}
       selected={selected}
       onClick={() => navigateActive(path)}
+      onDoubleClick={() => setEditing(true)}
+      onRename={() => setEditing(true)}
+      renameLabel="이름변경(별칭)"
       onRemove={() => removeFavorite(path)}
       removeLabel="즐겨찾기 제거"
     />
+  )
+}
+
+/** 즐겨찾기 별칭 인라인 편집 input(Enter=커밋, Esc=취소, blur=커밋, J8). */
+function FavoriteLabelInput({
+  initial,
+  onCommit,
+  onCancel
+}: {
+  initial: string
+  onCommit: (value: string) => void
+  onCancel: () => void
+}): JSX.Element {
+  const [value, setValue] = useState(initial)
+  const ref = useRef<HTMLInputElement | null>(null)
+  const committedRef = useRef(false)
+
+  useEffect(() => {
+    ref.current?.focus()
+    ref.current?.select()
+  }, [])
+
+  function commit(): void {
+    if (committedRef.current) return
+    committedRef.current = true
+    onCommit(value)
+  }
+
+  return (
+    <div style={{ padding: '2px 8px' }}>
+      <input
+        ref={ref}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            committedRef.current = true
+            onCancel()
+          }
+        }}
+        onBlur={commit}
+        spellCheck={false}
+        aria-label="즐겨찾기 별칭 편집"
+        placeholder="별칭(빈 값=기본 이름)"
+        style={{
+          width: '100%',
+          height: 22,
+          boxSizing: 'border-box',
+          border: `1px solid ${tokens.color.accentBorder}`,
+          borderRadius: 3,
+          padding: '0 6px',
+          fontSize: 12,
+          fontFamily: tokens.font,
+          outline: 'none'
+        }}
+      />
+    </div>
   )
 }
 
@@ -142,6 +228,20 @@ interface PinnedRowProps {
   onClick: () => void
   onRemove: () => void
   removeLabel: string
+  /** 더블클릭 핸들러(즐겨찾기 별칭 편집 진입, J8). 없으면 미설정. */
+  onDoubleClick?: () => void
+  /** ✎ 이름변경 버튼 핸들러(있으면 버튼 표시, J8). */
+  onRename?: () => void
+  renameLabel?: string
+}
+
+const rowIconBtnStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  color: tokens.color.textMuted,
+  fontSize: 11,
+  flex: '0 0 auto'
 }
 
 function PinnedRow({
@@ -151,11 +251,15 @@ function PinnedRow({
   selected,
   onClick,
   onRemove,
-  removeLabel
+  removeLabel,
+  onDoubleClick,
+  onRename,
+  renameLabel
 }: PinnedRowProps): JSX.Element {
   return (
     <div
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       title={fullPath}
       style={{
         display: 'flex',
@@ -170,6 +274,19 @@ function PinnedRow({
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {label}
       </span>
+      {onRename && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRename()
+          }}
+          aria-label={renameLabel ?? '이름변경'}
+          title={renameLabel ?? '이름변경'}
+          style={rowIconBtnStyle}
+        >
+          ✎
+        </button>
+      )}
       <button
         onClick={(e) => {
           e.stopPropagation()
@@ -177,14 +294,7 @@ function PinnedRow({
         }}
         aria-label={removeLabel}
         title={removeLabel}
-        style={{
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          color: tokens.color.textMuted,
-          fontSize: 11,
-          flex: '0 0 auto'
-        }}
+        style={rowIconBtnStyle}
       >
         ✕
       </button>

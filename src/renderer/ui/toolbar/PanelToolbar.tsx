@@ -8,6 +8,7 @@
  * ui → app(store·infra 경유는 store 액션). 단, 경로 검증은 app usecase 로 위임.
  */
 import { useEffect, useRef, useState } from 'react'
+import type { ViewMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
@@ -216,25 +217,27 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
         )}
       </div>
 
-      {/* 보기 전환 */}
-      <div style={{ display: 'flex', gap: 2 }}>
-        <button
-          style={{ ...btnStyle, background: view?.viewMode === 'details' ? tokens.color.bgSelected : tokens.color.bg }}
-          onClick={() => setViewMode(panelId, 'details')}
-          title="상세 보기"
-          aria-label="상세 보기"
-        >
-          ☰
-        </button>
-        <button
-          style={{ ...btnStyle, background: view?.viewMode === 'list' ? tokens.color.bgSelected : tokens.color.bg }}
-          onClick={() => setViewMode(panelId, 'list')}
-          title="리스트 보기"
-          aria-label="리스트 보기"
-        >
-          ≣
-        </button>
-      </div>
+      {/* 보기 전환(5종 드롭다운, J4) */}
+      <select
+        value={view?.viewMode ?? 'details'}
+        onChange={(e) => setViewMode(panelId, e.target.value as ViewMode)}
+        title="보기"
+        aria-label="보기"
+        style={{
+          height: 24,
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: 4,
+          fontSize: 12,
+          background: tokens.color.bg,
+          color: tokens.color.text
+        }}
+      >
+        <option value="icons-large">큰 아이콘</option>
+        <option value="icons-medium">보통 아이콘</option>
+        <option value="icons-small">작은 아이콘</option>
+        <option value="list">목록</option>
+        <option value="details">자세히</option>
+      </select>
 
       {/* 정렬 드롭다운(간이) */}
       <select

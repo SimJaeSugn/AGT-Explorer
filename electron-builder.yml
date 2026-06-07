@@ -1,8 +1,8 @@
 # 패키징/인스톨러 설정 (ADR-006, directory-structure §4)
 # 1차 타깃: Windows 10/11 x64, NSIS 인스톨러.
-appId: com.explorer.app
-productName: Explorer
-copyright: Copyright © 2026 Explorer Team
+appId: com.agtfinder.app
+productName: AGT-Finder
+copyright: Copyright © 2026 AGT-Finder Team
 
 directories:
   output: dist
@@ -29,7 +29,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Explorer
+  shortcutName: AGT-Finder
 
 # 로컬 전용 앱 — 자동 업데이트 게시 비활성(향후 도입)
 publish: null

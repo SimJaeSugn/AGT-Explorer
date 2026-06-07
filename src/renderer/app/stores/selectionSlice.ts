@@ -13,9 +13,15 @@ import {
   emptySelection,
   modeFromModifiers,
   selectAll as selectAllSel,
+  selectIndices,
+  toggleIndices,
+  unionIndices,
   type SelectionState
 } from '@renderer/domain/rules/selection'
 import type { SliceCreator } from './types'
+
+/** 박스 선택 합성 모드(러버밴드). */
+export type BoxSelectMode = 'replace' | 'add' | 'toggle'
 
 export interface SelectionSlice {
   /** panelId → SelectionState. */
@@ -23,6 +29,11 @@ export interface SelectionSlice {
 
   /** 패널의 선택 상태 초기화(패널 추가/경로 이동 시). */
   resetSelection(panelId: string): void
+  /**
+   * 보존 복원용 통째 교체(anchorIndex + selectedPaths 직접 주입). ADR-002 규약.
+   * 워처발 갱신 시 panelsSlice._applyPreserve 가 교집합 selection 을 주입한다.
+   */
+  setSelection(panelId: string, next: SelectionState): void
   /** 패널 선택 상태 제거(패널 삭제 시). */
   dropSelection(panelId: string): void
   /** 클릭(수정자 포함) → 선택 갱신. visiblePaths 는 화면 순서. */
@@ -39,6 +50,18 @@ export interface SelectionSlice {
   moveSelect(panelId: string, visiblePaths: readonly string[], index: number): void
   /** 선택 해제. */
   clearSelection(panelId: string): void
+  /**
+   * 박스 선택(러버밴드, J1) 결과 반영. indices=사각형과 교차한 항목 인덱스.
+   * mode: 'replace'(기본) | 'add'(Ctrl, base 에 합집합) | 'toggle'(Shift, base 토글).
+   * base 는 드래그 시작 시점 스냅샷(미지정 시 현재 선택).
+   */
+  boxSelect(
+    panelId: string,
+    visiblePaths: readonly string[],
+    indices: readonly number[],
+    mode: BoxSelectMode,
+    base?: SelectionState
+  ): void
 }
 
 export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => ({
@@ -47,6 +70,12 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
   resetSelection(panelId) {
     set((s) => {
       s.selection[panelId] = emptySelection
+    })
+  },
+
+  setSelection(panelId, next) {
+    set((s) => {
+      s.selection[panelId] = next
     })
   },
 
@@ -83,6 +112,17 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
   clearSelection(panelId) {
     set((s) => {
       s.selection[panelId] = clearSel()
+    })
+  },
+
+  boxSelect(panelId, visiblePaths, indices, mode, base) {
+    const baseSel = base ?? get().selection[panelId] ?? emptySelection
+    let next: SelectionState
+    if (mode === 'add') next = unionIndices(baseSel, visiblePaths, indices)
+    else if (mode === 'toggle') next = toggleIndices(baseSel, visiblePaths, indices)
+    else next = selectIndices(visiblePaths, indices)
+    set((s) => {
+      s.selection[panelId] = next
     })
   }
 })

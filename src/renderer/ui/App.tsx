@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { initOperationsBridge } from '@renderer/app/usecases/operationsBridge'
 import { initScanBridge } from '@renderer/app/usecases/dashboard'
+import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -35,6 +36,8 @@ import { tokens } from '@renderer/ui/theme/tokens'
 export function App(): JSX.Element {
   const toggleShortcutHelp = useRootStore((s) => s.toggleShortcutHelp)
   const bootedRef = useRef(false)
+  // J7: 미리보기 폭 SplitDivider 의 비율→px 환산 기준(본문 row 컨테이너).
+  const bodyRef = useRef<HTMLDivElement | null>(null)
 
   // 드래그 중 수정키 실시간 추적 + Esc 취소.
   useDragController()
@@ -43,6 +46,8 @@ export function App(): JSX.Element {
   useEffect(() => {
     initOperationsBridge()
     initScanBridge()
+    // J2: 좌/우 패널 현재 디렉토리 실시간 감시 브리지(전역 1회 구독).
+    initWatchBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독
@@ -92,10 +97,10 @@ export function App(): JSX.Element {
       <KeyboardDispatcher />
       <TabBar />
       <IconBar />
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div ref={bodyRef} style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <Sidebar />
         <LayoutHost />
-        <PreviewPanel />
+        <PreviewPanel containerRef={bodyRef} />
       </div>
       <StatusBar />
       <ShortcutHelp />

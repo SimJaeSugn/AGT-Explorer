@@ -77,6 +77,12 @@ export interface Panel {
   readonly directory: DirectoryView
   readonly filter: FilterState
   readonly scrollTop: number
+  /**
+   * 워처발 갱신(softRefresh) 시 1회성 스크롤 복원 값(휘발 — 세션 직렬화 제외).
+   * `_applyPreserve` 가 set, FileListView 가 status==='ready'+높이 확정 시 1회 소비 후 null.
+   * null 이면 복원 안 함(평상시·navigate·세션복원). buildSessionSnapshot 허용목록 추가 금지.
+   */
+  readonly pendingScrollRestore: number | null
 }
 
 /**

@@ -100,6 +100,8 @@ export interface UiSlice {
   // P6 미리보기 / 워크스페이스 ────────────────────────────────────────────
   /** 미리보기 패널 열림 여부(기본 false, Ctrl+P 토글, US-4.3). 세션 복원 대상. */
   readonly previewOpen: boolean
+  /** 미리보기 패널 폭(px, 기본 320, 클램프 240~720, J7). 세션 복원 대상. */
+  readonly previewWidth: number
   /** 워크스페이스 관리 다이얼로그 열림 여부(US-5.8). */
   readonly workspaceOpen: boolean
 
@@ -153,6 +155,8 @@ export interface UiSlice {
   togglePreview(): void
   /** 미리보기 패널 열림 상태 직접 설정(세션 복원). */
   setPreviewOpen(v: boolean): void
+  /** 미리보기 패널 폭 설정(클램프 240~720, J7). 세션 복원·드래그·더블클릭 복귀. */
+  setPreviewWidth(px: number): void
   /** 워크스페이스 관리 다이얼로그 열기/닫기(열림 시 inputContext='dialog'). */
   openWorkspace(): void
   closeWorkspace(): void
@@ -198,6 +202,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   dashboardOpen: false,
   showDashboardOnStartup: true,
   previewOpen: false,
+  previewWidth: 320,
   workspaceOpen: false,
   clipboardHasFiles: false,
 
@@ -297,6 +302,13 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setPreviewOpen(v) {
     set((s) => {
       s.previewOpen = v
+    })
+  },
+
+  setPreviewWidth(px) {
+    set((s) => {
+      const clamped = Math.max(240, Math.min(720, Math.round(px)))
+      s.previewWidth = Number.isFinite(clamped) ? clamped : 320
     })
   },
 

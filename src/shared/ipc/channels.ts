@@ -84,7 +84,16 @@ export const CHANNELS = {
   ANALYZE_SCAN_PROGRESS: 'analyze:scan:progress', // 푸시 evt
   ANALYZE_SCAN_DONE: 'analyze:scan:done', // 푸시 evt
   ANALYZE_SCAN_ERROR: 'analyze:scan:error', // 푸시 evt
-  ANALYZE_SCAN_CANCEL: 'analyze:scan:cancel' // invoke → Result<void>
+  ANALYZE_SCAN_CANCEL: 'analyze:scan:cancel', // invoke → Result<void>
+
+  // ── fs:watch:* 디렉토리 실시간 감시 ─ 신규(J장 J2) ───────────────────
+  // 패널이 보는 **현재 디렉토리 1개**를 non-recursive 로 감시(watchId 상관).
+  // 디바운스·병합된 "변경됨" 신호만 보내고 증분은 전송하지 않는다(렌더러 re-list).
+  // 핸들러/WatchService impl: J장 다음 단계(여기선 계약 동결만).
+  FS_WATCH_START: 'fs:watch:start', // invoke → Result<{ watchId }> (단일 디렉토리 감시 시작)
+  FS_WATCH_EVENT: 'fs:watch:event', // 푸시 evt (디바운스·병합된 변경 알림)
+  FS_WATCH_STOP: 'fs:watch:stop', // invoke → Result<void> (경로 이동·언마운트 시 중지)
+  FS_WATCH_ERROR: 'fs:watch:error' // 푸시 evt (권한·네트워크·미지원 드라이브 감시 실패 격리)
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -103,7 +112,10 @@ export const EVENT_CHANNELS = [
   // analyze:scan:* 푸시 evt (신규 I장)
   CHANNELS.ANALYZE_SCAN_PROGRESS,
   CHANNELS.ANALYZE_SCAN_DONE,
-  CHANNELS.ANALYZE_SCAN_ERROR
+  CHANNELS.ANALYZE_SCAN_ERROR,
+  // fs:watch:* 푸시 evt (신규 J장 J2)
+  CHANNELS.FS_WATCH_EVENT,
+  CHANNELS.FS_WATCH_ERROR
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

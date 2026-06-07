@@ -1,7 +1,7 @@
 /**
  * 파일 작업 유스케이스 (app/usecases/fileOps) — op:* 시작·취소·충돌해소·생성·이름변경.
  *
- * roadmap P4(frontend): Ctrl+C/X/V·F5/F6·Delete/Shift+Delete·Ctrl+Shift+N·F2·D&D 가
+ * roadmap P4(frontend): Ctrl+C/X/V·Delete/Shift+Delete·Ctrl+Shift+N·F2·D&D 가
  * 모두 여기를 거쳐 같은 op:start 경로로 진입한다(SA §8: 마우스/키보드 일관).
  *
  * 경계: app → infra/api(opApi·clipboardApi·dialogApi·fsApi) 직접 호출(.eslintrc 허용).
@@ -24,7 +24,8 @@ export interface PanelPaths {
 }
 
 /**
- * 활성 탭에서 활성 패널과 "다른 패널"(F5/F6 대상)의 경로를 산출한다.
+ * 활성 탭에서 활성 패널과 "다른 패널"의 경로를 산출한다.
+ * clipboard/trash/delete/rename/newFolder 등 다수 호출처 공용(activePath 사용).
  * 2분할에서 다른 패널 = 활성 외 첫 패널. 단일 패널이면 other 는 undefined.
  * grid-4(2x2)에서는 결정성을 위해 **같은 행의 반대 열**(인덱스 activeIdx ^ 1:
  * 0↔1, 2↔3) 패널을 대상으로 한다([중대-1]). 비정상 상태면 활성 외 첫 패널로 폴백.
@@ -122,38 +123,6 @@ export async function startOperation(
   return res.value.operationId
 }
 
-/** F5: 활성 패널 선택을 다른 패널로 복사. */
-export async function copyToOtherPanel(): Promise<void> {
-  const { activePanelId, otherPath, activePath } = panelPaths()
-  const s = store.getState()
-  if (!activePanelId || otherPath === undefined) {
-    s.pushToast('info', '복사하려면 패널을 2분할하세요(Ctrl+\\).')
-    return
-  }
-  const sources = selectedPaths(activePanelId)
-  if (sources.length === 0) {
-    s.pushToast('info', '복사할 항목을 선택하세요.')
-    return
-  }
-  await startOperation('copy', sources, otherPath, [otherPath, activePath ?? ''])
-}
-
-/** F6: 활성 패널 선택을 다른 패널로 이동. */
-export async function moveToOtherPanel(): Promise<void> {
-  const { activePanelId, otherPath, activePath } = panelPaths()
-  const s = store.getState()
-  if (!activePanelId || otherPath === undefined) {
-    s.pushToast('info', '이동하려면 패널을 2분할하세요(Ctrl+\\).')
-    return
-  }
-  const sources = selectedPaths(activePanelId)
-  if (sources.length === 0) {
-    s.pushToast('info', '이동할 항목을 선택하세요.')
-    return
-  }
-  await startOperation('move', sources, otherPath, [otherPath, activePath ?? ''])
-}
-
 /** Ctrl+C: 활성 패널 선택을 OS 클립보드에 복사. */
 export async function clipboardCopy(): Promise<void> {
   const { activePanelId } = panelPaths()
@@ -182,7 +151,7 @@ export async function clipboardCut(): Promise<void> {
  * Ctrl+V: 활성 패널 경로로 붙여넣기. Main 이 클립보드 effect(copy/cut)에 따라
  * op(copy|move)를 시작하고 operationId 를 반환한다(pasteTarget → OpStartRes).
  *
- * BUG-001: F5/F6/D&D 와 동일하게, 반환된 operationId 를 operationsSlice 에
+ * BUG-001: D&D 와 동일하게, 반환된 operationId 를 operationsSlice 에
  * registerOperation 으로 등록한다. 그래야 op:progress→ProgressDialog,
  * op:conflict→ConflictDialog, op:done→패널 새로고침 브리지가 작동한다
  * (등록 누락 시 충돌 다이얼로그가 안 떠 resolve 불가 → 무한 hang).

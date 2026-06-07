@@ -208,6 +208,19 @@ export interface PreviewReadReq {
   readonly path: string
 }
 
+// ── fs:watch:* (신규 J장 J2 — 디렉토리 실시간 감시, 계약만 동결) ───────
+/** 패널이 현재 보고 있는 디렉토리 1개를 non-recursive 로 감시. */
+export interface FsWatchStartReq {
+  readonly path: string
+}
+export interface FsWatchStartRes {
+  /** 이후 event/error 이벤트를 묶는 감시 ID(streamId 동형). */
+  readonly watchId: string
+}
+export interface FsWatchStopReq {
+  readonly watchId: string
+}
+
 // ── analyze:scan:* (신규 I장 — Top10 스캔, 계약만 동결) ────────────────
 export interface AnalyzeScanStartReq {
   /** 스캔 대상 폴더 또는 드라이브 경로(루트). */
@@ -289,6 +302,10 @@ export interface IpcRequestMap {
   // analyze:scan:* (신규 I장 — 계약만 동결)
   [CHANNELS.ANALYZE_SCAN_START]: { req: AnalyzeScanStartReq; res: Result<AnalyzeScanStartRes> }
   [CHANNELS.ANALYZE_SCAN_CANCEL]: { req: AnalyzeScanCancelReq; res: Result<void> }
+
+  // fs:watch:* (신규 J장 J2 — 계약만 동결, 핸들러 impl: 다음 단계)
+  [CHANNELS.FS_WATCH_START]: { req: FsWatchStartReq; res: Result<FsWatchStartRes> }
+  [CHANNELS.FS_WATCH_STOP]: { req: FsWatchStopReq; res: Result<void> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -338,6 +355,19 @@ export interface ScanErrorEvt {
   readonly error: FileOpError
 }
 
+// ── fs:watch:* 변경/오류 이벤트 (신규 J장 J2, 계약만 동결) ─────────────
+/** 디바운스·병합된 변경 알림. 증분 항목 목록은 보내지 않고 "변경됨" 신호만 — 렌더러가 해당 패널 re-list. */
+export interface FsWatchEvt {
+  readonly watchId: string
+  /** 감시 대상(현재) 경로(상관·검증용). 소비측은 watchId 상관으로 해당 패널 refresh. */
+  readonly path: string
+}
+export interface FsWatchErrorEvt {
+  readonly watchId: string
+  /** EACCES/EPERM/ENOENT/ENOTSUP/EUNKNOWN — 감시 불가(격리, 수동 새로고침 유지). */
+  readonly error: FileOpError
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -353,6 +383,10 @@ export interface IpcEventMap {
   [CHANNELS.ANALYZE_SCAN_PROGRESS]: ScanProgressEvt
   [CHANNELS.ANALYZE_SCAN_DONE]: ScanDoneEvt
   [CHANNELS.ANALYZE_SCAN_ERROR]: ScanErrorEvt
+
+  // fs:watch:* 푸시 evt (신규 J장 J2, 계약만 동결)
+  [CHANNELS.FS_WATCH_EVENT]: FsWatchEvt
+  [CHANNELS.FS_WATCH_ERROR]: FsWatchErrorEvt
 }
 
 export type EventChannel = keyof IpcEventMap

@@ -33,6 +33,10 @@ import type {
   FsStatReq,
   FsTreeChildrenReq,
   FsValidatePathReq,
+  FsWatchStartReq,
+  FsWatchStartRes,
+  FsWatchEvt,
+  FsWatchErrorEvt,
   OpConflictEvt,
   OpDoneEvt,
   OpProgressEvt,
@@ -77,7 +81,14 @@ export const fsApi = {
   mkdir: (req: FsMkdirReq): Promise<Result<FileEntryDTO>> => bridge().fs.mkdir(req),
   createFile: (req: FsCreateFileReq): Promise<Result<FileEntryDTO>> =>
     bridge().fs.createFile(req),
-  rename: (req: FsRenameReq): Promise<Result<FileEntryDTO>> => bridge().fs.rename(req)
+  rename: (req: FsRenameReq): Promise<Result<FileEntryDTO>> => bridge().fs.rename(req),
+
+  // ── fs:watch:* 디렉토리 실시간 감시 (J2 — 핸들러 impl: J장 다음 단계) ──────
+  /** fs:watch:start — 현재 디렉토리 1개 non-recursive 감시 시작(watchId 발급). */
+  watchStart: (req: FsWatchStartReq): Promise<Result<FsWatchStartRes>> =>
+    bridge().fs.watchStart(req),
+  /** fs:watch:stop — 경로 이동·언마운트 시 감시 중지. */
+  watchStop: (watchId: string): Promise<Result<void>> => bridge().fs.watchStop({ watchId })
 }
 
 /**
@@ -186,6 +197,24 @@ export function subscribeScanStream(h: ScanStreamHandlers): Unsubscribe {
   return () => {
     offProgress()
     offDone()
+    offError()
+  }
+}
+
+// ── fs:watch:* 어댑터 (J2: 패널 현재 디렉토리 실시간 감시) ────────────────
+// 핸들러/WatchService impl 은 J장 다음 단계. 여기서는 raw 이벤트 구독만 노출하고,
+// watchId 상관(필터)·panelId 매핑은 소비측(watchBridge)에서 수행한다(subscribeScanStream 동형).
+export interface WatchStreamHandlers {
+  onEvent: (evt: FsWatchEvt) => void
+  onError: (evt: FsWatchErrorEvt) => void
+}
+
+export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offEvent = api.fs.onWatchEvent((evt) => h.onEvent(evt))
+  const offError = api.fs.onWatchError((evt) => h.onError(evt))
+  return () => {
+    offEvent()
     offError()
   }
 }

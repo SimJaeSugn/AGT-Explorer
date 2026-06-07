@@ -3,6 +3,8 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow } from './windows/mainWindow'
 import { registerIpcHandlers } from './ipc'
 import { initPersistence, sessionStore } from './persistence'
+import { watchService } from './fs/WatchService'
+import { driveTypeService } from './os/driveType'
 
 // ── 단일 인스턴스 락 (PRD §7, ADR-005) ──────────────────────────────
 // 두 번째 실행 시도는 즉시 종료하고, 첫 인스턴스의 창을 포커스한다.
@@ -24,6 +26,8 @@ if (!gotTheLock) {
   // 비정상 종료(크래시)는 변경 시점마다의 디바운스 저장으로 직전 상태가 이미 남는다.
   let quitFlushed = false
   app.on('before-quit', (e) => {
+    // 종료 직전 모든 FS 워처 핸들 해제(좀비 핸들 0 — J2). 멱등.
+    watchService.stopAll()
     if (quitFlushed) return
     try {
       if (!sessionStore().hasPending()) return
@@ -41,7 +45,7 @@ if (!gotTheLock) {
   })
 
   app.whenReady().then(async () => {
-    electronApp.setAppUserModelId('com.explorer.app')
+    electronApp.setAppUserModelId('com.agtfinder.app')
 
     // 영속 store 초기화(userData) — IPC 핸들러 등록 전에 끝낸다(SA §5.2).
     await initPersistence(app.getPath('userData'))
@@ -74,6 +78,10 @@ if (!gotTheLock) {
 
     mainWindow = createMainWindow()
 
+    // 매핑 네트워크 드라이브 문자 캐시 1회 비동기 수집(J2). non-blocking — PowerShell 콜드스타트가
+    // 부팅을 차단하지 않는다(trigger-and-forget). 실패해도 서비스 내부 격리(throw 0) → 부팅 영향 0.
+    void driveTypeService.refresh()
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createMainWindow()
@@ -82,6 +90,8 @@ if (!gotTheLock) {
   })
 
   app.on('window-all-closed', () => {
+    // 창이 모두 닫히면 남은 워처 핸들을 해제(누수 방지, before-quit 보강).
+    watchService.stopAll()
     if (process.platform !== 'darwin') {
       app.quit()
     }

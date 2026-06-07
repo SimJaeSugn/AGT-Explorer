@@ -26,6 +26,11 @@ import type {
   FsStatReq,
   FsTreeChildrenReq,
   FsValidatePathReq,
+  FsWatchStartReq,
+  FsWatchStartRes,
+  FsWatchStopReq,
+  FsWatchEvt,
+  FsWatchErrorEvt,
   OpCancelReq,
   OpConflictEvt,
   OpDoneEvt,
@@ -114,6 +119,12 @@ export interface ExplorerApi {
     mkdir(req: FsMkdirReq): Promise<Result<FileEntryDTO>>
     createFile(req: FsCreateFileReq): Promise<Result<FileEntryDTO>>
     rename(req: FsRenameReq): Promise<Result<FileEntryDTO>>
+
+    // ── fs:watch:* 디렉토리 실시간 감시 (타입만 노출, 핸들러 impl: J장 다음 단계) ─
+    watchStart(req: FsWatchStartReq): Promise<Result<FsWatchStartRes>>
+    watchStop(req: FsWatchStopReq): Promise<Result<void>>
+    onWatchEvent(cb: (evt: FsWatchEvt) => void): Unsubscribe
+    onWatchError(cb: (evt: FsWatchErrorEvt) => void): Unsubscribe
   }
 
   // ── shell:* (타입만 노출, impl: P2/P4/P6) ──────────────────────
@@ -208,7 +219,12 @@ export const api: ExplorerApi = {
 
     mkdir: (req) => invoke(CHANNELS.FS_MKDIR, req),
     createFile: (req) => invoke(CHANNELS.FS_CREATE_FILE, req),
-    rename: (req) => invoke(CHANNELS.FS_RENAME, req)
+    rename: (req) => invoke(CHANNELS.FS_RENAME, req),
+
+    watchStart: (req) => invoke(CHANNELS.FS_WATCH_START, req),
+    watchStop: (req) => invoke(CHANNELS.FS_WATCH_STOP, req),
+    onWatchEvent: (cb) => subscribe(CHANNELS.FS_WATCH_EVENT, cb),
+    onWatchError: (cb) => subscribe(CHANNELS.FS_WATCH_ERROR, cb)
   },
 
   shell: {

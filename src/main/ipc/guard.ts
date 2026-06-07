@@ -158,3 +158,8 @@ export const zWorkspaceDeleteReq = z.object({ name: z.string().min(1).max(120) }
 // root 는 guardPath 로 정규화·상위이탈 차단 후 핸들러가 stat 으로 디렉토리 검증.
 export const zAnalyzeScanStartReq = z.object({ root: zPath })
 export const zAnalyzeScanCancelReq = z.object({ scanId: z.string().min(1) })
+
+// ── J장 J2: fs:watch:* (현재 디렉토리 non-recursive 실시간 감시) ────────────
+// path 는 guardPath 로 정규화·상위이탈 차단 후 WatchService 가 stat 으로 디렉토리 검증.
+export const zFsWatchStartReq = z.object({ path: zPath })
+export const zFsWatchStopReq = z.object({ watchId: z.string().min(1) })

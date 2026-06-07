@@ -15,7 +15,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
-    title: 'Explorer',
+    title: 'AGT-Finder',
     // 패키징 시엔 exe 에 임베드된 아이콘(electron-builder win.icon)을 쓰므로 생략.
     // dev 에선 resources/icon.png 로 창/작업표시줄 아이콘을 표시한다.
     ...(is.dev ? { icon: join(__dirname, '../../resources/icon.png') } : {}),

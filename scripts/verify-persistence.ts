@@ -25,8 +25,9 @@ import type { SessionSnapshot, SettingsSnapshot } from '@shared/dto'
 import { SessionStore } from '../src/main/persistence/SessionStore'
 import { SettingsStore } from '../src/main/persistence/SettingsStore'
 import { persistencePaths } from '../src/main/persistence/paths'
-import { defaultSettings } from '../src/main/persistence/defaults'
+import { coerceSession, defaultSettings, defaultSidebar } from '../src/main/persistence/defaults'
 import { readJsonSafe, writeJsonAtomic } from '../src/main/persistence/atomic'
+import { fileSystemService } from '../src/main/fs/FileSystemService'
 
 function line(s: string): void {
   // eslint-disable-next-line no-console
@@ -90,8 +91,17 @@ function sampleSession(): SessionSnapshot {
         activeTabId: 'tab-1'
       }
     ],
-    sidebar: { favorites: ['C:\\fav'], recent: ['C:\\r1', 'C:\\r2'], width: 280, collapsed: false },
-    ui: { theme: 'dark', previewOpen: false }
+    // J8: favoriteLabels(별칭 맵) — coerce 가 favorites 에 있는 키만 보존하므로
+    // 라운드트립 동등을 위해 키 'C:\\fav'(favorites 에 존재)에 라벨을 둔다.
+    // J7: ui.previewWidth(범위 내 240~720) — coerce 가 보존하므로 round-trip 포함.
+    sidebar: {
+      favorites: ['C:\\fav'],
+      favoriteLabels: { 'C:\\fav': '즐겨찾기' },
+      recent: ['C:\\r1', 'C:\\r2'],
+      width: 280,
+      collapsed: false
+    },
+    ui: { theme: 'dark', previewOpen: false, previewWidth: 360 }
   }
 }
 
@@ -163,7 +173,9 @@ async function main(): Promise<void> {
   check('panel[0].scrollTop 복원', back.windows[0].tabs[0].panels[0].scrollTop === 420)
   check('history.back 복원', back.windows[0].tabs[0].panels[0].history.back[0] === 'C:\\Users\\me')
   check('sidebar.favorites 복원', back.sidebar.favorites[0] === 'C:\\fav')
+  check('sidebar.favoriteLabels 복원(J8)', back.sidebar.favoriteLabels?.['C:\\fav'] === '즐겨찾기')
   check('ui.theme 복원', back.ui.theme === 'dark')
+  check('ui.previewWidth 복원(J7)', back.ui.previewWidth === 360)
   check(
     'splitRatios 정상 비율 보존(0.5/0.3)',
     back.windows[0].tabs[0].splitRatios?.col === 0.5 && back.windows[0].tabs[0].splitRatios?.row === 0.3
@@ -333,6 +345,103 @@ async function main(): Promise<void> {
   const tStore3 = new SettingsStore(paths)
   await tStore3.load()
   check('다시 false 로 복귀 영속', tStore3.isTelemetryOptIn() === false)
+
+  // ── 8) J8: coerceSidebar.favoriteLabels(고아 제거·값검증·구버전) ─────────
+  line('== 8) J8 favoriteLabels coerce(고아 제거/값검증/구버전 호환) ==')
+  const defSb = defaultSidebar()
+  check('defaultSidebar.favoriteLabels = {}', JSON.stringify(defSb.favoriteLabels) === '{}')
+
+  const cs8 = (sidebar: unknown): SessionSnapshot['sidebar'] =>
+    coerceSession(
+      {
+        version: 1,
+        windows: [],
+        sidebar,
+        ui: { theme: 'system', previewOpen: false }
+      },
+      10
+    ).sidebar
+
+  // 정상 라벨: favorites 에 있는 키만 보존.
+  const sbOk = cs8({ favorites: ['C:\\a', 'C:\\b'], favoriteLabels: { 'C:\\a': '문서', 'C:\\b': '작업' } })
+  check('favoriteLabels 정상 보존', sbOk.favoriteLabels?.['C:\\a'] === '문서' && sbOk.favoriteLabels?.['C:\\b'] === '작업')
+
+  // 고아 키 제거: favorites 에 없는 경로의 라벨은 버린다.
+  const sbOrphan = cs8({ favorites: ['C:\\a'], favoriteLabels: { 'C:\\a': '문서', 'C:\\gone': '고아' } })
+  check('고아 라벨(favorites 없음) 제거', sbOrphan.favoriteLabels?.['C:\\gone'] === undefined)
+  check('고아 제거 후 유효 라벨 보존', sbOrphan.favoriteLabels?.['C:\\a'] === '문서')
+
+  // 값 검증: 비문자열·빈 문자열 라벨 제거.
+  const sbBad = cs8({ favorites: ['C:\\a', 'C:\\b', 'C:\\c'], favoriteLabels: { 'C:\\a': 123, 'C:\\b': '', 'C:\\c': 'ok' } })
+  check('비문자열 라벨 제거', sbBad.favoriteLabels?.['C:\\a'] === undefined)
+  check('빈 문자열 라벨 제거', sbBad.favoriteLabels?.['C:\\b'] === undefined)
+  check('정상 문자열 라벨 보존', sbBad.favoriteLabels?.['C:\\c'] === 'ok')
+
+  // 구버전: favorites 만 있고 favoriteLabels 없음 → 빈 맵.
+  const sbLegacy = cs8({ favorites: ['C:\\a'] })
+  check('구버전(favoriteLabels 없음) → {}', JSON.stringify(sbLegacy.favoriteLabels) === '{}')
+
+  // favoriteLabels 가 비객체(배열/문자열) → {} 폴백(크래시 없음).
+  const sbNonObj = cs8({ favorites: ['C:\\a'], favoriteLabels: ['x'] })
+  check('favoriteLabels 비객체 → {}', JSON.stringify(sbNonObj.favoriteLabels) === '{}')
+
+  // ── 9) J7: coerceSession.ui.previewWidth(클램프 240~720·생략) ────────────
+  line('== 9) J7 previewWidth coerce(클램프/누락생략/비유한수) ==')
+  const cs9 = (ui: Record<string, unknown>): SessionSnapshot['ui'] =>
+    coerceSession({ version: 1, windows: [], sidebar: defaultSidebar(), ui }, 10).ui
+
+  const pwIn = cs9({ theme: 'system', previewOpen: false, previewWidth: 400 })
+  check('previewWidth 범위 내(400) 보존', pwIn.previewWidth === 400)
+  const pwLo = cs9({ theme: 'system', previewOpen: false, previewWidth: 100 })
+  check('previewWidth 하한 미만(100) → 240 클램프', pwLo.previewWidth === 240)
+  const pwHi = cs9({ theme: 'system', previewOpen: false, previewWidth: 9999 })
+  check('previewWidth 상한 초과(9999) → 720 클램프', pwHi.previewWidth === 720)
+  const pwNan = cs9({ theme: 'system', previewOpen: false, previewWidth: Number.NaN })
+  check('previewWidth NaN → 키 생략(undefined)', pwNan.previewWidth === undefined && !('previewWidth' in pwNan))
+  const pwStr = cs9({ theme: 'system', previewOpen: false, previewWidth: '300' })
+  check('previewWidth 문자열 → 키 생략', pwStr.previewWidth === undefined)
+  const pwMissing = cs9({ theme: 'system', previewOpen: false })
+  check('previewWidth 누락(구버전) → 키 생략', pwMissing.previewWidth === undefined && !('previewWidth' in pwMissing))
+  // 경계값.
+  check('previewWidth 경계 240 보존', cs9({ theme: 'system', previewOpen: false, previewWidth: 240 }).previewWidth === 240)
+  check('previewWidth 경계 720 보존', cs9({ theme: 'system', previewOpen: false, previewWidth: 720 }).previewWidth === 720)
+
+  // ── 10) J6: readPreview lang/isMarkdown(텍스트 분기 힌트) ────────────────
+  line('== 10) J6 readPreview lang/isMarkdown(구문강조 언어/마크다운) ==')
+  const jbase = await fsp.mkdtemp(join(os.tmpdir(), 'explorer-jpreview-'))
+  const mkPrev = async (name: string, content: string): Promise<import('@shared/dto').PreviewData> => {
+    const p = join(jbase, name)
+    await fsp.writeFile(p, content, 'utf8')
+    return fileSystemService.readPreview(p)
+  }
+  const rTs = await mkPrev('a.ts', 'const x: number = 1')
+  check('.ts → kind=text, lang=typescript', rTs.kind === 'text' && rTs.lang === 'typescript')
+  check('.ts → isMarkdown 미설정', rTs.isMarkdown !== true)
+  const rJs = await mkPrev('a.js', 'const x = 1')
+  check('.js → lang=javascript', rJs.lang === 'javascript')
+  const rPy = await mkPrev('a.py', 'x = 1')
+  check('.py → lang=python', rPy.lang === 'python')
+  const rGo = await mkPrev('a.go', 'package main')
+  check('.go → lang=go', rGo.lang === 'go')
+  const rRs = await mkPrev('a.rs', 'fn main() {}')
+  check('.rs → lang=rust', rRs.lang === 'rust')
+  const rPs1 = await mkPrev('a.ps1', 'Write-Host hi')
+  check('.ps1 → lang=powershell', rPs1.lang === 'powershell')
+  const rMd = await mkPrev('a.md', '# Title\n\ntext')
+  check('.md → kind=text, isMarkdown=true', rMd.kind === 'text' && rMd.isMarkdown === true)
+  check('.md → lang=markdown', rMd.lang === 'markdown')
+  const rMarkdown = await mkPrev('a.markdown', '# T')
+  check('.markdown → isMarkdown=true', rMarkdown.isMarkdown === true)
+  const rTxt2 = await mkPrev('plain.txt', 'just text')
+  check('.txt → lang 미설정(plain)', rTxt2.kind === 'text' && rTxt2.lang === undefined)
+  check('.txt → isMarkdown 미설정', rTxt2.isMarkdown !== true)
+  const rNoextJ = await mkPrev('LICENSE', 'no ext')
+  check('무확장자 → kind=text, lang 미설정', rNoextJ.kind === 'text' && rNoextJ.lang === undefined)
+  const rJson = await mkPrev('a.json', '{"k":1}')
+  check('.json → lang=json', rJson.lang === 'json')
+  const rYaml = await mkPrev('a.yaml', 'k: 1')
+  check('.yaml → lang=yaml', rYaml.lang === 'yaml')
+  await fsp.rm(jbase, { recursive: true, force: true }).catch(() => undefined)
 
   // ── 정리 ──────────────────────────────────────────────────────────────
   await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)

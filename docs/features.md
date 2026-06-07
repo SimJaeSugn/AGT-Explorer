@@ -1,4 +1,4 @@
-# 기능 명세 — 멀티 디렉토리 파일탐색기 (Explorer)
+# 기능 명세 — 멀티 디렉토리 파일탐색기 (AGT-Finder · 코드네임 Explorer)
 
 > 관련: [PRD.md](./PRD.md) · [user-stories.md](./user-stories.md) · [flows.md](./flows.md) · [roadmap.md](./roadmap.md)
 > 본 문서는 영역별 **기능과 동작 규칙**을 정의한다. 구현 방식은 다루지 않는다.
@@ -12,7 +12,7 @@
 > **G장(패키징/릴리스/개발 도구)** 은 로드맵 외로 진행됐던 추가물(앱 아이콘·원클릭 빌드·가상 스크롤 결함 수정)을 **사후 정식 편입**한 영역으로, 모두 ✅ 구현 완료.
 > **H장(UX/레이아웃 확장, Should)** 신규 6기능 모두 ✅ 구현 완료 — 상단 전역 아이콘바(H1: `ui/toolbar/IconBar.tsx`·`iconBarItems.ts`, 4그룹 20버튼·activeWhen·`aria-pressed`·툴팁 단축키), 사이드바 온오프 토글(H2: `Ctrl+B`→`sidebar.toggle`→`toggleSidebar`), 분할 패널 크기조절(H3: `ui/layout/SplitDivider.tsx`·`splitMath.ts`·`tabsSlice.setSplitRatio`·`splitRatios` 세션 영속), **우클릭 "터미널 열기"(H4: 신규 채널 `shell:open-terminal`·`os/shell.ts#openTerminal` wt.exe→PowerShell 폴백·`contextMenu.ts`·ADR-005), 디렉토리 경로 직접 입력(H5: `PanelToolbar.tsx` 단일클릭 편집·`validateAndNavigate` 재사용), 파일 유형별 OS 아이콘(H6: 예약 채널 `shell:icon` 정식 구현·`os/icon.ts`·`iconCache.ts`·`OSIcon`·확장자 캐시 LRU512·iconRef 지연)**. US-7.2/7.3 마우스 드래그·H4 네이티브 `wt.exe`·H6 `app.getFileIcon`의 실제 네이티브 실행은 런타임 의존이라 런타임 스모크 권장(코드 정합 충족). 상세 [roadmap.md §0.5](./roadmap.md).
 > **I장(분석·시각화 / 접근성 테마, Should) ✅ 구현 완료** — 2026-06-07 정식 편입·구현·QA PASS. 디렉토리 사용량 대시보드(I1 ✅: 드라이브 사용량 즉시 도넛+표·Top10 온디맨드 스캔[진행률·취소·비차단]·인사이트·실행 시 자동 팝업 토글 기본 켜짐·recharts 3.8.1 MIT·831kB lazy 청크 — **신규 채널 `analyze:scan:*` 5종**·`scanEngine.ts`·`ScanManager.ts`·`scanWorker.ts`·`DashboardModal.tsx`·`analyzeSlice.ts`), 블루라이트 차단 테마(I2 ✅: #FBF0D9 크림 배경 저청색광 테마·WCAG AA 통과[본문 11.04:1]·`BLUELIGHT_PALETTE`·`ThemeMode` 4종). US-8.1·8.2. **파일 유형별 비중 인사이트는 "(가능하면)" 선택항으로 미구현 🔜(정직 표기). 네이티브 statfs·대용량 스캔 성능 실측은 런타임 스모크 권장.**
-> **[2026-06-07 신규 편입 🔜] J장(탐색기 보기·실시간 갱신/뷰어 확장, Should) 신규 7기능** — 사용자 요청 8건 중 신규 7건을 정식 편입(미착수 🔜, 구현은 team-dev). feat-J1 파일 드래그 박스 선택(러버밴드)·feat-J2 좌/우 패널 실시간 갱신(파일시스템 워처)·feat-J3 Windows 표준 "보기" 5종(큰/보통/작은 아이콘·목록·자세히)·feat-J4 브랜딩 변경 "AGT-Finder"·feat-J5 미리보기 2단 뷰어(정보+확장 뷰어: 이미지·텍스트·코드 구문 강조·마크다운)·feat-J6 미리보기 패널 폭 조절·feat-J7 즐겨찾기 별칭 변경. US-9.1~9.7. **나머지 1건(F5/F6 복사·이동 제거)은 §J가 아니라 §A3·§E1의 기존 절을 "삭제됨/Deprecated"로 정정**(아래).
+> **[2026-06-07 편입·구현 완료 ✅] J장(탐색기 보기·실시간 갱신/뷰어 확장, Should) 신규 7기능** — 사용자 요청 8건 중 신규 7건을 정식 편입·구현·QA PASS(team-dev). feat-J1 파일 드래그 박스 선택(러버밴드 ✅ `boxSelect.ts`·`selectionSlice.boxSelect`·`FileListView`)·**feat-J2 좌/우 패널 실시간 갱신(파일시스템 워처 ✅ — 신규 채널 `fs:watch:*`·`WatchService.ts`(UNC + 매핑 드라이브 eager + reactive 폴링)·`os/driveType.ts`(GetDriveType 연동)·`watchBridge.ts`·`panelsSlice`(softRefresh/보존); 정렬/필터·선택/스크롤 보존·UNC + 매핑 네트워크 드라이브 폴링 폴백 충족 ✅, `subst`·일부 클라우드 드라이브(`DriveType≠4`)만 미포함 한계)**·feat-J3 Windows 표준 "보기" 5종(✅ `ViewMode` icons-large/medium/small/list/details·그리드 OSIcon)·**feat-J4 브랜딩 변경 "AGT-Finder"(✅ appId `com.agtfinder.app`)**·feat-J5 미리보기 2단 뷰어(✅ `PreviewInfoCard`+`CodePreview`(highlight.js)·`MarkdownPreview`(marked+DOMPurify))·feat-J6 미리보기 패널 폭 조절(✅ SplitDivider 재사용·`ui.previewWidth`)·feat-J7 즐겨찾기 별칭 변경(✅ `SidebarSnapshot.favoriteLabels`·인라인 편집). US-9.1~9.7. **나머지 1건(F5/F6 복사·이동 제거)은 §J가 아니라 §A3·§E1의 기존 절을 "삭제됨/Deprecated"로 정정**(아래·코드 반영 완료). 신규 의존성 highlight.js(BSD-3)·marked(MIT)·dompurify(MPL-2.0)는 lazy 청크 분리. 매핑 네트워크 드라이브 `GetDriveType` 연동(`os/driveType.ts`)은 신규 npm 의존성·신규 IPC 채널 0(PowerShell 시스템 내장). 워처/뷰어 네이티브 동작·박스선택 드래그는 런타임 스모크 권장(코드 정합·verify:watch 77·verify:store 76 충족). 상세 [roadmap.md §0.5 "신규 보기·실시간·뷰어·브랜딩(J장)"](./roadmap.md).
 > **[2026-06-07 스코프 축소 — F5/F6 복사·이동 제거] 사용자 결정(2026-06-07)으로 "활성 패널 선택 항목을 다른 패널로 복사=`F5`/이동=`F6`" 단축키를 제거(Deprecated)한다.** 사유: "듀얼 패널 파일관리자 외 일반 사용자에게 일반적이지 않은 단축키." **D&D·클립보드(`Ctrl+C/X/V`) 복사/이동은 그대로 유지**한다. 정정 위치: 본 features §A3·§E1, PRD §8 단축키 표·§6 Must·결정 D4, user-stories US-1.3·US-5.4. 추적성(roadmap P4·traceability)은 코드 반영 후 doc-synchronizer가 정정한다.
 > 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수.
 
@@ -460,3 +460,191 @@
 - [x] 테마 선택이 재시작 없이 즉시 전체 화면에 적용되고, 선택이 설정/세션에 영속되어 재시작 후 유지된다(`defaults.ts THEME_MODES` 화이트리스트 재수화)
 - [x] **(대비)** 블루라이트 차단 테마에서 본문 텍스트가 배경 대비 WCAG AA(4.5:1) 이상을 지향하며(본문 11.04:1·muted 5.25:1 측정), 강조·비활성·선택 상태도 식별 가능한 대비를 유지한다
 - [x] 기존 라이트/다크/시스템 테마의 동작과 수용 기준은 변경 없이 그대로 유지된다(선택지 1종 추가·`toggleThemeMode`는 light↔dark 유지)
+
+---
+
+## J. 탐색기 보기 · 실시간 갱신 · 뷰어 확장 · 브랜딩
+
+> 2026-06-07 사용자 요청 8건 중 **신규 7건**을 정식 편입하는 영역이다(나머지 1건 = F5/F6 제거는 §A3·§E1 정정).
+> 기존 보기(B1)·미리보기(D3)·분할 크기조절(H3)·즐겨찾기(C4)를 **Windows 탐색기 수준의 보기·실시간성·뷰어 경험**으로 확장하고, 제품 브랜딩을 **AGT-Finder**로 전환한다.
+> 우선순위는 PRD §6 MoSCoW를 단일 출처로 따른다(대부분 Should — feat-J4 브랜딩만 Must for 릴리스). 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다.
+> **[2026-06-07 상태] 구현 완료 ✅** — team-dev 구현·QA PASS. 신규 의존성 highlight.js(BSD-3)·marked(MIT)·dompurify(MPL-2.0, 마크다운 새니타이즈)는 lazy 청크 분리, 파일시스템 워처는 신규 채널 `fs:watch:*`(non-recursive·디바운스·격리). **J2(US-9.2)는 정렬/필터 유지·디바운스·격리·경로 교체·선택/스크롤 보존·UNC 폴링 폴백 모두 충족으로 🟡→✅ 격상**(보류 2건 구현 완료) 후, **매핑 네트워크 드라이브(`X:\`)도 `GetDriveType` 연동(`os/driveType.ts` PowerShell CIM `Win32_LogicalDisk DriveType=4`·`paths.isNetworkDriveRoot`)으로 eager 폴링 적용되어 ✅ 격상**(신규 npm 의존성·신규 IPC 채널 0). **잔여 한계(정직 표기): `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백 유지.** 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수.
+
+### J1. 파일 드래그 박스 선택(러버밴드) (S) ✅ 구현 완료 — `domain/rules/boxSelect.ts`(사각형 교차 판정 순수함수)·`app/stores/selectionSlice.ts#boxSelect`(교체/누적/범위)·`FileListView`(러버밴드 오버레이·경계 자동 스크롤·가상 스크롤 마운트 항목 포함). ※ 실제 마우스 드래그·자동 스크롤은 런타임 DOM 의존 → 런타임 스모크 권장
+**목적**: 파일 목록 빈 영역에서 마우스 드래그로 사각형(러버밴드)을 그려 그 안에 들어온 항목을 한 번에 다중 선택한다. E3 "마우스 박스 선택"과 roadmap P2 DoD의 박스 다중선택(후속으로 남아 있던 항목)을 **정식 기능화**한다. (US-9.1)
+
+> roadmap P2 DoD는 "`Ctrl/Shift/박스/Ctrl+A` 다중 선택"을 들었으나, PRD §6 Must는 박스 선택을 "후속"으로 표기(`*(박스 선택은 후속, Ctrl/Shift 구현)*`)했다. 본 J1이 그 후속 박스 선택을 정식 Should 기능으로 확정한다.
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 진입 | 파일 목록 **빈 영역**(항목이 없는 공간)에서 마우스 좌버튼 누름→드래그로 러버밴드 시작. 항목 위에서 시작한 드래그는 D&D(A3)로 처리되어 충돌하지 않는다 |
+| 선택 판정 | 러버밴드 사각형과 **교차(겹침)** 하는 항목을 선택 대상으로 한다(완전 포함이 아니라 교차 기준 — 탐색기 관례) |
+| 실시간 반영 | 드래그 중 사각형 변화에 따라 선택 집합이 **실시간 갱신**된다. 마우스 놓으면 확정 |
+| 수정키 조합 | 기본 드래그=새 선택으로 교체. **`Ctrl`+드래그=기존 선택에 추가(토글 누적)**, **`Shift`+드래그=범위 확장**. 수정키 없는 드래그는 기존 선택을 비우고 새로 잡는다 |
+| 스크롤 중 선택 | 러버밴드를 목록 위/아래 경계로 끌면 **자동 스크롤**되며, 스크롤로 새로 보이는(가상 스크롤로 마운트되는) 항목도 사각형에 들면 선택에 포함된다 |
+| 보기 모드 정합 | 상세/목록(1차원 행)·아이콘 그리드(2차원, J3) 모두에서 동작한다. 그리드에서는 2차원 사각형 교차로 판정 |
+| 상태바 정합 | 선택 개수·합계 용량이 드래그 종료 시 상태바(E5)에 반영된다 |
+
+**수용 기준** (✅ 구현 — `boxSelect.ts`·`selectionSlice.boxSelect`·`FileListView`)
+- [x] 파일 목록 빈 영역에서 드래그하면 러버밴드 사각형이 그려지고, 사각형과 교차하는 항목이 선택된다
+- [x] 항목 위에서 시작한 드래그는 D&D로 처리되어 러버밴드가 시작되지 않는다(충돌 없음)
+- [x] 드래그 중 사각형 변화에 따라 선택 집합이 실시간으로 갱신되고, 마우스를 놓으면 확정된다
+- [x] `Ctrl`+드래그는 기존 선택에 누적, `Shift`+드래그는 범위 확장, 수정키 없는 드래그는 새 선택으로 교체된다
+- [x] 러버밴드를 목록 경계로 끌면 자동 스크롤되며, 스크롤로 새로 보이는 항목도 사각형에 들면 선택된다(가상 스크롤 정합)
+- [x] 상세/목록·아이콘 그리드(J3) 모든 보기에서 동작하며, 선택 개수·합계 용량이 상태바에 반영된다
+
+### J2. 좌/우 패널 실시간 갱신(파일시스템 워처) (S) ✅ 구현 완료 — 신규 채널 `fs:watch:start/event/stop/error`·`src/main/fs/WatchService.ts`(non-recursive `fs.watch`·디바운스 병합·권한/네트워크/미지원 격리 throw 0 + **UNC + 매핑 네트워크 드라이브 eager 폴링·reactive fs.watch error 폴백·4s readdir diff·stat 승계·pollBusy 재진입 가드·>20k 항목 비활성·stop 정리·미지 고정 드라이브 lazy refresh trigger**)·`src/main/os/driveType.ts`(`DriveTypeService` — PowerShell CIM `Win32_LogicalDisk DriveType=4`=`DRIVE_REMOTE` execFile 조회·네트워크 드라이브 문자 캐시 원자 Set 교체·throttle·재진입 가드·빈집합 폴백·헤드리스 주입)·`src/main/fs/paths.ts`(`isUncPath`·`isNetworkDriveRoot`(캐시 조회)·`isLikelyRemotePath`)·`watch.handlers.ts`·`main/index.ts`(부팅 non-blocking refresh)·`app/usecases/watchBridge.ts`(watchId 상관·경로 교체 시 이전 감시 해제·리소스 정리·onEvent→`softRefresh`)·`app/stores/panelsSlice.ts`(`softRefresh`·`capturePreserve`·`_applyPreserve`·`pendingScrollRestore`·navigate `resetSelection`)·`selectionSlice.setSelection`·`FileListView`(1회성 스크롤 복원). **정렬/필터/검색 유지·디바운스·대량 폴백·예외 정리·경로 교체 누수 없음·선택/스크롤 보존·UNC + 매핑 네트워크 드라이브 폴링 폴백 모두 충족 ✅. 잔여 한계(정직 표기): `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백 유지(런타임 매핑 변경 시 첫 진입 reactive→차순 eager).** 신규 npm 의존성·신규 IPC 채널 0(PowerShell 시스템 내장·backend 내부). ※ 네이티브 워처 실제 이벤트는 런타임 스모크 권장
+**목적**: 디스크의 파일 변경(생성·삭제·이름변경·이동)을 감지해 패널 목록을 **자동 갱신**한다. 사용자가 수동 새로고침(`Ctrl+R`) 없이도 좌/우(또는 N개) 패널이 항상 최신 상태를 보이게 한다. (US-9.2)
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 감시 대상 | **현재 열려 있는 각 패널의 폴더**(좌/우/4분할 모두). 패널이 다른 경로로 이동하면 워처도 그 경로로 교체(이전 경로 감시 해제) |
+| 감지 이벤트 | 그 폴더 직속의 **생성·삭제·이름변경·수정(크기/수정일)·이동(들어옴/나감)** 을 감지해 해당 항목만 목록에 반영(전체 재읽기 최소화). 하위 폴더 재귀 감시는 하지 않음(현재 폴더 단위) |
+| 정렬·필터·선택·스크롤 유지 | 자동 갱신 후에도 현재 정렬(B2)·검색/필터(D1·D2)·**선택·스크롤 위치를 보존**한다 ✅(사라진 항목은 선택 해제, 남은 선택·스크롤은 `softRefresh`/`pendingScrollRestore`로 유지). ※ 패널이 다른 경로로 navigate할 때는 잔존 선택을 의도적으로 비운다(`resetSelection`) |
+| 디바운스(성능) | 짧은 시간 다발 변경(대량 복사·압축 해제 등)은 **디바운스(예: 100~300ms 합치기)** 로 묶어 1회 갱신한다. 대량 변경 시 개별 이벤트 폭주로 UI가 막히지 않는다(비차단) |
+| 대량 변경 폴백 | 디바운스 윈도 내 변경이 임계치를 넘으면 개별 반영 대신 **그 폴더 1회 재읽기(re-list)** 로 폴백한다 |
+| 예외 — 권한/삭제된 폴더 | 감시 중 폴더가 삭제·접근 불가가 되면 워처를 정리하고 패널에 사유 표시(F장 권한 규칙 준수). 오류로 앱이 중단되지 않는다 |
+| 예외 — 네트워크 드라이브 | **네트워크/이동식 드라이브는 워처 신뢰성이 낮을 수 있다.** **UNC(`\\서버\공유`) + 매핑 네트워크 드라이브(`X:\`) 모두 eager 저빈도 폴링(4s readdir diff·stat 승계·>20k 비활성)으로 보완 ✅**, 로컬 경로라도 fs.watch 실패 시 reactive 폴링으로 폴백한다. **매핑 네트워크 드라이브는 `GetDriveType` 연동(`os/driveType.ts` PowerShell CIM `DriveType=4` 조회→문자 캐시·`paths.isNetworkDriveRoot`)으로 eager 폴링이 적용된다.** 잔여 한계: `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백에만 의존(fs.watch 무에러·무신호 시 수동 새로고침 유지) |
+| 리소스 정리 | 패널 닫힘·경로 이동·앱 종료 시 워처 핸들을 누수 없이 해제한다 |
+
+**수용 기준** (✅ 구현 — `WatchService.ts`(UNC + 매핑 드라이브 eager + reactive 폴링)·`os/driveType.ts`(GetDriveType 연동)·`watchBridge.ts`·`fs:watch:*`·`panelsSlice`(softRefresh/보존)·`selectionSlice.setSelection`; `subst`·일부 클라우드 드라이브(`DriveType≠4`)만 미포함 한계)
+- [x] 한 패널이 보고 있는 폴더에서 외부(다른 앱·다른 패널)로 파일을 생성/삭제/이름변경하면, 수동 새로고침 없이 그 패널 목록이 자동 반영된다(`fs:watch:event`→`softRefresh`)
+- [x] 패널이 다른 경로로 이동하면 워처가 새 경로로 교체되고 이전 경로 감시가 해제된다(누수 없음·`watchBridge` 경로 교체·리소스 정리)
+- [x] 자동 갱신 후에도 현재 정렬·필터·검색이 유지되고, 남아 있는 항목의 **선택·스크롤도 보존된다 ✅**(`softRefresh`·`capturePreserve`·`_applyPreserve`·`pendingScrollRestore` 1회성 복원). ※ navigate 시에는 잔존 선택을 의도적으로 비운다(`resetSelection`)
+- [x] 대량 변경(다수 파일 동시 생성/삭제)에도 디바운스로 묶여 1회 갱신되며 UI가 막히지 않는다(WatchService 디바운스 병합·비차단)
+- [x] 감시 중 폴더가 삭제·접근 불가가 되면 워처를 정리하고 패널에 사유를 표시하며 앱이 중단되지 않는다(권한/네트워크/미지원 throw 0 격리·`onError`)
+- [x] 네트워크/이동식 드라이브에서 이벤트 누락 가능성에 대비한 폴링 폴백 — **UNC(`\\서버\공유`) + 매핑 네트워크 드라이브(`X:\`) 모두 ✅ 구현**(eager 폴링·4s readdir diff·stat 승계·pollBusy·>20k 비활성). 매핑 드라이브는 `GetDriveType` 연동(`os/driveType.ts` PowerShell CIM `Win32_LogicalDisk DriveType=4`=`DRIVE_REMOTE` 조회→문자 캐시·`paths.isNetworkDriveRoot` 동기 판정)으로 eager 폴링이 적용된다. **잔여 한계(정직 표기): `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백 유지(런타임 매핑 변경 시 첫 진입 reactive→차순 eager)**
+- [x] 좌/우(및 4분할) 패널이 각자 독립적으로 자기 폴더를 감시·갱신한다(한 패널 갱신이 다른 패널에 영향 없음·watchId 상관 격리)
+
+### J3. Windows 표준 "보기" 5종 (S) ✅ 구현 완료 — `shared/dto ViewMode`(`'icons-large'|'icons-medium'|'icons-small'|'list'|'details'`)·`FileListView` 아이콘 그리드(H6 `OSIcon`/`shell:icon` 재사용·가상 스크롤)·`ui/toolbar/PanelToolbar.tsx` 보기 드롭다운·`panelsSlice` 패널별 기억·`defaults.ts VIEW_MODES` 화이트리스트
+**목적**: Windows 탐색기의 "보기" 메뉴와 동등한 표준 보기 세트를 제공한다. 기존 상세(Details)·목록(List) 2종에 **아이콘 보기 3종(큰/보통/작은 아이콘 그리드)** 을 추가해 **총 5종**으로 확장한다. (US-9.3)
+
+> B1(목록 보기)의 "그리드/썸네일(S)"·roadmap P6 잔여 "그리드/썸네일 보기 🔜"를 **Windows 표준 보기 세트로 구체화·확정**한다. 아이콘은 H6에서 구현한 **OS 실제 아이콘(`shell:icon`)** 을 그대로 활용한다(이미지 썸네일 자체 생성은 본 J3 범위 밖 — 추후).
+
+| 보기 | 내용 |
+|---|---|
+| 큰 아이콘 | 큰 OS 아이콘(`shell:icon`) 그리드 + 파일명. 가장 큰 아이콘 단계 |
+| 보통 아이콘 | 중간 크기 아이콘 그리드 + 파일명 |
+| 작은 아이콘 | 작은 아이콘 + 파일명(컴팩트 그리드) |
+| 목록(List) (기존 M) | 작은 아이콘 + 이름, 세로 컴팩트 나열(다단 흐름) |
+| 자세히(Details) (기존 M) | 이름·크기·형식·수정일 컬럼, 정렬·컬럼 폭조절 |
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 전환 진입점 | 상단 아이콘바(H1) ①레이아웃/뷰 그룹의 보기 전환 컨트롤 + 우클릭(컨텍스트 메뉴) "보기" 하위 메뉴. (단축키는 PRD 8장 결정 — 보기 메뉴/아이콘바 중심, 기존 키 충돌 없이 배정) |
+| 아이콘 소스 | 아이콘 그리드 3종은 **H6의 OS 실제 아이콘(`shell:icon`)** 을 크기 단계만 달리해 사용. 이미지 파일도 1차에는 형식 아이콘(이미지 썸네일 생성은 추후 확장) |
+| 가상 스크롤 정합 | 아이콘 그리드도 **가상 스크롤**(ADR-004)로 렌더해 1만 개 항목에서도 첫 렌더가 막히지 않는다. 화면 진입 셀만 아이콘 요청(H6 `iconRef` 지연 재사용) |
+| 상태 기억 | 보기 모드는 **패널별로 기억**(B1 원칙). 폴더별 기억은 Could |
+| 박스 선택 정합 | 아이콘 그리드(2차원)에서도 J1 러버밴드 박스 선택이 사각형 교차로 동작한다 |
+
+**수용 기준** (✅ 구현 — `ViewMode` 5종·`FileListView` 그리드·`PanelToolbar`)
+- [x] 보기를 **큰 아이콘 / 보통 아이콘 / 작은 아이콘 / 목록 / 자세히** 5종 중 하나로 전환할 수 있다(아이콘바 + 우클릭 "보기")
+- [x] 아이콘 그리드 3종은 H6의 OS 실제 아이콘(`shell:icon`)을 크기 단계만 달리해 표시한다
+- [x] 아이콘 그리드도 가상 스크롤로 렌더되어 1만 개 항목에서 첫 렌더가 막히지 않고, 화면에 보이는 셀만 아이콘을 요청한다(`iconRef` 지연 재사용)
+- [x] 보기 모드가 패널별로 기억되어 패널마다 다른 보기를 가질 수 있다
+- [x] 아이콘 그리드에서도 J1 박스 선택이 사각형 교차로 동작한다
+- [x] 기존 상세/목록 보기의 정렬·컬럼·동작은 변경 없이 유지된다
+
+### J4. 브랜딩 변경 — "AGT-Finder" (M for 릴리스) ✅ 구현 완료 — `package.json`(name `agt-finder`)·`electron-builder.yml`(`appId: com.agtfinder.app`·`productName: AGT-Finder`)·`index.html`(`<title>AGT-Finder`)·`mainWindow.ts`·`main/index.ts`·`paths.ts`(userData 경로). 코드네임 "Explorer"는 내부(ExplorerApi 타입·주석)만 유지·사용자 노출 0 잔존. ※ exe/인스톨러 파일명·바로가기는 패키징 산출물 런타임 확인 권장
+**목적**: 제품명을 **AGT-Finder**로 변경하고, 실행 파일·창 타이틀·인스톨러·앱 식별자 등 사용자가 보는 모든 브랜딩 표면을 일괄 교체한다. (US-9.4)
+
+> 코드네임 "Explorer"는 개발 코드네임으로 남기되, **사용자 노출 제품명은 AGT-Finder**로 통일한다. 기존 G1 앱 아이콘/브랜딩과 연계되나, 본 J4는 **명칭(텍스트) 식별자 교체**에 집중한다(아이콘 자산 자체 변경은 선택).
+
+| 항목 | 교체 대상 |
+|---|---|
+| 제품명(productName) | electron-builder `productName` → `AGT-Finder` |
+| 앱 식별자(appId) | `appId`(예: `com.agt.finder` 류로 확정 — 설계 단계 결정) |
+| 창 타이틀 | BrowserWindow 기본 타이틀·`<title>`·문서 제목 표기를 `AGT-Finder`로 |
+| 실행 파일명 | 빌드 산출 실행 파일(.exe) 이름 → `AGT-Finder.exe` |
+| 인스톨러 | NSIS 인스톨러 파일명·설치 마법사 표시명·**바로가기(시작 메뉴·바탕화면) 이름** → `AGT-Finder` |
+| 패키지 메타 | `package.json` name/description 등 표기(배포에 노출되는 필드) |
+| 문서 표기 | 기획 문서 본문의 사용자 노출 제품명 "Explorer" 표기를 `AGT-Finder`로 갱신(코드네임 표기는 유지 가능) |
+
+> **체크리스트(브랜딩 — 수용 기준 겸용)**: 아래는 코드/패키징 변경 체크리스트이며 그대로 수용 기준으로 쓴다.
+
+**수용 기준(브랜딩 체크리스트)** (✅ 구현 — appId `com.agtfinder.app`)
+- [x] electron-builder `productName`이 `AGT-Finder`로 설정된다
+- [x] `appId`가 AGT-Finder용 식별자로 변경된다(확정값 `com.agtfinder.app`)
+- [x] 앱 창 타이틀·`<title>`(문서 제목)이 `AGT-Finder`로 표시된다(`index.html`·`mainWindow.ts`)
+- [~] 빌드 산출 실행 파일명이 `AGT-Finder.exe`(또는 그에 준함)로 생성된다 — `productName` 기준 생성. ※ 실제 산출 파일명은 패키징 런타임 확인 권장
+- [~] NSIS 인스톨러 파일명·설치 마법사 표시명·시작 메뉴/바탕화면 바로가기 이름이 `AGT-Finder`다 — electron-builder 설정 기준. ※ 인스톨러 산출물 런타임 확인 권장
+- [x] `package.json`·배포 메타의 사용자 노출 명칭이 `AGT-Finder`로 일관된다(name `agt-finder`·description)
+- [x] 기획 문서 본문의 사용자 노출 제품명 표기가 `AGT-Finder`로 갱신된다(코드네임 "Explorer"는 개발용으로만 유지)
+- [x] 설치→실행→제거 전 과정에서 사용자에게 노출되는 명칭이 모두 `AGT-Finder`로 일치한다(코드 노출 표면 잔존 "Explorer" 없음·내부 타입/주석만 유지)
+
+### J5. 미리보기 2단 뷰어(정보 + 확장 뷰어) (S) ✅ 구현 완료 — `ui/preview/PreviewPanel.tsx`(상단 `PreviewInfoCard`+하단 뷰어 2단)·`renderers/CodePreview.tsx`(**highlight.js** 언어 감지 강조)·`renderers/MarkdownPreview.tsx`(**marked**+**DOMPurify** 새니타이즈)·기존 Image/Text/Meta/Unsupported 폴백·`FileSystemService.readPreview`(lang/isMarkdown 판별). 기존 `preview:read`·`Ctrl+P` 재사용. 신규 의존성 highlight.js(BSD-3)·marked(MIT)·dompurify(MPL-2.0)·lazy 청크 분리·CSP eval 0
+**목적**: 기존 미리보기 패널(D3)을 **상하 2단 구성**으로 확장한다. 상단=선택 파일의 정보(이름·크기·형식·수정일 등), 하단=실제 내용 뷰어. 뷰어는 **확장 세트**로 이미지·텍스트·**코드 구문 강조**·추가 형식(마크다운 등)을 지원하고, 미지원은 메타/아이콘으로 폴백한다. (US-9.5)
+
+> D3(미리보기 패널, ✅ `preview:read`)을 확장하는 항목이다. 기존 `preview:read` 채널·`PreviewPanel`·형식별 렌더러를 재사용·확장한다(신규 의존성: 코드 구문 강조 라이브러리 — 설계 단계 선정, 라이선스·번들은 lazy 청크 권장).
+
+| 영역 | 내용 |
+|---|---|
+| 상단 — 파일 정보 | 선택 항목의 **이름·크기·형식(확장자/MIME)·수정일·생성일·경로** 등 메타를 표 형태로 표시. 다중 선택 시 개수·합계 용량 요약 |
+| 하단 — 뷰어 | 형식에 맞는 렌더러로 내용 표시(아래 지원 형식) |
+| 2단 비율 | 상단 정보/하단 뷰어의 높이 비율을 둘 수 있다(기본값 고정, 조절은 Could). J6은 패널 **폭** 조절(별개 축) |
+
+**지원 형식(확장 뷰어)**
+| 형식 | 표시 |
+|---|---|
+| 이미지 | 축소 미리보기(기존 D3) — png/jpg/gif/webp/svg 등 |
+| 텍스트 | 앞부분 텍스트(기존 D3), 대용량은 일부만 로드(상한) |
+| 코드(구문 강조) | 소스 코드 파일을 **언어 감지 후 구문 강조** 표시(확장자→언어 매핑). 라이브러리는 설계 단계 선정(lazy 로드) |
+| 마크다운 | 렌더링된 마크다운(또는 원문+서식). 코드 블록은 구문 강조 |
+| 미지원 | **메타 + 형식 아이콘 폴백**(빈 화면 금지) |
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 비차단 로드 | 뷰어 내용은 **비동기 로드**(대용량은 상한까지만), 로드 중 스피너·완료 후 표시. 미리보기 로드가 목록/탐색을 막지 않는다 |
+| 토글·정합 | 기존 `Ctrl+P`(D3) 토글·`preview:read` 채널 재사용. 선택 변경 시 미리보기가 그 항목으로 갱신 |
+| 보안 | 미리보기는 **읽기 전용**(코드 실행·임의 스크립트 실행 표면 없음). 마크다운/코드 렌더는 원문을 안전하게 표시(HTML 주입·원격 로드 차단, CSP 준수) |
+| 성능 | 코드 강조·마크다운 렌더 라이브러리는 **lazy 청크**로 분리(메인 번들 비대화 방지 — recharts 선례 준수) |
+
+**수용 기준** (✅ 구현 — `PreviewPanel`·`PreviewInfoCard`·`CodePreview`·`MarkdownPreview`)
+- [x] 미리보기 패널이 상단(파일 정보)/하단(뷰어) 2단으로 표시된다(`PreviewInfoCard`+뷰어)
+- [x] 상단에 선택 항목의 이름·크기·형식·수정일 등 메타가 표시되고, 다중 선택 시 개수·합계 용량이 요약된다
+- [x] 이미지·텍스트·코드(구문 강조)·마크다운을 하단 뷰어로 표시한다(코드는 highlight.js 언어 감지 후 강조)
+- [x] 미지원 형식은 메타 + 형식 아이콘으로 폴백된다(빈 화면 없음·`UnsupportedPreview`)
+- [x] 뷰어 내용이 비동기로 로드되어(대용량은 상한까지) 목록/탐색을 막지 않으며, 선택 변경 시 그 항목으로 갱신된다
+- [x] 기존 `Ctrl+P` 토글·`preview:read` 채널을 재사용한다(D3 동작 유지)
+- [x] 미리보기는 읽기 전용이며 HTML 주입·원격 로드·코드 실행 표면을 추가하지 않는다(마크다운 DOMPurify 새니타이즈·CSP eval 0 준수)
+- [x] 코드 강조·마크다운 렌더 라이브러리는 lazy 청크로 분리되어 메인 번들이 비대해지지 않는다(highlight.js·marked·dompurify lazy)
+
+### J6. 미리보기 패널 폭 조절 (S) ✅ 구현 완료 — H3 `SplitDivider.tsx`·`splitMath.ts#ratioFromPoint` 재사용·`uiSlice.previewWidth`(클램프·기본 폭 복귀)·`usecases/session.ts` 직렬화·세션 영속(토글 off→on 후 폭 유지)
+**목적**: 미리보기 패널(D3·J5)의 **폭**을 분할선 드래그로 조절한다. H3(분할 패널 크기조절)의 분할선·세션 영속 방식을 그대로 재사용한다. (US-9.6)
+
+> H3는 *패널 간* 분할선 크기조절을, 본 J6은 *미리보기 패널과 본문 영역 사이* 분할선 크기조절을 다룬다(동일 메커니즘·다른 경계). J5의 2단 비율(상하 축)과 별개의 **가로(폭) 축**이다.
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 조절 | 미리보기 패널과 패널 영역 사이의 **분할선(드래그 핸들)** 을 드래그해 미리보기 패널 폭을 조절(H3 `SplitDivider`·`ratioFromPoint` 재사용) |
+| 최소/최대 | 미리보기 패널·본문 영역 모두 **최소 폭 제약**(H3 클램프 방식). 제약 미만으로 끌리지 않음 |
+| 균등/기본 복귀 | 분할선 **더블클릭** 시 기본 폭으로 복귀(H3 균등 복귀 방식 준용) |
+| 세션 영속 | 조절한 미리보기 폭(비율)은 **재시작 후에도 유지**(H3 `splitRatios` 세션 영속 방식 재사용). 미리보기 토글 off 후 다시 켜도 마지막 폭 유지 |
+| 배치 정합 | 미리보기가 우측 부착이면 가로 분할선, 하단 부착이면 세로 분할선(flows §4 배치 규칙 준수). 1차는 우측 부착 폭 조절 |
+
+**수용 기준** (✅ 구현 — `SplitDivider` 재사용·`uiSlice.previewWidth` 영속)
+- [x] 미리보기 패널과 본문 사이 분할선을 드래그하면 미리보기 패널 폭이 실시간으로 조절된다(H3 `SplitDivider`·`ratioFromPoint` 재사용)
+- [x] 미리보기·본문 모두 최소 폭 제약 이하로 줄어들지 않는다(H3 클램프)
+- [x] 분할선 더블클릭 시 기본 폭으로 복귀한다
+- [x] 조절한 미리보기 폭이 세션에 저장되어 재시작 후에도 유지되고, 미리보기 토글 off→on 후에도 마지막 폭이 유지된다(`ui.previewWidth` 영속)
+- [x] 기존 H3(패널 간 분할 크기조절)·미리보기 토글(`Ctrl+P`) 동작에 영향을 주지 않는다
+
+### J7. 즐겨찾기 별칭(표시 이름) 변경 (S) ✅ 구현 완료 — `shared/dto SidebarSnapshot.favoriteLabels`·`sidebarSlice`(별칭 설정/초기화·basename 폴백)·`ui/sidebar/Sidebar.tsx` 인라인 편집(우클릭/`F2`·Enter 확정·Esc 취소)·`session.ts` 영속. 별칭은 표시 전용(경로 불변)
+**목적**: 즐겨찾기에 등록한 항목의 **표시 이름(별칭)** 을 사용자가 변경할 수 있게 한다. 현재는 경로의 basename으로 고정되어 동명 폴더 구분·의미 부여가 어렵다. (US-9.7)
+
+> C4(즐겨찾기) "이름 별칭 지정(S)"을 **정식 기능으로 구체화**한다. 별칭은 표시용이며 실제 경로는 변경하지 않는다.
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 별칭 설정 | 즐겨찾기 항목 우클릭 "이름 바꾸기"(또는 `F2`) → 인라인 편집으로 표시 이름 변경. Enter 확정·Esc 취소 |
+| 표시 | 사이드바 즐겨찾기 섹션에 **별칭**을 표시(별칭 없으면 경로 basename 폴백). 툴팁/보조 텍스트로 실제 경로 확인 가능 |
+| 경로 불변 | 별칭은 **표시 전용** — 실제 경로·이동 동작은 변하지 않는다(별칭을 바꿔도 같은 폴더로 이동) |
+| 영속 | 별칭은 즐겨찾기 데이터(설정/세션)에 **영속**되어 재시작 후에도 유지된다. 별칭 초기화(기본 basename 복귀) 동작 제공 |
+| 중복·빈값 | 빈 별칭은 basename 폴백으로 처리. 같은 별칭 중복은 허용(경로가 식별자이므로) |
+
+**수용 기준** (✅ 구현 — `favoriteLabels`·`Sidebar` 인라인 편집)
+- [x] 즐겨찾기 항목을 우클릭 "이름 바꾸기"(또는 `F2`)로 표시 이름(별칭)을 인라인 편집해 변경할 수 있다(Enter 확정·Esc 취소)
+- [x] 사이드바 즐겨찾기에 별칭이 표시되고, 별칭이 없으면 경로 basename으로 폴백된다
+- [x] 별칭은 표시 전용이며 실제 경로·이동 동작은 변하지 않는다(별칭을 바꿔도 같은 폴더로 이동)
+- [x] 별칭이 설정/세션에 영속되어 재시작 후에도 유지되며, 기본 basename으로 초기화할 수 있다
+- [x] 빈 별칭은 basename 폴백으로 처리되고, 같은 별칭 중복은 허용된다

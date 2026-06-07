@@ -3,7 +3,7 @@
  *
  * - buildSessionSnapshot(): 직렬화 가능한 상태만 모아 SessionSnapshot 생성.
  *     포함: 창/탭/레이아웃/패널(경로·정렬·보기·히스토리·스크롤), 사이드바
- *           (즐겨찾기·최근·폭·접힘), ui(theme·previewOpen).
+ *           (즐겨찾기·별칭·최근·폭·접힘), ui(theme·previewOpen·previewWidth).
  *     **휘발 제외(SA §5.1)**: selection, directory(스트림/엔트리), operations
  *           (진행 op), conflictQueue, closedHistory, dragOp, renameTarget,
  *           confirmDelete, toasts, inputContext, addressEditing.
@@ -61,11 +61,12 @@ export function buildSessionSnapshot(): SessionSnapshot {
     windows: tabs.length > 0 ? [window] : [],
     sidebar: {
       favorites: [...s.favorites],
+      favoriteLabels: { ...s.favoriteLabels },
       recent: [...s.recent],
       width: s.sidebarWidth,
       collapsed: s.sidebarCollapsed
     },
-    ui: { theme: s.theme, previewOpen: s.previewOpen }
+    ui: { theme: s.theme, previewOpen: s.previewOpen, previewWidth: s.previewWidth }
   }
 }
 
@@ -82,13 +83,15 @@ export function applySnapshot(snap: SessionSnapshot): boolean {
   // 사이드바(즐겨찾기·최근·폭·접힘) 먼저 복원 → recentLimit 적용.
   s.hydrateSidebar({
     favorites: snap.sidebar.favorites,
+    ...(snap.sidebar.favoriteLabels ? { favoriteLabels: snap.sidebar.favoriteLabels } : {}),
     recent: snap.sidebar.recent,
     width: snap.sidebar.width,
     collapsed: snap.sidebar.collapsed
   })
   const restored = s.restoreWindows(snap.windows)
-  // ui(previewOpen) 복원(테마는 settings 채널이 별도 관리).
+  // ui(previewOpen·previewWidth) 복원(테마는 settings 채널이 별도 관리).
   store.getState().setPreviewOpen(snap.ui.previewOpen)
+  store.getState().setPreviewWidth(snap.ui.previewWidth ?? 320)
   return restored
 }
 

@@ -205,7 +205,12 @@ export interface ScanResult {
 export type LayoutKind = 'single' | 'split-2-h' | 'split-2-v' | 'grid-4'
 export type SortKey = 'name' | 'size' | 'ext' | 'mtime'
 export type SortDir = 'asc' | 'desc'
-export type ViewMode = 'list' | 'details'
+/**
+ * 보기 모드(J4 — Windows "보기" 5종). `icons-*` 3종은 아이콘 그리드(대/중/소),
+ * `list`·`details` 는 기존 행 기반. 그리드 판정은 `viewMode.startsWith('icons-')`.
+ * 구버전/미지 값은 coerce 가 'details' 로 폴백한다(defaults.ts VIEW_MODES).
+ */
+export type ViewMode = 'icons-large' | 'icons-medium' | 'icons-small' | 'list' | 'details'
 /** 테마 모드. 'bluelight' = 블루라이트 차단(저청색광 크림 톤, I장). */
 export type ThemeMode = 'light' | 'dark' | 'system' | 'bluelight'
 
@@ -247,6 +252,11 @@ export interface WindowSnapshot {
 /** 사이드바 직렬화 상태(즐겨찾기·최근·폭·접힘). */
 export interface SidebarSnapshot {
   readonly favorites: string[]
+  /**
+   * 즐겨찾기 별칭 맵(J8 — path→label). 비파괴 추가: 없으면 UI 가 basename 폴백.
+   * 키는 favorites 에 존재하는 경로만 보존(coerce 가 고아 라벨 제거). 스키마 버전 미상향.
+   */
+  readonly favoriteLabels?: Record<string, string>
   readonly recent: string[]
   readonly width: number
   readonly collapsed: boolean
@@ -258,7 +268,12 @@ export interface SessionSnapshot {
   readonly version: number
   readonly windows: WindowSnapshot[]
   readonly sidebar: SidebarSnapshot
-  readonly ui: { readonly theme: ThemeMode; readonly previewOpen: boolean }
+  readonly ui: {
+    readonly theme: ThemeMode
+    readonly previewOpen: boolean
+    /** 미리보기 패널 폭(px, J7). 미지정 시 복원 측 320 폴백. coerce 클램프 240~720. */
+    readonly previewWidth?: number
+  }
 }
 
 /** 앱 설정 스냅샷(settings:get/set). features E6·F장(숨김/확장자 토글). */
@@ -313,6 +328,10 @@ export interface PreviewData {
   readonly truncated?: boolean
   /** kind==='unsupported': 사유 표시용 라벨(예: '바이너리','크기 초과'). */
   readonly reason?: string
+  /** kind==='text': 구문강조 언어 힌트(확장자→언어, backend 가 매핑·미상이면 undefined). J6. */
+  readonly lang?: string
+  /** kind==='text': 마크다운 원문 여부(ext∈{md,markdown}). 렌더러가 마크다운 렌더 선택. J6. */
+  readonly isMarkdown?: boolean
 }
 
 // ────────────────────────────────────────────────────────────────────────

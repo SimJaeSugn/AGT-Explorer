@@ -94,6 +94,64 @@ export function clear(): SelectionState {
   return emptySelection
 }
 
+// ── 박스 선택(러버밴드, J1) 헬퍼 ────────────────────────────────────────
+
+/** 인덱스 집합 → 선택 상태(교체). anchor 는 첫 인덱스. */
+export function selectIndices(
+  visiblePaths: readonly string[],
+  indices: readonly number[]
+): SelectionState {
+  const set = new Set<string>()
+  for (const i of indices) {
+    const p = visiblePaths[i]
+    if (p !== undefined) set.add(p)
+  }
+  return {
+    anchorIndex: indices.length > 0 ? (indices[0] as number) : -1,
+    selectedPaths: set
+  }
+}
+
+/** base 선택에 인덱스 집합을 합집합(Ctrl 드래그 — 기존 유지 + 추가). */
+export function unionIndices(
+  base: SelectionState,
+  visiblePaths: readonly string[],
+  indices: readonly number[]
+): SelectionState {
+  const set = new Set(base.selectedPaths)
+  for (const i of indices) {
+    const p = visiblePaths[i]
+    if (p !== undefined) set.add(p)
+  }
+  const anchor = base.anchorIndex >= 0
+    ? base.anchorIndex
+    : indices.length > 0
+      ? (indices[0] as number)
+      : -1
+  return { anchorIndex: anchor, selectedPaths: set }
+}
+
+/** base 선택에 인덱스 집합을 토글(Shift 드래그 — 있으면 제거, 없으면 추가). */
+export function toggleIndices(
+  base: SelectionState,
+  visiblePaths: readonly string[],
+  indices: readonly number[]
+): SelectionState {
+  const set = new Set(base.selectedPaths)
+  for (const i of indices) {
+    const p = visiblePaths[i]
+    if (p === undefined) continue
+    if (set.has(p)) set.delete(p)
+    else set.add(p)
+  }
+  const anchor = base.anchorIndex >= 0
+    ? base.anchorIndex
+    : indices.length > 0
+      ? (indices[0] as number)
+      : -1
+  return { anchorIndex: anchor, selectedPaths: set }
+}
+
 /** 마우스/키 수정자에서 적용할 선택 모드 결정. */
 export type SelectMode = 'single' | 'toggle' | 'range' | 'addRange'
 

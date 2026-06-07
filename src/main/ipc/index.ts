@@ -15,6 +15,7 @@ import { registerOpHandlers } from './op.handlers'
 import { registerPreviewHandlers } from './preview.handlers'
 import { registerSessionHandlers } from './session.handlers'
 import { registerShellHandlers } from './shell.handlers'
+import { registerWatchHandlers } from './watch.handlers'
 import { registerWorkspaceHandlers } from './workspace.handlers'
 
 export function registerIpcHandlers(): void {
@@ -26,4 +27,5 @@ export function registerIpcHandlers(): void {
   registerPreviewHandlers() // P6: preview:read
   registerWorkspaceHandlers() // P6: workspace:save/list/load/delete
   registerAnalyzeHandlers() // I장: analyze:scan:start/cancel (+ progress/done/error 푸시)
+  registerWatchHandlers() // J장 J2: fs:watch:start/stop (+ event/error 푸시)
 }

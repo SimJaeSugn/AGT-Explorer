@@ -1,6 +1,6 @@
-# 추적성 매핑 (기획 → 설계) — Explorer
+# 추적성 매핑 (기획 → 설계) — AGT-Finder (코드네임 Explorer)
 
-> 작성: 시니어 아키텍트 · 2026-06-06 · **갱신: 2026-06-07**(G장 릴리스/도구 추적 추가 · H장 UX/레이아웃 확장 추적 추가: 아이콘바·사이드바 토글·분할 크기조절 + **터미널 열기(신규 채널 `shell:open-terminal`)·경로 직접 입력·파일 유형 아이콘(예약 채널 `shell:icon` 정식 구현)** · **I장 분석·접근성 추적 추가: 사용량 대시보드(신규 채널 `analyze:scan:*` 5종·recharts MIT lazy 청크)·블루라이트 차단 테마(`BLUELIGHT_PALETTE`·`ThemeMode` 4종)**)
+> 작성: 시니어 아키텍트 · 2026-06-06 · **갱신: 2026-06-07**(G장 릴리스/도구 추적 추가 · H장 UX/레이아웃 확장 추적 추가: 아이콘바·사이드바 토글·분할 크기조절 + **터미널 열기(신규 채널 `shell:open-terminal`)·경로 직접 입력·파일 유형 아이콘(예약 채널 `shell:icon` 정식 구현)** · **I장 분석·접근성 추적 추가: 사용량 대시보드(신규 채널 `analyze:scan:*` 5종·recharts MIT lazy 청크)·블루라이트 차단 테마(`BLUELIGHT_PALETTE`·`ThemeMode` 4종)** · **J장 보기·실시간·뷰어·브랜딩 추적 추가: 박스 선택·패널 실시간 갱신(신규 채널 `fs:watch:*`)·보기 5종(`ViewMode`)·AGT-Finder 브랜딩(appId `com.agtfinder.app`)·미리보기 2단 뷰어(highlight.js/marked/dompurify)·미리보기 폭 조절·즐겨찾기 별칭 · **F5/F6 복사·이동 매핑 제거(2026-06-07 사용자 결정)**)
 > 목적: PRD/features/user-stories의 각 주요 기능이 **어느 컴포넌트·모듈·IPC 채널·ADR**로 실현되는지 추적한다.
 > 약어: SA=[system-architecture.md](./system-architecture.md), SW=[software-architecture.md](./software-architecture.md), DS=[directory-structure.md](./directory-structure.md)
 
@@ -19,7 +19,7 @@
 | **탭 관리** (US-1.1, A1) | TabBar | `tab.*` usecase / tabsSlice | closedHistory 스택 | session:save/load | ADR-002 |
 | **2분할 패널** (US-1.2, A2) | LayoutHost, Panel | `layout.toggleSplit2`, `panel.focusNext` / tabsSlice | — | — | ADR-002 |
 | **4분할** (US-1.4, S) ✅ | `ui/layout/LayoutHost.tsx`(grid-4 2x2 row-major) | `tabsSlice.toggleGrid4`·`focusPanelDir` / `usecases/fileOps.ts`(grid-4 `activeIdx^1`) | grid-4 포커스 순환·`ctrl+shift+\`→`layout.toggleGrid4` | — | ADR-002 |
-| **패널 간 이동/복사(D&D·F5/F6)** (US-1.3, A3) | dnd/, FileListView | `panel.copyToOther`/`moveToOther`, D&D usecase | `resolveDragIntent`(드라이브/수정키), 순환이동 차단, 동일폴더 무시 | op:start, op:progress, op:conflict, op:resolve, op:done, op:cancel | ADR-003, ADR-005 |
+| **패널 간 이동/복사(D&D·클립보드)** (US-1.3, A3) | dnd/, FileListView | D&D usecase, 클립보드 usecase (~~`panel.copyToOther`/`moveToOther`(F5/F6)~~ — **2026-06-07 코드에서 제거**, `usecases/fileOps.ts`의 `copyToOtherPanel`/`moveToOtherPanel` 삭제·`panelPaths` 헬퍼는 D&D용 보존) | `resolveDragIntent`(드라이브/수정키), 순환이동 차단, 동일폴더 무시 | op:start, op:progress, op:conflict, op:resolve, op:done, op:cancel | ADR-003, ADR-005 |
 | **목록 보기/정렬** (US-2.1, B1/B2) | FileListView(details/list/grid) | view usecase / panelsSlice | 자연정렬·폴더우선 | fs:list:start/chunk/done | ADR-004 |
 | **생성/이름변경** (US-2.2, B3 Must) | FileListView 인라인편집(`F2`/`Ctrl+Shift+N`/새 파일) | file usecase | 금지문자·예약명·중복명 검증(EINVAL/EEXIST) | **fs:mkdir, fs:create-file, fs:rename** | ADR-003 |
 | **삭제(휴지통/영구)** (US-2.2, B3 Must) | FileListView, ConfirmDialog | file usecase | 영구삭제 사전 확인 | op:trash, op:delete, dialog:confirm-permanent-delete | ADR-003, ADR-005 |
@@ -32,7 +32,7 @@
 | **즐겨찾기/최근** (US-3.3, C4/C5) | Sidebar | sidebar usecase / sidebarSlice | — | session:save/load(영속) | — |
 | **현재 폴더 검색** (US-4.1, feat-D1) | SearchBar | search usecase / panelsSlice(filter) | 필터/하이라이트(순수) | (Renderer 내 필터, IPC 불필요; 200ms 폴백 SW §6.3) | ADR-004 |
 | **확장자/이름 필터** (US-4.2, feat-D2) | SearchBar/필터바 | search usecase | 패턴 매칭 규칙 | — | — |
-| **미리보기 패널** (US-4.3, feat-D3, S) ✅ | `ui/preview/PreviewPanel.tsx` + `renderers/*`(Image/Text/Meta/Unsupported) | `uiSlice.previewOpen`·`commandBus#preview.toggle` | 형식 분기·상한·바이너리 판별(`FileSystemService.readPreview`) | **preview:read**(신규, `preview.handlers.ts`·`dto.PreviewData`) | SA 8장 |
+| **미리보기 패널** (US-4.3, feat-D3, S) ✅ / **2단 뷰어 확장**(feat-J5) ✅ | `ui/preview/PreviewPanel.tsx`(+J5 `PreviewInfoCard` 2단) + `renderers/*`(Image/Text/Meta/Unsupported **+J5 Code(highlight.js)/Markdown(marked+DOMPurify)**) | `uiSlice.previewOpen`·`commandBus#preview.toggle`(+J6 `uiSlice.previewWidth`) | 형식 분기·상한·바이너리 판별·lang/isMarkdown(`FileSystemService.readPreview`) | **preview:read**(신규, `preview.handlers.ts`·`dto.PreviewData`) — J5 신규 채널 0(재사용) | SA 8장. J5 의존성 highlight.js/marked/dompurify lazy(§1-J 참조) |
 | **다중 선택/일괄** (US-5.1, E3) | FileListView | selection usecase / selectionSlice | 선택집합 연산, count/totalSize 파생 | (op:start로 일괄) | ADR-002 |
 | **진행률/취소** (US-5.2, E4) | ProgressDialog, StatusBar | operations usecase / operationsSlice | — | op:progress(200ms 스로틀), op:cancel, op:done | ADR-005 |
 | **대용량 폴더 빠른 첫 렌더(성능)** (US-5.6) | FileListView(가상 스크롤) | panelsSlice 스트림 적재 | — | fs:list:start/chunk/done, fs:list:cancel | ADR-004, ADR-005 |
@@ -89,6 +89,26 @@
 
 ---
 
+## 1-J. 보기 · 실시간 갱신 · 뷰어 확장 · 브랜딩(J장, Should) → 구현 파일 매핑
+
+> features §J(박스 선택·패널 실시간 갱신·보기 5종·AGT-Finder 브랜딩·미리보기 2단 뷰어·미리보기 폭 조절·즐겨찾기 별칭)를 2026-06-07 정식 편입·구현(PRD §6 Should·J4 M릴리스·user-stories 에픽9). J2는 **신규 채널 `fs:watch:*` 4종**(P1 동결 이후 추가 — P6 `preview:read`·H4 `shell:open-terminal`·I장 `analyze:scan:*` 동일 선례)으로, J1/J3/J5(렌더러)·J6/J7은 신규 IPC 채널이 아니라 **slice·DTO 확장**(ViewMode·previewWidth·favoriteLabels)으로 추적한다. **식별자 권위 기준 = 기획문서 feat-J1~J7/US-9.1~9.7**(계획서 내부 번호 J1~J8 아님). 2026-06-07 코드 확인 ✅(typecheck/lint 0·`verify:watch` 77/0·`verify:store` 76/0·QA PASS·빌드 성공; J2 보류 2건(선택/스크롤 보존·UNC 폴링 폴백) 구현 완료 + 매핑 네트워크 드라이브 `GetDriveType` 연동 완료 ✅, `subst`·일부 클라우드(`DriveType≠4`)만 미포함 한계).
+
+| 기능(추적원) | UI 컴포넌트 | 유스케이스/스토어 | 도메인/엔진 규칙 | 채널 / DTO | 비고 |
+|---|---|---|---|---|---|
+| **드래그 박스 선택(러버밴드)** (feat-J1, US-9.1, S) ✅ | `src/renderer/ui/panel/views/FileListView.tsx`(러버밴드 오버레이·경계 자동 스크롤) | `src/renderer/app/stores/selectionSlice.ts#boxSelect`(교체/누적/범위 모드) | `src/renderer/domain/rules/boxSelect.ts`(사각형 교차 판정 순수함수·가상 스크롤 마운트 항목 포함) | 신규 채널·DTO **없음**(렌더러 내부 선택 연산) | ※ 실제 마우스 드래그·자동 스크롤은 런타임 DOM 의존 → 런타임 스모크 권장 |
+| **패널 실시간 갱신(워처)** (feat-J2, US-9.2, S) ✅ | `FileListView`(자동 갱신 반영·`pendingScrollRestore` 1회성 스크롤 복원) | `src/renderer/app/usecases/watchBridge.ts`(watchId 상관·경로 교체 시 이전 감시 해제·리소스 정리·onEvent→`softRefresh`) · `src/renderer/app/stores/panelsSlice.ts`(`softRefresh`·`capturePreserve`·`_applyPreserve`·`pendingScrollRestore`·navigate 3종 `resetSelection`) · `src/renderer/app/stores/selectionSlice.ts#setSelection` | `src/main/fs/WatchService.ts`(non-recursive `fs.watch`·디바운스 병합·권한/네트워크/미지원 격리 throw 0→onError + **UNC + 매핑 네트워크 드라이브 eager 폴링·reactive fs.watch error 폴백·4s readdir diff·stat 승계·pollBusy 재진입 가드·>20k 항목 비활성·stop 정리·미지 고정 드라이브 lazy refresh trigger**) · `src/main/os/driveType.ts`(`DriveTypeService` — PowerShell CIM `Win32_LogicalDisk DriveType=4`=`DRIVE_REMOTE` execFile 조회·네트워크 드라이브 문자 캐시 원자 Set 교체·throttle·재진입 가드·빈집합 폴백·헤드리스 `queryFn`/`setNetworkDriveLetters` 주입) · `src/main/fs/paths.ts`(`isUncPath`·`isNetworkDriveRoot`(driveType 캐시 동기 조회)·`isLikelyRemotePath`) · `src/main/index.ts`(부팅 non-blocking refresh) | **신규 채널 `fs:watch:start/event/stop/error`(4종)**: `channels.ts`·`contracts.ts` → `main/ipc/watch.handlers.ts`(sender·guardPath·디렉토리 검증). **폴링·`GetDriveType` 연동은 backend 내부·계약 변경 0(투명)·신규 npm 의존성 0(PowerShell 시스템 내장)** | ADR-005(execFile 셸 미경유·고정 상수 스크립트·`^[A-Z]:` 화이트리스트 파싱). P1 동결 후 신규 채널(선례 동일 규약). 보류 2건 구현 완료: **선택/스크롤 보존 ✅·UNC 폴링 폴백 ✅**. **매핑 네트워크 드라이브(`X:\`) `GetDriveType` 연동 완료 → eager 폴링 적용 ✅**. 잔여 한계: `subst`·일부 클라우드(`DriveType≠4`) 미포함(reactive 폴백 유지). ※ 네이티브 워처 실제 이벤트 런타임 스모크 권장 |
+| **Windows 표준 보기 5종** (feat-J3, US-9.3, S) ✅ | `FileListView`(아이콘 그리드 3종·H6 `OSIcon`/`shell:icon` 재사용·가상 스크롤) · `src/renderer/ui/toolbar/PanelToolbar.tsx`(보기 드롭다운) | `app/stores/panelsSlice.ts`(패널별 `view` 기억) | 그리드 2차원 레이아웃·박스 선택(J1) 교차 정합 | **DTO `ViewMode`**(`'icons-large'|'icons-medium'|'icons-small'|'list'|'details'`, `shared/dto`) · `main/persistence/defaults.ts VIEW_MODES` 화이트리스트 | 신규 IPC 채널 없음(아이콘은 기존 `shell:icon` 재사용) |
+| **브랜딩 AGT-Finder** (feat-J4, US-9.4, M릴리스) ✅ | `src/renderer/index.html`(`<title>AGT-Finder`) | — | — | (패키징/식별자) `package.json`(name `agt-finder`·description) · `electron-builder.yml`(**`appId: com.agtfinder.app`**·`productName: AGT-Finder`) · `src/main/windows/mainWindow.ts` · `src/main/index.ts` · `src/main/persistence/paths.ts`(userData 경로) | 코드네임 "Explorer"는 내부 ExplorerApi 타입·주석만 유지(사용자 노출 0). ※ exe/인스톨러 파일명·바로가기는 패키징 산출물 런타임 확인 권장 |
+| **미리보기 2단 뷰어(정보+확장 뷰어)** (feat-J5, US-9.5, S) ✅ | `src/renderer/ui/preview/PreviewPanel.tsx`(상단 `PreviewInfoCard`+하단 뷰어) · `renderers/CodePreview.tsx`(highlight.js 강조) · `renderers/MarkdownPreview.tsx`(marked+DOMPurify) · 기존 Image/Text/Meta/Unsupported 폴백 | `uiSlice.previewOpen`·`commandBus#preview.toggle`(`Ctrl+P` 재사용) | `FileSystemService.readPreview`(lang/isMarkdown 판별·상한·바이너리) | **기존 `preview:read` 재사용**(신규 채널 0) · 신규 의존성 **highlight.js(BSD-3)·marked(MIT)·dompurify(MPL-2.0)** lazy 청크 | ADR-005·CSP. 마크다운 DOMPurify 새니타이즈·원격 로드/eval 차단(읽기 전용) |
+| **미리보기 패널 폭 조절** (feat-J6, US-9.6, S) ✅ | H3 `ui/layout/SplitDivider.tsx` 재사용(미리보기-본문 분할선) | `app/stores/uiSlice.ts#previewWidth`(클램프·기본 폭 복귀) · `usecases/session.ts`(직렬화·영속) | `ui/layout/splitMath.ts#ratioFromPoint`(순수함수 재사용) | **DTO 확장**: `shared/dto`(`ui.previewWidth`) | 토글 off→on 후 폭 유지. H3 메커니즘 재사용·다른 경계(가로 축) |
+| **즐겨찾기 별칭 변경** (feat-J7, US-9.7, S) ✅ | `src/renderer/ui/sidebar/Sidebar.tsx`(인라인 편집·우클릭/`F2`·Enter/Esc) | `app/stores/sidebarSlice.ts`(별칭 설정/초기화·basename 폴백) · `usecases/session.ts`(영속) | 표시 전용(경로 불변)·빈 별칭 basename 폴백·중복 허용 | **DTO 확장**: `shared/dto SidebarSnapshot.favoriteLabels` · `main/persistence/defaults.ts`(정규화) | 기존 `F2` 재사용·신규 채널 없음 |
+
+> **F5/F6 매핑 제거(2026-06-07 사용자 결정·은폐 금지)**: 본 추적성의 §1 "패널 간 이동/복사" 행과 §2 단축키 표 `F5`/`F6` 행이 가리키던 `panel.copyToOther`/`moveToOther` commandId·`usecases/fileOps.ts`의 `copyToOtherPanel`/`moveToOtherPanel` 함수는 **코드에서 제거**됐다(`domain/keybindings`·`commandBus`·`fileOps`·`ShortcutHelp`). 위 두 곳을 코드 기준으로 정정했다 — **유령 매핑(코드 없는데 매핑 잔존) 제거**. 패널 간 복사/이동은 D&D(A3)·클립보드(`Ctrl+C/X/V`)가 단일 경로로 유지된다(이 매핑은 그대로 유효).
+
+> **식별자 매핑 주의(reviewer 중대-1)**: 계획서 `J-ref-batch-plan.md`의 내부 번호(J1~J8)와 기획문서 feat-ID(feat-J1~J7·US-9.1~9.7)가 다르다. 본 추적성은 **기획문서 feat-J1~J7/US-9.1~9.7을 권위 기준**으로 작성했다(박스선택=J1/9.1, 실시간갱신=J2/9.2, 보기5종=J3/9.3, 브랜딩=J4/9.4, 뷰어=J5/9.5, 폭조절=J6/9.6, 별칭=J7/9.7, F5/F6제거=feat 없음·기존 정정).
+
+---
+
 ## 2. 단축키 표(PRD 8장) → 처리 위치 매핑
 
 > 단일 출처: `renderer/domain/keybindings`(키→commandId). 디스패치는 SW 7장.
@@ -97,7 +117,7 @@
 |---|---|---|
 | `Tab` | `panel.focusNext`(순환) | tabsSlice |
 | `Ctrl+←/→` | `panel.focusDir(dir)`(방향) | tabsSlice |
-| `F5` / `F6` | `panel.copyToOther`/`moveToOther` | operations usecase → op:start |
+| ~~`F5` / `F6`~~ | ~~`panel.copyToOther`/`moveToOther`~~ | **삭제됨(2026-06-07 사용자 요청)** — 키 미배정·commandId/usecase 코드에서 제거. 패널 간 복사/이동은 D&D·클립보드(`Ctrl+C/X/V`)가 단일 경로 |
 | `Ctrl+R` | `panel.refresh` | panelsSlice → fs:list:start |
 | `Ctrl+T/W/Shift+T/D`, `Ctrl+Tab`, `Ctrl+1~9` | `tab.*` | tabsSlice |
 | `Ctrl+\` | `layout.toggleSplit2` | tabsSlice |
@@ -111,7 +131,7 @@
 | `Ctrl+A`, `Ctrl+클릭`, `Shift+클릭` | `select.all/toggle/range` | selectionSlice |
 | `Ctrl+P` (S) | `preview.toggle` | uiSlice |
 
-> **충돌 회피 검증 반영**(결정-D4): `Tab`/`F5`/`F6`/`Ctrl+R`가 고유 commandId로 매핑됨. 레지스트리가 동일 컨텍스트 중복 매핑을 부팅 시 assert.
+> **충돌 회피 검증 반영**(결정-D4): `Tab`/`Ctrl+R`가 고유 commandId로 매핑됨(~~`F5`/`F6`~~은 2026-06-07 제거되어 미배정). 레지스트리가 동일 컨텍스트 중복 매핑을 부팅 시 assert.
 > **포커스 명령 구분**: `panel.focusNext`(Tab=순환)와 `panel.focusDir(dir)`(Ctrl+←/→=방향)는 별개 commandId다(SW §7.2와 통일).
 
 ---
@@ -135,6 +155,6 @@
 
 ## 4. 추적성이 커버한 핵심 기능 (요약)
 
-탭 관리 · 2분할/4분할 패널 · 패널 간 이동/복사(D&D·F5/F6) · 목록 보기/정렬 · 생성/이름변경(fs:mkdir/create-file/rename) · 삭제(휴지통/영구) · 파일 실행/열기(B6) · 복사/붙여넣기 · 충돌 해결 · 주소표시줄/탐색 · 트리 사이드바 · 즐겨찾기/최근 · 현재 폴더 검색 · 확장자 필터 · 미리보기(S) · 다중 선택/일괄 · 진행률/취소 · 대용량 빠른 첫 렌더(성능) · 테마(라이트/다크/시스템/**블루라이트 차단 I2**) · 설정(E6) · 키보드 워크플로(8장 전체) · 자동 세션 복원 · 상태바 · 명시적 워크스페이스(S) · 휴지통 연동 · Windows 특수케이스 · 텔레메트리 옵트인 · **사용량 대시보드(S, I1: `analyze:scan:*`·recharts)**.
+탭 관리 · 2분할/4분할 패널 · 패널 간 이동/복사(D&D·클립보드 — ~~F5/F6~~ 2026-06-07 제거) · 목록 보기/정렬(**보기 5종 J3: `ViewMode`**) · 생성/이름변경(fs:mkdir/create-file/rename) · 삭제(휴지통/영구) · 파일 실행/열기(B6) · 복사/붙여넣기 · 충돌 해결 · 주소표시줄/탐색 · 트리 사이드바 · 즐겨찾기/최근(**별칭 J7: `favoriteLabels`**) · 현재 폴더 검색 · 확장자 필터 · 미리보기(S, **2단 뷰어 J5·폭 조절 J6**) · 다중 선택/일괄(**박스 선택 J1: `boxSelect`**) · 진행률/취소 · 대용량 빠른 첫 렌더(성능) · 테마(라이트/다크/시스템/**블루라이트 차단 I2**) · 설정(E6) · 키보드 워크플로(8장 전체) · 자동 세션 복원 · 상태바 · 명시적 워크스페이스(S) · 휴지통 연동 · Windows 특수케이스 · 텔레메트리 옵트인 · **사용량 대시보드(S, I1: `analyze:scan:*`·recharts)** · **패널 실시간 갱신(S, J2 ✅: `fs:watch:*`·`WatchService`(UNC + 매핑 드라이브 eager + reactive 폴링)·`os/driveType.ts`(GetDriveType 연동)·`panelsSlice` softRefresh/보존; `subst`·일부 클라우드(`DriveType≠4`)만 미포함 한계)** · **브랜딩 AGT-Finder(M릴리스, J4: appId `com.agtfinder.app`)**.
 
-> 위 항목 모두 컴포넌트·유스케이스/스토어·IPC 채널·ADR로 매핑 완료. 생성/이름변경(B3)은 전용 `fs:mkdir`/`fs:create-file`/`fs:rename` 채널(SA §3.2), 실행(B6)은 `shell:*`, 설정(E6)은 `settings:get/set`으로 실 채널까지 연결했다(유령 매핑 제거). **Should 4종(4분할·미리보기·워크스페이스·텔레메트리)은 P6에서 실 파일·채널까지 매핑 완료 ✅** — 미리보기는 신규 `preview:read`(기존 `fs:stat` 잠정 매핑 정정), 텔레메트리는 신규 `telemetry:get-opt-in` 추가. **연결 프로그램으로 열기(`shell:open-with`)·컨텍스트 메뉴(우클릭) 인프라는 P6 시점에 구현 완료 ✅**(후자는 P4 산출물이 실제 누락돼 있던 드리프트를 해소 — `ui/contextmenu/`·속성→`shell:show-properties` 호출 UI 포함). **신규 UX 6종(H장: 아이콘바 H1·사이드바 토글 H2·분할 크기조절 H3·터미널 열기 H4·경로 직접 입력 H5·파일 유형 아이콘 H6)도 구현 완료 ✅**(§1-H 매핑 — renderer commandId 4건·`TabSnapshot.splitRatios` DTO 확장·`coerceSplitRatios`; **H4 신규 채널 `shell:open-terminal`·H6 예약 채널 `shell:icon` 정식 구현(예약→구현 드리프트 해소)**; US-7.2/7.3 드래그·H4 `wt.exe`·H6 `app.getFileIcon` 실제 네이티브 실행은 런타임 스모크 권장). **Should 잔여(그리드/썸네일 보기·되돌리기 Ctrl+Z·휴지통 관리 화면)는 미구현 🔜.**
+> 위 항목 모두 컴포넌트·유스케이스/스토어·IPC 채널·ADR로 매핑 완료. 생성/이름변경(B3)은 전용 `fs:mkdir`/`fs:create-file`/`fs:rename` 채널(SA §3.2), 실행(B6)은 `shell:*`, 설정(E6)은 `settings:get/set`으로 실 채널까지 연결했다(유령 매핑 제거). **Should 4종(4분할·미리보기·워크스페이스·텔레메트리)은 P6에서 실 파일·채널까지 매핑 완료 ✅** — 미리보기는 신규 `preview:read`(기존 `fs:stat` 잠정 매핑 정정), 텔레메트리는 신규 `telemetry:get-opt-in` 추가. **연결 프로그램으로 열기(`shell:open-with`)·컨텍스트 메뉴(우클릭) 인프라는 P6 시점에 구현 완료 ✅**(후자는 P4 산출물이 실제 누락돼 있던 드리프트를 해소 — `ui/contextmenu/`·속성→`shell:show-properties` 호출 UI 포함). **신규 UX 6종(H장: 아이콘바 H1·사이드바 토글 H2·분할 크기조절 H3·터미널 열기 H4·경로 직접 입력 H5·파일 유형 아이콘 H6)도 구현 완료 ✅**(§1-H 매핑 — renderer commandId 4건·`TabSnapshot.splitRatios` DTO 확장·`coerceSplitRatios`; **H4 신규 채널 `shell:open-terminal`·H6 예약 채널 `shell:icon` 정식 구현(예약→구현 드리프트 해소)**; US-7.2/7.3 드래그·H4 `wt.exe`·H6 `app.getFileIcon` 실제 네이티브 실행은 런타임 스모크 권장). **신규 보기·실시간·뷰어·브랜딩(J장: 박스 선택 J1·패널 실시간 갱신 J2·보기 5종 J3·AGT-Finder 브랜딩 J4·미리보기 2단 뷰어 J5·폭 조절 J6·즐겨찾기 별칭 J7)도 구현 완료 ✅**(§1-J 매핑 — J2 신규 채널 `fs:watch:*`·J3 `ViewMode`·J4 appId `com.agtfinder.app`·J5 highlight.js/marked/dompurify·J6 `previewWidth`·J7 `favoriteLabels`; **J2 실시간 갱신은 보류 2건(선택/스크롤 보존·UNC 폴링 폴백) 구현 완료 + 매핑 네트워크 드라이브 `GetDriveType` 연동(`os/driveType.ts` PowerShell CIM `DriveType=4`·`paths.isNetworkDriveRoot`)으로 🟡→✅ 격상 — `panelsSlice` softRefresh/`pendingScrollRestore`·`WatchService` UNC + 매핑 드라이브 eager + reactive 폴링·`paths.ts` isUncPath/isNetworkDriveRoot; `subst`·일부 클라우드(`DriveType≠4`)만 미포함 한계**; 워처/뷰어 네이티브 동작·박스선택 드래그는 런타임 스모크 권장). **F5/F6 복사·이동 매핑은 코드 제거에 맞춰 §1·§2에서 정정(유령 매핑 제거).** **Should 잔여(그리드 썸네일 이미지 생성·되돌리기 Ctrl+Z·휴지통 관리 화면)는 미구현 🔜.**
