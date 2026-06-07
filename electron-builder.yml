@@ -1,0 +1,35 @@
+# 패키징/인스톨러 설정 (ADR-006, directory-structure §4)
+# 1차 타깃: Windows 10/11 x64, NSIS 인스톨러.
+appId: com.explorer.app
+productName: Explorer
+copyright: Copyright © 2026 Explorer Team
+
+directories:
+  output: dist
+  buildResources: resources
+
+# electron-vite 산출물(out/) 만 패키징에 포함
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  # 코드 서명은 P7(릴리스 준비)에서 설정.
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Explorer
+
+# 로컬 전용 앱 — 자동 업데이트 게시 비활성(향후 도입)
+publish: null

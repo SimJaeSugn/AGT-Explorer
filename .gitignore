@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+
+# logs
+*.log
+npm-debug.log*
+
+# env / secrets (실제 비밀은 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# ts build info
+*.tsbuildinfo
+
+# lint cache
+.eslintcache
+
+# npm pack 산출물
+*.tgz
+
+# Claude Code 로컬 설정 (개인/머신 전용 — 공유 금지). agents/·skills/ 는 추적.
+.claude/settings.local.json

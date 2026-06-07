@@ -1,0 +1,367 @@
+/**
+ * uiSlice — 테마·설정·전역 UI 상태 (SA §5.2, 저빈도).
+ *
+ * P2/P3 범위: 활성 입력 컨텍스트(주소 편집/검색/이름편집/다이얼로그)와
+ * 파일 실행 실패 등 사용자 안내 토스트. theme·showHidden·showExtensions 의
+ * 본격 영속(settings:set)은 P5 이지만 상태 자리는 여기 둔다.
+ */
+import type { KeyContext } from '@renderer/domain/keybindings'
+import type { SettingsSnapshot, ThemeMode } from '@shared/dto'
+import type { SliceCreator } from './types'
+
+/** 사용자 안내 토스트 1개. */
+export interface Toast {
+  readonly id: string
+  readonly kind: 'info' | 'error'
+  readonly message: string
+}
+
+let toastSeq = 0
+
+/**
+ * 영구삭제 확인 모달 상태(P4). 자체 모달로 표시하며 확인 시 onConfirm 콜백을
+ * usecase 가 실행한다. paths 표시·취소/확인 버튼을 ConfirmDialog 가 렌더.
+ */
+export interface ConfirmDeleteState {
+  /** 삭제 대상 경로. */
+  readonly paths: string[]
+}
+
+/**
+ * 컨텍스트 메뉴(우클릭) 상태(P4). 열려 있으면 좌표·대상 패널·대상 경로를 보유한다.
+ * x/y 는 뷰포트 기준 클라이언트 좌표(ContextMenu 가 화면 경계 보정 후 배치).
+ * targetPath=null 이면 패널 빈 영역 우클릭(대상 없음 — 붙여넣기/새 폴더/새로고침).
+ */
+export interface ContextMenuState {
+  /** 우클릭 클라이언트 X(뷰포트 기준). */
+  readonly x: number
+  /** 우클릭 클라이언트 Y(뷰포트 기준). */
+  readonly y: number
+  /** 메뉴가 속한 패널 id(명령은 활성 패널 기준이므로 열기 전 활성화 보장). */
+  readonly panelId: string
+  /** 우클릭한 항목 경로(빈 영역이면 null). */
+  readonly targetPath: string | null
+}
+
+/**
+ * 인라인 이름변경 대상(P4). F2/새 항목 생성 직후 진입.
+ * FileListView 가 panelId·path 가 일치하는 행을 input 으로 렌더한다.
+ */
+export interface RenameTarget {
+  readonly panelId: string
+  /** 편집 대상 항목 경로. */
+  readonly path: string
+  /** 입력 초기값(현재 이름). */
+  readonly initialName: string
+  /** true 면 방금 만든 새 항목(취소 시 별도 처리 가능). */
+  readonly isNew: boolean
+}
+
+export interface UiSlice {
+  /** 현재 활성 입력 컨텍스트(단축키 디스패처가 스코프 판정에 사용). */
+  readonly inputContext: KeyContext
+  /** 주소 표시줄 편집 모드 여부(Ctrl+L 로 진입). */
+  readonly addressEditing: boolean
+  /** 사용자 안내 토스트 목록. */
+  readonly toasts: Toast[]
+  /** 단축키 도움말 패널 표시(P5 설정 화면 전 임시 확인용). */
+  readonly shortcutHelpOpen: boolean
+
+  // P4 다이얼로그/인라인 편집 상태 ────────────────────────────────────────
+  /** 영구삭제 확인 모달(열려 있으면 객체, 닫혀 있으면 null). */
+  readonly confirmDelete: ConfirmDeleteState | null
+  /** 인라인 이름변경 대상(없으면 null). */
+  readonly renameTarget: RenameTarget | null
+  /** 컨텍스트 메뉴(우클릭) 상태(없으면 null). */
+  readonly contextMenu: ContextMenuState | null
+
+  // 설정(P5 영속 — settings:get/set 연동) ────────────────────────────────
+  /** 숨김/시스템 파일 표시(기본 false → fs:list showHidden 으로 연동). */
+  readonly showHidden: boolean
+  /** 확장자 표시(기본 true → FileListView 이름 표기). */
+  readonly showExtensions: boolean
+  /** 테마(라이트/다크/시스템). */
+  readonly theme: ThemeMode
+  /** 기본 시작 위치(빈 문자열이면 "내 PC"). */
+  readonly startLocation: string
+  /** 최근 목록 보관 개수. */
+  readonly recentLimit: number
+  /** 텔레메트리 옵트인(기본 false, D5). SettingsSnapshot 와 분리 채널. */
+  readonly telemetryOptIn: boolean
+  /** settings:get 로 1회 로드 완료 여부(부팅 동기화 가드). */
+  readonly settingsLoaded: boolean
+  /** 설정 화면 열림 여부. */
+  readonly settingsOpen: boolean
+
+  // P6 미리보기 / 워크스페이스 ────────────────────────────────────────────
+  /** 미리보기 패널 열림 여부(기본 false, Ctrl+P 토글, US-4.3). 세션 복원 대상. */
+  readonly previewOpen: boolean
+  /** 워크스페이스 관리 다이얼로그 열림 여부(US-5.8). */
+  readonly workspaceOpen: boolean
+
+  // H-4b 클립보드 동기 상태(붙여넣기 활성조건) ──────────────────────────────
+  /**
+   * OS 클립보드에 붙여넣을 파일이 있는지(경량 동기 플래그). 붙여넣기 버튼
+   * 활성조건용. 휘발 런타임 상태(영속 제외) — OS 클립보드가 진실 출처.
+   */
+  readonly clipboardHasFiles: boolean
+
+  /** 입력 컨텍스트 설정. */
+  setInputContext(ctx: KeyContext): void
+  /** 주소 편집 모드 토글. */
+  setAddressEditing(editing: boolean): void
+  /** 토스트 추가/제거. */
+  pushToast(kind: Toast['kind'], message: string): void
+  dismissToast(id: string): void
+  /** 단축키 도움말 토글. */
+  toggleShortcutHelp(): void
+
+  // P5 설정 액션(영속 반영은 usecase/settings 가 settings:set 으로 수행) ──
+  /**
+   * settings:get 스냅샷(또는 세션 ui.theme)을 슬라이스에 일괄 반영.
+   * 부팅 동기화·재시작 복원에 쓰인다. telemetryOptIn 은 별도 인자.
+   */
+  applySettings(snapshot: SettingsSnapshot, telemetryOptIn: boolean): void
+  /** 숨김 파일 표시 설정(목록 재요청은 usecase 가 처리). */
+  setShowHidden(v: boolean): void
+  /** 확장자 표시 설정. */
+  setShowExtensions(v: boolean): void
+  /** 테마 설정(즉시 적용은 usecase/구독이 applyTheme 로 처리). */
+  setTheme(theme: ThemeMode): void
+  /** 기본 시작 위치 설정. */
+  setStartLocation(path: string): void
+  /** 최근 목록 보관 개수 설정(1~1000 클램프). */
+  setRecentLimit(n: number): void
+  /** 텔레메트리 옵트인 설정. */
+  setTelemetryOptIn(v: boolean): void
+  /** 설정 화면 열기/닫기(열림 시 inputContext='dialog'). */
+  openSettings(): void
+  closeSettings(): void
+
+  // P6 미리보기 / 워크스페이스 액션 ────────────────────────────────────────
+  /** 미리보기 패널 토글(Ctrl+P). */
+  togglePreview(): void
+  /** 미리보기 패널 열림 상태 직접 설정(세션 복원). */
+  setPreviewOpen(v: boolean): void
+  /** 워크스페이스 관리 다이얼로그 열기/닫기(열림 시 inputContext='dialog'). */
+  openWorkspace(): void
+  closeWorkspace(): void
+
+  // H-4b 클립보드 동기 상태 액션 ───────────────────────────────────────────
+  /** 클립보드에 붙여넣을 파일 존재 여부 설정(syncClipboardState·copy/cut 성공). */
+  setClipboardHasFiles(v: boolean): void
+
+  // P4 액션 ──────────────────────────────────────────────────────────────
+  /** 영구삭제 확인 모달 열기(inputContext='dialog'). */
+  openConfirmDelete(paths: string[]): void
+  /** 영구삭제 확인 모달 닫기(inputContext='list' 복귀). */
+  closeConfirmDelete(): void
+  /** 인라인 이름변경 시작(inputContext='rename'). */
+  startRename(target: RenameTarget): void
+  /** 인라인 이름변경 종료(inputContext='list' 복귀). */
+  endRename(): void
+  /**
+   * 컨텍스트 메뉴 열기(inputContext='dialog' — 전역 단축키 차단, 메뉴가 직접 키 처리).
+   * 다른 다이얼로그가 열려 있으면 무시(모달 우선).
+   */
+  openContextMenu(menu: ContextMenuState): void
+  /** 컨텍스트 메뉴 닫기(다른 다이얼로그/편집이 없으면 inputContext='list' 복귀). */
+  closeContextMenu(): void
+}
+
+export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
+  inputContext: 'list',
+  addressEditing: false,
+  toasts: [],
+  shortcutHelpOpen: false,
+  confirmDelete: null,
+  renameTarget: null,
+  contextMenu: null,
+  showHidden: false,
+  showExtensions: true,
+  theme: 'system',
+  startLocation: '',
+  recentLimit: 10,
+  telemetryOptIn: false,
+  settingsLoaded: false,
+  settingsOpen: false,
+  previewOpen: false,
+  workspaceOpen: false,
+  clipboardHasFiles: false,
+
+  applySettings(snapshot, telemetryOptIn) {
+    set((s) => {
+      s.theme = snapshot.theme
+      s.startLocation = snapshot.startLocation
+      s.showHidden = snapshot.showHidden
+      s.showExtensions = snapshot.showExtensions
+      s.recentLimit = Math.min(1000, Math.max(1, Math.trunc(snapshot.recentLimit)))
+      s.telemetryOptIn = telemetryOptIn
+      s.settingsLoaded = true
+    })
+  },
+
+  setShowHidden(v) {
+    set((s) => {
+      s.showHidden = v
+    })
+  },
+
+  setShowExtensions(v) {
+    set((s) => {
+      s.showExtensions = v
+    })
+  },
+
+  setTheme(theme) {
+    set((s) => {
+      s.theme = theme
+    })
+  },
+
+  setStartLocation(path) {
+    set((s) => {
+      s.startLocation = path
+    })
+  },
+
+  setRecentLimit(n) {
+    set((s) => {
+      s.recentLimit = Math.min(1000, Math.max(1, Math.trunc(n)))
+    })
+  },
+
+  setTelemetryOptIn(v) {
+    set((s) => {
+      s.telemetryOptIn = v
+    })
+  },
+
+  openSettings() {
+    set((s) => {
+      s.settingsOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeSettings() {
+    set((s) => {
+      s.settingsOpen = false
+      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen) s.inputContext = 'list'
+    })
+  },
+
+  togglePreview() {
+    set((s) => {
+      s.previewOpen = !s.previewOpen
+    })
+  },
+
+  setPreviewOpen(v) {
+    set((s) => {
+      s.previewOpen = v
+    })
+  },
+
+  openWorkspace() {
+    set((s) => {
+      s.workspaceOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeWorkspace() {
+    set((s) => {
+      s.workspaceOpen = false
+      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen) s.inputContext = 'list'
+    })
+  },
+
+  setClipboardHasFiles(v) {
+    set((s) => {
+      s.clipboardHasFiles = v
+    })
+  },
+
+  setInputContext(ctx) {
+    set((s) => {
+      s.inputContext = ctx
+    })
+  },
+
+  setAddressEditing(editing) {
+    set((s) => {
+      s.addressEditing = editing
+      s.inputContext = editing ? 'addressEdit' : 'list'
+    })
+  },
+
+  pushToast(kind, message) {
+    toastSeq += 1
+    const id = `toast-${toastSeq}`
+    set((s) => {
+      s.toasts.push({ id, kind, message })
+      if (s.toasts.length > 4) s.toasts.shift()
+    })
+  },
+
+  dismissToast(id) {
+    set((s) => {
+      s.toasts = s.toasts.filter((t) => t.id !== id)
+    })
+  },
+
+  toggleShortcutHelp() {
+    set((s) => {
+      s.shortcutHelpOpen = !s.shortcutHelpOpen
+    })
+  },
+
+  openConfirmDelete(paths) {
+    set((s) => {
+      s.confirmDelete = { paths: [...paths] }
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeConfirmDelete() {
+    set((s) => {
+      s.confirmDelete = null
+      // 다른 다이얼로그가 없으면 list 로 복귀.
+      if (!s.renameTarget) s.inputContext = 'list'
+    })
+  },
+
+  startRename(target) {
+    set((s) => {
+      s.renameTarget = target
+      s.inputContext = 'rename'
+    })
+  },
+
+  endRename() {
+    set((s) => {
+      s.renameTarget = null
+      if (!s.confirmDelete) s.inputContext = 'list'
+    })
+  },
+
+  openContextMenu(menu) {
+    set((s) => {
+      // 모달(영구삭제 확인·설정·워크스페이스)·이름편집 중에는 컨텍스트 메뉴를 열지 않는다.
+      if (s.confirmDelete || s.settingsOpen || s.workspaceOpen || s.renameTarget) return
+      s.contextMenu = menu
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeContextMenu() {
+    set((s) => {
+      s.contextMenu = null
+      // 다른 다이얼로그/편집이 없으면 list 로 복귀.
+      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.workspaceOpen) {
+        s.inputContext = 'list'
+      }
+    })
+  }
+})

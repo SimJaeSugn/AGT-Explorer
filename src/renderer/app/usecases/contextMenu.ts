@@ -1,0 +1,166 @@
+/**
+ * 컨텍스트 메뉴 유스케이스 (app/usecases/contextMenu) — 우클릭 → 선택 보정 → 메뉴 열기.
+ *
+ * roadmap P4(frontend): 마우스 우클릭이 키보드/툴바와 동일한 commandId 경로로 수렴하도록
+ * 메뉴 클릭은 commandBus.execCommand 또는 단일 전용 usecase(openWithEntry·showPropertiesFor)
+ * 를 호출한다. 이 모듈은 (a) 우클릭 시 활성 패널·선택 보정, (b) 컨텍스트별 메뉴 항목 산출을
+ * 담당한다. 실제 메뉴 렌더·키보드·경계 보정은 ui/contextmenu/ContextMenu 가 처리한다.
+ *
+ * 경계: app → store(액션)·usecases. UI 는 이 usecase 경유로만 호출(ui→infra 직접 import 금지).
+ */
+import type { FileEntryDTO } from '@shared/dto'
+import { store } from '@renderer/app/stores/rootStore'
+import { isMyPc } from '@renderer/domain/paths'
+import { execCommand } from './commandBus'
+import { openWithEntry, showPropertiesFor } from './open'
+import { visibleEntries } from './selectors'
+
+/** 메뉴 항목 1개. separator 면 구분선만 그린다. */
+export interface MenuItem {
+  /** 안정적 식별자(React key·테스트). */
+  readonly id: string
+  /** 표시 라벨('separator' 면 무시). */
+  readonly label?: string
+  /** 구분선 여부. */
+  readonly separator?: boolean
+  /** 위험 동작(삭제) 강조 표시. */
+  readonly danger?: boolean
+  /** 클릭/Enter 시 실행(separator 는 없음). */
+  readonly run?: () => void
+}
+
+/** 우클릭 시점의 메뉴 구성 입력. */
+interface MenuContext {
+  /** 현재 선택 경로 집합. */
+  readonly selectedPaths: ReadonlySet<string>
+  /** 단일 선택 항목(있으면). 다중/없음이면 null. */
+  readonly singleEntry: FileEntryDTO | null
+}
+
+/**
+ * 활성 패널 선택을 화면 순서 entry 배열로 매핑(라벨용 단일 항목 판정).
+ * visibleEntries 로 경로→entry 를 만든다(이름·isDir 참조).
+ */
+function buildContext(panelId: string): MenuContext {
+  const sel = store.getState().selection[panelId]
+  const selectedPaths = sel?.selectedPaths ?? new Set<string>()
+  let singleEntry: FileEntryDTO | null = null
+  if (selectedPaths.size === 1) {
+    const only = selectedPaths.values().next().value as string | undefined
+    if (only) singleEntry = visibleEntries(panelId).find((e) => e.path === only) ?? null
+  }
+  return { selectedPaths, singleEntry }
+}
+
+/** commandId 발행 단축 헬퍼(메뉴 클릭 → 키보드/툴바와 동일 경로). */
+function cmd(commandId: string): () => void {
+  return () => {
+    execCommand(commandId)
+  }
+}
+
+/**
+ * 컨텍스트별 메뉴 항목 산출(표시·활성 규칙).
+ *  - 단일 파일: 열기 / 연결 프로그램으로 열기 / 복사·잘라내기·이름변경 / 삭제·영구삭제 / 속성
+ *  - 단일 폴더: 열기 / 복사·잘라내기·이름변경 / 삭제·영구삭제 / 속성 (연결 프로그램 제외)
+ *  - 다중 선택: 복사·잘라내기 / 삭제·영구삭제 (이름변경·연결프로그램·속성은 단일 전용)
+ *  - 빈 영역: 붙여넣기 / 새 폴더 / 새로고침
+ */
+export function buildMenuItems(panelId: string, targetPath: string | null): MenuItem[] {
+  const ctx = buildContext(panelId)
+
+  // 빈 영역(대상 없음) ─ 붙여넣기/새 폴더/새로고침.
+  // My PC(드라이브 목록)에는 붙여넣기·새 폴더가 불가하므로 새로고침만 노출(QA 보통-1).
+  if (targetPath === null) {
+    const panelPath = store.getState().panels[panelId]?.path ?? ''
+    if (isMyPc(panelPath)) {
+      return [{ id: 'refresh', label: '새로고침', run: cmd('panel.refresh') }]
+    }
+    return [
+      { id: 'paste', label: '붙여넣기', run: cmd('file.paste') },
+      { id: 'sep-empty', separator: true },
+      { id: 'newFolder', label: '새 폴더', run: cmd('file.newFolder') },
+      { id: 'refresh', label: '새로고침', run: cmd('panel.refresh') }
+    ]
+  }
+
+  const multi = ctx.selectedPaths.size > 1
+  const single = ctx.singleEntry
+  const items: MenuItem[] = []
+
+  // ── 열기 그룹(단일 전용) ──────────────────────────────────────────────
+  if (!multi && single) {
+    // 폴더=진입, 파일=연결 프로그램 실행. 둘 다 panel.activate(activateEntry) 로 수렴.
+    items.push({ id: 'open', label: '열기', run: cmd('panel.activate') })
+    if (!single.isDir) {
+      items.push({
+        id: 'openWith',
+        label: '연결 프로그램으로 열기',
+        run: () => void openWithEntry(single)
+      })
+    }
+    items.push({ id: 'sep-open', separator: true })
+  }
+
+  // ── 편집 그룹 ─────────────────────────────────────────────────────────
+  items.push({ id: 'copy', label: '복사', run: cmd('file.copy') })
+  items.push({ id: 'cut', label: '잘라내기', run: cmd('file.cut') })
+  if (!multi && single) {
+    items.push({ id: 'rename', label: '이름 바꾸기', run: cmd('file.rename') })
+  }
+
+  // ── 삭제 그룹 ─────────────────────────────────────────────────────────
+  items.push({ id: 'sep-del', separator: true })
+  items.push({ id: 'trash', label: '삭제(휴지통)', danger: true, run: cmd('file.trash') })
+  items.push({
+    id: 'deletePermanent',
+    label: '영구 삭제',
+    danger: true,
+    run: cmd('file.deletePermanent')
+  })
+
+  // ── 속성 그룹(단일 전용) ──────────────────────────────────────────────
+  if (!multi && single) {
+    items.push({ id: 'sep-props', separator: true })
+    items.push({ id: 'properties', label: '속성', run: () => void showPropertiesFor(single.path) })
+  }
+
+  return items
+}
+
+/**
+ * 파일 목록 행 우클릭 → 활성 패널 전환 + 선택 보정(탐색기 표준) + 메뉴 열기.
+ *
+ * 우클릭한 항목이 현재 선택에 없으면 그 항목만 단일 선택으로 바꾼다(이미 선택에
+ * 포함되어 있으면 기존 다중 선택 유지 — 여러 항목 일괄 작업 의도 보존).
+ */
+export function openRowContextMenu(
+  panelId: string,
+  entry: FileEntryDTO,
+  visiblePaths: readonly string[],
+  index: number,
+  clientX: number,
+  clientY: number
+): void {
+  const s = store.getState()
+  // 활성 패널 전환(명령은 활성 패널 기준이므로 메뉴 열기 전에 보장).
+  const tab = s.activeTab()
+  if (tab && tab.activePanelId !== panelId) s.setActivePanel(tab.id, panelId)
+
+  const sel = s.selection[panelId]
+  const inSelection = sel?.selectedPaths.has(entry.path) ?? false
+  if (!inSelection) {
+    // 선택 밖 항목 우클릭 → 그 항목만 단일 선택.
+    s.clickSelect(panelId, visiblePaths, index, false, false)
+  }
+
+  s.openContextMenu({ x: clientX, y: clientY, panelId, targetPath: entry.path })
+}
+
+/** 패널 빈 영역 우클릭 → 활성 패널 전환 + (대상 없음) 메뉴 열기. */
+export function openEmptyContextMenu(panelId: string, clientX: number, clientY: number): void {
+  const s = store.getState()
+  const tab = s.activeTab()
+  if (tab && tab.activePanelId !== panelId) s.setActivePanel(tab.id, panelId)
+  s.openContextMenu({ x: clientX, y: clientY, panelId, targetPath: null })
+}

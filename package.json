@@ -1,0 +1,60 @@
+{
+  "name": "explorer",
+  "version": "0.1.0",
+  "description": "멀티 디렉토리 파일탐색기 (Electron + React)",
+  "private": true,
+  "author": "Explorer Team",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev --watch",
+    "clean": "node scripts/clean.mjs out",
+    "prebuild": "npm run clean",
+    "build": "npm run typecheck && electron-vite build",
+    "package": "npm run build && electron-builder --win --config electron-builder.yml",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "lint": "eslint . --ext .ts,.tsx,.cjs",
+    "start": "electron-vite preview",
+    "verify:fs": "esbuild scripts/verify-fs.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-fs.cjs && node ./out/verify-fs.cjs",
+    "verify:ops": "esbuild scripts/verify-ops.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-ops.cjs && node ./out/verify-ops.cjs",
+    "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
+    "verify:persistence": "esbuild scripts/verify-persistence.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-persistence.cjs && node ./out/verify-persistence.cjs",
+    "verify:p6": "esbuild scripts/verify-p6-backend.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-p6-backend.cjs && node ./out/verify-p6-backend.cjs",
+    "verify:open-with": "esbuild scripts/verify-open-with.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-open-with.cjs && node ./out/verify-open-with.cjs",
+    "verify:store": "esbuild tests/store.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/store.verify.mjs && node ./out/store.verify.mjs",
+    "verify:domain": "esbuild tests/domain.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/domain.verify.mjs && node ./out/domain.verify.mjs",
+    "verify:operations": "esbuild tests/operations.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/operations.verify.mjs && node ./out/operations.verify.mjs",
+    "verify:p5": "esbuild tests/p5.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/p5.verify.mjs && node ./out/p5.verify.mjs",
+    "verify:paste": "esbuild scripts/verify-paste.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:electron=./scripts/stub-electron.ts --banner:js=\"import { dirname as __pp } from 'node:path'; import { fileURLToPath as __fu } from 'node:url'; const __dirname = __pp(__fu(import.meta.url));\" --outfile=./out/main/verify-paste.mjs && node ./out/main/verify-paste.mjs"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "immer": "^10.1.1",
+    "zod": "^3.25.76",
+    "zustand": "^4.5.5"
+  },
+  "engines": {
+    "node": ">=20.11 <21 || >=22 <23"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.4.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "eslint": "^8.57.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.30.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

@@ -1,0 +1,95 @@
+/**
+ * IPC 채널명 상수 — 단일 출처 (directory-structure §2 shared/ipc/channels.ts).
+ *
+ * P1 에서 **전 채널**(fs:* / shell:* / op:* / clipboard:* / session:* /
+ * settings:* / workspace:*)을 동결한다. 핸들러 실구현 범위는 Phase 별로 분리:
+ *   - fs:* (읽기 계열)      → P1 (이 단계에서 구현)
+ *   - fs:mkdir/create/rename → P4
+ *   - shell:open            → P2,  shell:show-properties/open-with → P4/P6
+ *   - op:*                  → P4
+ *   - clipboard:*           → P4
+ *   - session:* / settings:* → P5
+ *   - workspace:*           → P6
+ *
+ * 명명 규칙: 도메인 네임스페이스 접두사(`fs:`, `shell:`, `op:`, ...) + 동사.
+ * 스트림 하위 이벤트는 `:start/:chunk/:done/:error/:cancel` 서픽스.
+ *
+ * 추적성: SA §3.2 채널 카탈로그, ADR-003.
+ */
+export const CHANNELS = {
+  // ── fs:* 디렉토리/메타 (요청-응답) ─ 구현 P1 ───────────────────────────
+  FS_LIST: 'fs:list',
+  FS_STAT: 'fs:stat',
+  FS_DRIVES: 'fs:drives',
+  FS_TREE_CHILDREN: 'fs:tree-children',
+  FS_VALIDATE_PATH: 'fs:validate-path',
+
+  // ── fs:* 디렉토리 스트리밍 (대형 폴더) ─ 구현 P1 ──────────────────────
+  FS_LIST_START: 'fs:list:start',
+  FS_LIST_CHUNK: 'fs:list:chunk', // 푸시 evt
+  FS_LIST_DONE: 'fs:list:done', // 푸시 evt
+  FS_LIST_ERROR: 'fs:list:error', // 푸시 evt
+  FS_LIST_CANCEL: 'fs:list:cancel',
+
+  // ── fs:* 단발 기본조작 ─ 계약만 동결, impl: P4 ────────────────────────
+  FS_MKDIR: 'fs:mkdir', // impl: P4
+  FS_CREATE_FILE: 'fs:create-file', // impl: P4
+  FS_RENAME: 'fs:rename', // impl: P4
+
+  // ── shell:* 쉘/OS 통합 ─ 계약만 동결 ─────────────────────────────────
+  SHELL_OPEN: 'shell:open', // impl: P2
+  SHELL_OPEN_WITH: 'shell:open-with', // impl: P6 (Should)
+  SHELL_SHOW_PROPERTIES: 'shell:show-properties', // impl: P4
+  SHELL_ICON: 'shell:icon', // impl: P2/P4 (시스템 아이콘 캐시)
+
+  // ── op:* 파일 작업(비동기·취소·진행률) ─ 계약만 동결, impl: P4 ────────
+  OP_START: 'op:start', // impl: P4
+  OP_PROGRESS: 'op:progress', // 푸시 evt · impl: P4
+  OP_CONFLICT: 'op:conflict', // 푸시 evt · impl: P4
+  OP_RESOLVE: 'op:resolve', // impl: P4
+  OP_DONE: 'op:done', // 푸시 evt · impl: P4
+  OP_CANCEL: 'op:cancel', // impl: P4
+
+  // ── clipboard:* OS 클립보드 파일 연동 ─ 계약만 동결, impl: P4 ─────────
+  CLIPBOARD_COPY_FILES: 'clipboard:copy-files', // impl: P4
+  CLIPBOARD_CUT_FILES: 'clipboard:cut-files', // impl: P4
+  CLIPBOARD_PASTE_TARGET: 'clipboard:paste-target', // impl: P4
+  CLIPBOARD_READ: 'clipboard:read', // impl: P4 (클립보드에 담긴 파일 조회)
+
+  // ── dialog:* Main 모달 ─ 계약만 동결, impl: P4 ───────────────────────
+  DIALOG_CONFIRM_PERMANENT_DELETE: 'dialog:confirm-permanent-delete', // impl: P4
+
+  // ── session:* / settings:* 영속화 ─ 계약만 동결, impl: P5 ────────────
+  SESSION_LOAD: 'session:load', // impl: P5
+  SESSION_SAVE: 'session:save', // impl: P5
+  SETTINGS_GET: 'settings:get', // impl: P5
+  SETTINGS_SET: 'settings:set', // impl: P5
+  TELEMETRY_SET_OPT_IN: 'telemetry:set-opt-in', // impl: P6 (기본 false, D5)
+  TELEMETRY_GET_OPT_IN: 'telemetry:get-opt-in', // impl: P6 (부팅 재수화, D5)
+
+  // ── workspace:* 명시적 워크스페이스 ─ 계약만 동결, impl: P6 ───────────
+  WORKSPACE_SAVE: 'workspace:save', // impl: P6
+  WORKSPACE_LIST: 'workspace:list', // impl: P6
+  WORKSPACE_LOAD: 'workspace:load', // impl: P6
+  WORKSPACE_DELETE: 'workspace:delete', // impl: P6
+
+  // ── preview:* 미리보기 데이터 읽기 ─ 신규(P6 Should) ──────────────────
+  PREVIEW_READ: 'preview:read' // impl: P6 (텍스트 앞부분/이미지 바이트/메타)
+} as const
+
+export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
+
+/**
+ * Main→Renderer 단방향 푸시(이벤트 스트림) 채널 집합.
+ * Preload 가 `on(...)` 구독을 노출하는 채널이며 invoke/handle 대상이 아니다.
+ */
+export const EVENT_CHANNELS = [
+  CHANNELS.FS_LIST_CHUNK,
+  CHANNELS.FS_LIST_DONE,
+  CHANNELS.FS_LIST_ERROR,
+  CHANNELS.OP_PROGRESS,
+  CHANNELS.OP_CONFLICT,
+  CHANNELS.OP_DONE
+] as const
+
+export type EventChannelName = (typeof EVENT_CHANNELS)[number]
