@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
+import { execCommand } from '@renderer/app/usecases/commandBus'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -82,6 +83,32 @@ export function Sidebar(): JSX.Element | null {
       {treeRoots.map((root) => (
         <TreeNodeView key={root} path={root} depth={1} />
       ))}
+
+      <div style={sectionHeader}>도구</div>
+      <TrashNode />
+    </div>
+  )
+}
+
+/** 휴지통 관리 화면 진입 노드(K장 K2). 클릭 → commandBus 'trash.open'. */
+function TrashNode(): JSX.Element {
+  const open = useRootStore((s) => s.trashOpen)
+  return (
+    <div
+      onClick={() => execCommand('trash.open')}
+      title="휴지통 관리"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        cursor: 'pointer',
+        background: open ? tokens.color.bgSelected : 'transparent'
+      }}
+    >
+      <span style={{ width: 14 }} />
+      <span>🗑</span>
+      <span>휴지통</span>
     </div>
   )
 }

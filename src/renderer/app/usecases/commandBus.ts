@@ -22,11 +22,7 @@ import {
   trashSelected
 } from './fileOps'
 import { toggleThemeMode } from './settings'
-
-/** 아직 미구현(Should/P6) 명령의 안내. */
-function notYet(label: string): void {
-  store.getState().pushToast('info', `${label} 은(는) 다음 단계에서 제공됩니다.`)
-}
+import { performUndo } from './undo'
 
 /** 현재 활성 패널 id 헬퍼. */
 function activePanel(): string | undefined {
@@ -145,6 +141,11 @@ export function execCommand(commandId: string): boolean {
       s.openDashboard()
       return true
 
+    // ── 휴지통 관리(K장 K2) ───────────────────────────────────────────
+    case 'trash.open':
+      s.openTrash()
+      return true
+
     // ── 보기 ─────────────────────────────────────────────────────────
     case 'panel.refresh': {
       const p = activePanel()
@@ -207,9 +208,9 @@ export function execCommand(commandId: string): boolean {
       return true
     }
 
-    // ── Should/P6 ────────────────────────────────────────────────────
+    // ── 되돌리기(K장 K1) ─────────────────────────────────────────────
     case 'file.undo':
-      notYet('되돌리기(Ctrl+Z)')
+      void performUndo()
       return true
     case 'preview.toggle':
       s.togglePreview()

@@ -194,7 +194,7 @@ const baseBindings: KeyBinding[] = [
     chord: 'ctrl+z',
     commandId: 'file.undo',
     context: 'global',
-    label: '되돌리기(Should)',
+    label: '되돌리기',
     group: '파일'
   },
 

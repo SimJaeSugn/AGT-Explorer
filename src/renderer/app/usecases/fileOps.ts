@@ -11,8 +11,9 @@
 import type { ConflictResolution, OpKind } from '@shared/dto'
 import { clipboardApi, fsApi, opApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
+import type { OperationUndoMeta } from '@renderer/app/stores/operationsSlice'
 import { decideDrop, type DragModifiers } from '@renderer/domain/rules/dragIntent'
-import { isMyPc, joinPath, parentOf } from '@renderer/domain/paths'
+import { baseName, isMyPc, joinPath, parentOf } from '@renderer/domain/paths'
 import { visibleEntries } from './selectors'
 
 /** 활성 탭의 패널 경로 묶음(활성/비활성). */
@@ -104,7 +105,8 @@ export async function startOperation(
   kind: OpKind,
   sources: string[],
   destDir: string | undefined,
-  refreshDirs: string[]
+  refreshDirs: string[],
+  undoMeta?: OperationUndoMeta
 ): Promise<string | null> {
   const s = store.getState()
   if (sources.length === 0) {
@@ -119,7 +121,7 @@ export async function startOperation(
     s.pushToast('error', `작업을 시작할 수 없습니다: ${res.error.message}`)
     return null
   }
-  s.registerOperation(res.value.operationId, kind, refreshPanelIds(refreshDirs))
+  s.registerOperation(res.value.operationId, kind, refreshPanelIds(refreshDirs), undoMeta)
   return res.value.operationId
 }
 
@@ -191,7 +193,20 @@ export async function clipboardPaste(): Promise<void> {
     s.pushToast('error', `붙여넣기 실패: ${res.error.message}`)
     return
   }
-  s.registerOperation(res.value.operationId, kind, refreshPanelIds(refreshDirs))
+  // K1 undo 메타: move=역방향 move(toDir→fromDir), copy=생성 사본 휴지통.
+  // 잘라넣기 원본이 단일 폴더에서 온 경우만 move-undo 를 단순·안전하게 산출한다
+  // (여러 부모에서 온 cut 은 역방향 일괄 move 가 부정확 → undo 미생성, 보수적).
+  const srcPaths = clip.value.paths
+  let undoMeta: OperationUndoMeta | undefined
+  if (isCut) {
+    const parents = new Set(cutParents)
+    if (parents.size === 1) {
+      undoMeta = { kind: 'move', sources: [...srcPaths], fromDir: [...parents][0] as string, toDir: activePath }
+    }
+  } else {
+    undoMeta = { kind: 'copy', sources: [...srcPaths], destDir: activePath }
+  }
+  s.registerOperation(res.value.operationId, kind, refreshPanelIds(refreshDirs), undoMeta)
   // H-4b: 붙여넣기 후 재동기(cut 효과면 OS 가 클립보드를 비울 수 있음).
   void syncClipboardState()
 }
@@ -202,7 +217,10 @@ export async function trashSelected(): Promise<void> {
   if (!activePanelId) return
   const sources = selectedPaths(activePanelId)
   if (sources.length === 0) return
-  await startOperation('trash', sources, undefined, [activePath ?? ''])
+  await startOperation('trash', sources, undefined, [activePath ?? ''], {
+    kind: 'trash',
+    originalPaths: [...sources]
+  })
 }
 
 /**
@@ -294,6 +312,8 @@ export async function createNewFolder(): Promise<void> {
     s.pushToast('error', nameOpErrorMessage(res.error.code))
     return
   }
+  // K1 undo: 새 폴더 생성 역연산 = 휴지통 보내기.
+  s.pushUndo({ kind: 'create', path: res.value.path })
   s.refresh(activePanelId)
   // 즉시 이름편집(US-2.2).
   s.startRename({
@@ -323,6 +343,8 @@ export async function createNewFile(): Promise<void> {
     s.pushToast('error', nameOpErrorMessage(res.error.code))
     return
   }
+  // K1 undo: 새 파일 생성 역연산 = 휴지통 보내기.
+  s.pushUndo({ kind: 'create', path: res.value.path })
   s.refresh(activePanelId)
   s.startRename({
     panelId: activePanelId,
@@ -369,10 +391,15 @@ export async function commitRename(
     s.pushToast('info', '이름을 입력하세요.')
     return false
   }
+  const oldName = baseName(path)
   const res = await fsApi.rename({ path, newName: trimmed })
   if (!res.ok) {
     s.pushToast('error', nameOpErrorMessage(res.error.code))
     return false
+  }
+  // K1 undo: 이름변경 역연산(newPath→oldName). 실제 이름이 바뀐 경우만 적재.
+  if (res.value.name !== oldName) {
+    s.pushUndo({ kind: 'rename', newPath: res.value.path, oldName, newName: res.value.name })
   }
   s.endRename()
   s.refresh(panelId)
@@ -403,7 +430,11 @@ export async function performDrop(req: DropRequest): Promise<boolean> {
     return false
   }
   const kind: OpKind = decision.intent === 'copy' ? 'copy' : 'move'
-  const id = await startOperation(kind, req.sources, req.destDir, [req.destDir, req.sourceDir])
+  const undoMeta: OperationUndoMeta =
+    kind === 'copy'
+      ? { kind: 'copy', sources: [...req.sources], destDir: req.destDir }
+      : { kind: 'move', sources: [...req.sources], fromDir: req.sourceDir, toDir: req.destDir }
+  const id = await startOperation(kind, req.sources, req.destDir, [req.destDir, req.sourceDir], undoMeta)
   return id !== null
 }
 

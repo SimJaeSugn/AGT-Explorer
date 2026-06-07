@@ -24,6 +24,7 @@ import { ShortcutHelp } from '@renderer/ui/keyboard/ShortcutHelp'
 import { SettingsDialog } from '@renderer/ui/settings/SettingsDialog'
 import { WorkspaceDialog } from '@renderer/ui/workspace/WorkspaceDialog'
 import { DashboardModal } from '@renderer/ui/dashboard/DashboardModal'
+import { TrashDialog } from '@renderer/ui/trash/TrashDialog'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
@@ -107,6 +108,7 @@ export function App(): JSX.Element {
       <SettingsDialog />
       <WorkspaceDialog />
       <DashboardModal />
+      <TrashDialog />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}
       <ProgressDialog />

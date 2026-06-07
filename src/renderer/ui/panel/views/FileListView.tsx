@@ -17,6 +17,13 @@ import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
 import { getCachedIcon, iconKeyFor, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
+import {
+  getCachedThumbnail,
+  requestThumbnail,
+  subscribeThumbnail,
+  thumbnailKeyFor
+} from '@renderer/app/usecases/thumbnails'
+import { isThumbnailableExt, thumbSizeFor } from '@renderer/domain/image'
 import { commitRename } from '@renderer/app/usecases/fileOps'
 import { openEmptyContextMenu, openRowContextMenu } from '@renderer/app/usecases/contextMenu'
 import { highlightRange } from '@renderer/domain/rules/filter'
@@ -727,7 +734,12 @@ function FileRow({
             justifyContent: 'center'
           }}
         >
-          <OSIcon entry={entry} size={grid.icon} />
+          {/* 그리드 셀이고 이미지면 실제 내용 썸네일 시도, 아니면(또는 폴백) OSIcon. */}
+          {!entry.isDir && isThumbnailableExt(entry.ext.toLowerCase()) ? (
+            <ThumbnailIcon entry={entry} size={grid.icon} />
+          ) : (
+            <OSIcon entry={entry} size={grid.icon} />
+          )}
         </span>
         {renaming ? (
           <RenameInput panelId={panelId} path={entry.path} initialName={initialName} />
@@ -879,6 +891,50 @@ function OSIcon({ entry, size = 16 }: { entry: FileEntryDTO; size?: number }): J
     )
   }
   return <span aria-hidden style={{ fontSize: size > 16 ? size * 0.8 : undefined }}>{entry.isDir ? '📁' : '📄'}</span>
+}
+
+/**
+ * 썸네일 요청 DPR — 셀 아이콘 px × DPR 로 버킷 size 를 산출(레티나에서 선명도 확보).
+ * 상한 2 로 클램프해 4K/스케일 환경에서도 버킷이 [32,48,64,96,128] 범위를 넘지 않게 한다
+ * (guard 의 size 화이트리스트 통과 보장 + 메모리/디코드 폭주 방지). 모듈 로드 시 1회 산출.
+ */
+const THUMB_DPR = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)
+
+/**
+ * ThumbnailIcon — 그리드 셀의 이미지 entry 를 실제 내용 축소 썸네일로 표시(feat-L1, 계획서 §5.3).
+ *
+ * OSIcon 동형: 전역 썸네일 캐시(infra/icon/thumbnailCache, app/usecases/thumbnails 경유)를
+ * useSyncExternalStore 로 구독한다. 같은 path+size 키는 IPC 1회만(in-flight 디듀프), 실패/미지원은
+ * 음성 캐시로 재요청 억제. 가시 셀만 요청은 윈도잉 루프가 보장(가시범위 밖 셀은 언마운트).
+ *
+ *   (a) 썸네일 dataUrl 있음 → <img objectFit:contain>(비율 보존·레터박스, 정사각 셀에서 왜곡 없음).
+ *   (b) 미로드/폴백(null) → OSIcon(기존 H6) — 로딩 중에도 OS 아이콘이 자연스러운 자리표시.
+ * 비이미지(폴더·미지원 ext)는 호출측(그리드 분기)에서 곧장 OSIcon 으로 분기되어 여기 도달 안 함.
+ */
+function ThumbnailIcon({ entry, size }: { entry: FileEntryDTO; size: number }): JSX.Element {
+  // 요청 size = 셀 아이콘 px × DPR → 버킷 스냅(THUMB_SIZE_BUCKETS, guard 화이트리스트와 동일).
+  const px = thumbSizeFor(size, THUMB_DPR)
+  const key = thumbnailKeyFor(entry.path, px)
+  const dataUrl = useSyncExternalStore(subscribeThumbnail, () => getCachedThumbnail(key))
+
+  useEffect(() => {
+    // 미캐시(성공/음성 어느 쪽도 없음)면 1회 요청 — 캐시는 requestThumbnail 내부에서 디듀프.
+    if (getCachedThumbnail(key) === undefined) void requestThumbnail(entry.path, px)
+  }, [key, entry.path, px])
+
+  if (dataUrl) {
+    // 비율 보존(objectFit:contain) — 비정사각 이미지가 정사각 셀에서 왜곡되지 않고 레터박스.
+    return (
+      <img
+        src={dataUrl}
+        alt=""
+        draggable={false}
+        style={{ objectFit: 'contain', maxWidth: size, maxHeight: size }}
+      />
+    )
+  }
+  // 미로드/폴백(null=음성 캐시) → OSIcon 폴백(기존 H6).
+  return <OSIcon entry={entry} size={size} />
 }
 
 /**

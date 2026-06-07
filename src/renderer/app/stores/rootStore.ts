@@ -16,6 +16,8 @@ import { createSidebarSlice } from './sidebarSlice'
 import { createUiSlice } from './uiSlice'
 import { createOperationsSlice } from './operationsSlice'
 import { createAnalyzeSlice } from './analyzeSlice'
+import { createTrashSlice } from './trashSlice'
+import { createUndoSlice } from './undoSlice'
 import type { AppStore } from './types'
 
 enableMapSet()
@@ -28,7 +30,9 @@ export const useRootStore = create<AppStore>()(
     ...createSidebarSlice(...a),
     ...createUiSlice(...a),
     ...createOperationsSlice(...a),
-    ...createAnalyzeSlice(...a)
+    ...createAnalyzeSlice(...a),
+    ...createTrashSlice(...a),
+    ...createUndoSlice(...a)
   }))
 )
 

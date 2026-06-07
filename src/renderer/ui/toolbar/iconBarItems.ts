@@ -220,6 +220,13 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     active: (s) => s.dashboardOpen
   },
   {
+    id: 'trash.open',
+    label: '휴지통',
+    icon: '🗑',
+    group: 'tool',
+    active: (s) => s.trashOpen
+  },
+  {
     id: 'app.settings',
     label: '설정',
     icon: '⚙',

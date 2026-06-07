@@ -44,7 +44,11 @@ import type {
   ScanProgressEvt,
   ScanDoneEvt,
   ScanErrorEvt,
+  TrashRestoreReq,
+  TrashEmptyReq,
   PreviewReadReq,
+  ThumbnailReq,
+  ThumbnailRes,
   Result,
   SessionSaveReq,
   SettingsSetReq,
@@ -73,6 +77,7 @@ import type {
   PreviewData,
   SessionSnapshot,
   SettingsSnapshot,
+  TrashItemDTO,
   WorkspaceInfo
 } from '@shared/dto'
 
@@ -189,6 +194,7 @@ export interface ExplorerApi {
   // ── preview:* (타입만 노출, impl: P6) ──────────────────────────
   readonly preview: {
     read(req: PreviewReadReq): Promise<Result<PreviewData>>
+    thumbnail(req: ThumbnailReq): Promise<Result<ThumbnailRes>>
   }
 
   // ── analyze:scan:* (타입만 노출, 핸들러 impl: I장 다음 단계) ────
@@ -198,6 +204,13 @@ export interface ExplorerApi {
     onScanProgress(cb: (evt: ScanProgressEvt) => void): Unsubscribe
     onScanDone(cb: (evt: ScanDoneEvt) => void): Unsubscribe
     onScanError(cb: (evt: ScanErrorEvt) => void): Unsubscribe
+  }
+
+  // ── trash:* (타입만 노출, 핸들러/recycleBin impl: K장 다음 단계) ─
+  readonly trash: {
+    list(): Promise<Result<TrashItemDTO[]>>
+    restore(req: TrashRestoreReq): Promise<Result<void>>
+    empty(req: TrashEmptyReq): Promise<Result<void>>
   }
 }
 
@@ -276,7 +289,8 @@ export const api: ExplorerApi = {
   },
 
   preview: {
-    read: (req) => invoke(CHANNELS.PREVIEW_READ, req)
+    read: (req) => invoke(CHANNELS.PREVIEW_READ, req),
+    thumbnail: (req) => invoke(CHANNELS.PREVIEW_THUMBNAIL, req)
   },
 
   analyze: {
@@ -285,6 +299,12 @@ export const api: ExplorerApi = {
     onScanProgress: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_PROGRESS, cb),
     onScanDone: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_DONE, cb),
     onScanError: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_ERROR, cb)
+  },
+
+  trash: {
+    list: () => invoke(CHANNELS.TRASH_LIST),
+    restore: (req) => invoke(CHANNELS.TRASH_RESTORE, req),
+    empty: (req) => invoke(CHANNELS.TRASH_EMPTY, req)
   }
 }
 

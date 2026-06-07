@@ -174,6 +174,53 @@ async function main(): Promise<void> {
   check('CAP 여유 → truncated=false, 전부 집계(50)', r6b.truncated === false && r6b.totalItems === 50)
   await fsp.rm(truncRoot, { recursive: true, force: true }).catch(() => undefined)
 
+  // ── 7) byCategory — 파일 유형별 집계(K3) ────────────────────────────────
+  line('== 7) byCategory(유형별 bytes/count 집계) ==')
+  // 알려진 확장자 분포 트리:
+  //   img1.png 100, img2.jpg 200       → image (2건, 300)
+  //   clip.mp4 1000                    → video (1건, 1000)
+  //   song.mp3 50                      → audio (1건, 50)
+  //   doc.pdf 300, notes.md 20         → document (2건, 320)
+  //   app.ts 10, page.html 40          → code (2건, 50)
+  //   pack.zip 500                     → archive (1건, 500)
+  //   mystery.xyz 5, noext 5           → other (2건, 10)  (미지 확장자/확장자 없음)
+  const catRoot = await fsp.mkdtemp(join(os.tmpdir(), 'explorer-scan-cat-'))
+  const files: [string, number][] = [
+    ['img1.png', 100],
+    ['img2.jpg', 200],
+    ['clip.mp4', 1000],
+    ['song.mp3', 50],
+    ['doc.pdf', 300],
+    ['notes.md', 20],
+    ['app.ts', 10],
+    ['page.html', 40],
+    ['pack.zip', 500],
+    ['mystery.xyz', 5],
+    ['noext', 5]
+  ]
+  for (const [n, sz] of files) await fsp.writeFile(join(catRoot, n), Buffer.alloc(sz, 1))
+  const r7 = await runScan(catRoot, noopHooks)
+  const bc = r7.byCategory ?? []
+  const find = (c: string): { bytes: number; count: number } =>
+    bc.find((e) => e.category === c) ?? { bytes: 0, count: 0 }
+  check('byCategory 항상 7개(0 포함)', bc.length === 7)
+  check('image=2건/300B', find('image').count === 2 && find('image').bytes === 300)
+  check('video=1건/1000B', find('video').count === 1 && find('video').bytes === 1000)
+  check('audio=1건/50B', find('audio').count === 1 && find('audio').bytes === 50)
+  check('document=2건/320B', find('document').count === 2 && find('document').bytes === 320)
+  check('code=2건/50B', find('code').count === 2 && find('code').bytes === 50)
+  check('archive=1건/500B', find('archive').count === 1 && find('archive').bytes === 500)
+  // 미지 확장자(.xyz) + 확장자 없음(noext) → other.
+  check('other=2건/10B(미지·무확장자)', find('other').count === 2 && find('other').bytes === 10)
+  // 카테고리 합 = 전체 파일 bytes/count(폴더 제외, 이 트리는 폴더 0개).
+  const catBytesSum = bc.reduce((s, e) => s + e.bytes, 0)
+  const catCountSum = bc.reduce((s, e) => s + e.count, 0)
+  check('카테고리 bytes 합 = totalBytes', catBytesSum === r7.totalBytes)
+  check('카테고리 count 합 = 파일 총수(11)', catCountSum === 11 && catCountSum === r7.totalItems)
+  // bytes desc 정렬(상위 카테고리 우선).
+  check('byCategory bytes desc 정렬', bc.every((e, i, a) => i === 0 || a[i - 1]!.bytes >= e.bytes))
+  await fsp.rm(catRoot, { recursive: true, force: true }).catch(() => undefined)
+
   // ── 정리 ──────────────────────────────────────────────────────────────────
   await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)
   await fsp.rm(capRoot, { recursive: true, force: true }).catch(() => undefined)

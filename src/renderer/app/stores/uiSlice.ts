@@ -94,6 +94,8 @@ export interface UiSlice {
   readonly settingsOpen: boolean
   /** 사용량 대시보드 모달 열림 여부(I장 §4.1). */
   readonly dashboardOpen: boolean
+  /** 휴지통 관리 모달 열림 여부(K장 K2). */
+  readonly trashOpen: boolean
   /** 프로그램 시작 시 용량 대시보드 자동 표시(설정 영속, I장 §4.4). */
   readonly showDashboardOnStartup: boolean
 
@@ -149,6 +151,10 @@ export interface UiSlice {
   closeDashboard(): void
   /** 시작 시 대시보드 표시 설정(영속은 usecase/settings 가 처리). */
   setShowDashboardOnStartup(v: boolean): void
+  /** 휴지통 모달이 열릴 때 inputContext='dialog' 전환(trashSlice.openTrash 와 함께 호출). */
+  openTrash(): void
+  /** 휴지통 모달 닫힘 시 다른 모달 없으면 inputContext='list' 복귀(trashSlice.closeTrash 와 함께). */
+  closeTrash(): void
 
   // P6 미리보기 / 워크스페이스 액션 ────────────────────────────────────────
   /** 미리보기 패널 토글(Ctrl+P). */
@@ -200,6 +206,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   settingsLoaded: false,
   settingsOpen: false,
   dashboardOpen: false,
+  trashOpen: false,
   showDashboardOnStartup: true,
   previewOpen: false,
   previewWidth: 320,
@@ -265,7 +272,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   closeSettings() {
     set((s) => {
       s.settingsOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.dashboardOpen) {
+      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.dashboardOpen && !s.trashOpen) {
         s.inputContext = 'list'
       }
     })
@@ -281,7 +288,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   closeDashboard() {
     set((s) => {
       s.dashboardOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.settingsOpen) {
+      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.settingsOpen && !s.trashOpen) {
         s.inputContext = 'list'
       }
     })
@@ -290,6 +297,28 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setShowDashboardOnStartup(v) {
     set((s) => {
       s.showDashboardOnStartup = v
+    })
+  },
+
+  openTrash() {
+    set((s) => {
+      s.trashOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeTrash() {
+    set((s) => {
+      s.trashOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen
+      ) {
+        s.inputContext = 'list'
+      }
     })
   },
 
@@ -322,7 +351,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   closeWorkspace() {
     set((s) => {
       s.workspaceOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen) {
+      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen && !s.trashOpen) {
         s.inputContext = 'list'
       }
     })
@@ -399,8 +428,15 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
 
   openContextMenu(menu) {
     set((s) => {
-      // 모달(영구삭제 확인·설정·워크스페이스)·이름편집 중에는 컨텍스트 메뉴를 열지 않는다.
-      if (s.confirmDelete || s.settingsOpen || s.workspaceOpen || s.dashboardOpen || s.renameTarget) {
+      // 모달(영구삭제 확인·설정·워크스페이스·대시보드·휴지통)·이름편집 중에는 컨텍스트 메뉴를 열지 않는다.
+      if (
+        s.confirmDelete ||
+        s.settingsOpen ||
+        s.workspaceOpen ||
+        s.dashboardOpen ||
+        s.trashOpen ||
+        s.renameTarget
+      ) {
         return
       }
       s.contextMenu = menu
@@ -417,7 +453,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         !s.renameTarget &&
         !s.settingsOpen &&
         !s.workspaceOpen &&
-        !s.dashboardOpen
+        !s.dashboardOpen &&
+        !s.trashOpen
       ) {
         s.inputContext = 'list'
       }

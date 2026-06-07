@@ -143,6 +143,18 @@ export const zTelemetrySetOptInReq = z.object({ enabled: z.boolean() })
 // preview:read 는 단일 경로만(가드가 guardPath 로 정규화·상위이탈 차단).
 export const zPreviewReadReq = z.object({ path: zPath })
 
+// ── L장: preview:thumbnail (그리드 이미지 썸네일 — nativeImage resize) ─────
+// size 는 화이트리스트 버킷(셀 아이콘 px 64/48/32 × DPR≤2 = 32~128)만 허용한다.
+// 임의 거대 size 로 nativeImage resize 메모리 폭주·DoS 를 입구에서 차단(방어 심층).
+// 이 상수는 썸네일 서비스(os/thumbnail.ts)와 프런트 버킷 산출의 단일 출처가 되며,
+// guard 통과가 곧 size 버킷 검증을 보장한다(getThumbnailDataUrl 은 검증 전제 동작).
+export const THUMB_SIZE_BUCKETS = [32, 48, 64, 96, 128] as const
+const THUMB_SIZE_BUCKET_SET: ReadonlySet<number> = new Set(THUMB_SIZE_BUCKETS)
+export const zThumbnailReq = z.object({
+  path: zPath,
+  size: z.number().refine((v) => THUMB_SIZE_BUCKET_SET.has(v), '허용되지 않은 썸네일 크기')
+})
+
 // workspace:* — SessionSnapshot 은 깊은 직렬화 객체이므로 형태 1차(version)만
 // 통과시키고 본문 정규화는 WorkspaceStore 의 coerceSession 에 위임한다
 // (zSessionSaveReq 와 동일 정책). name 은 파일명으로 쓰이므로 Store 에서 추가
@@ -163,3 +175,10 @@ export const zAnalyzeScanCancelReq = z.object({ scanId: z.string().min(1) })
 // path 는 guardPath 로 정규화·상위이탈 차단 후 WatchService 가 stat 으로 디렉토리 검증.
 export const zFsWatchStartReq = z.object({ path: zPath })
 export const zFsWatchStopReq = z.object({ watchId: z.string().min(1) })
+
+// ── K장 K2: trash:* (휴지통 열거·복원·비우기) ────────────────────────────────
+// restore: ids = TrashItemDTO.id($R 실경로 토큰) 배열. 형태(min1·max1000)만 1차 검증,
+//   핸들러가 각 id 의 $Recycle.Bin 화이트리스트를 재검증(임의 경로 실행 차단·방어 심층).
+// empty: confirmed 가 literal true 가 아니면 핸들러가 EINVAL 거부(전체 비우기 게이트).
+export const zTrashRestoreReq = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) })
+export const zTrashEmptyReq = z.object({ confirmed: z.boolean() })

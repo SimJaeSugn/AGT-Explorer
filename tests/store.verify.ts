@@ -398,5 +398,92 @@ if (sid) {
   )
 }
 
+// ── K1: undo 스택(undoSlice) push/pop/cap/역연산엔트리/영구삭제 미push ──────
+{
+  s().clearUndo()
+  ok('undo 초기 빈 스택', s().undoStack.length === 0)
+  ok('빈 스택 popUndo undefined', s().popUndo() === undefined)
+
+  // push/pop 순서(LIFO).
+  s().pushUndo({ kind: 'rename', newPath: 'C:\\a\\new.txt', oldName: 'old.txt', newName: 'new.txt' })
+  s().pushUndo({ kind: 'create', path: 'C:\\a\\새 폴더' })
+  ok('undo push 2건', s().undoStack.length === 2)
+  const top = s().popUndo()
+  ok('popUndo LIFO(top=create)', !!top && top.kind === 'create')
+  ok('pop 후 1건', s().undoStack.length === 1)
+
+  // 역연산 엔트리 종류 보존(판별 유니온).
+  s().clearUndo()
+  s().pushUndo({ kind: 'move', sources: ['C:\\a\\x'], fromDir: 'C:\\a', toDir: 'C:\\b' })
+  s().pushUndo({ kind: 'copy', createdPaths: ['C:\\b\\y'] })
+  s().pushUndo({ kind: 'trash', originalPaths: ['C:\\a\\z'] })
+  const e1 = s().popUndo()
+  ok('trash 엔트리 originalPaths', !!e1 && e1.kind === 'trash' && e1.originalPaths[0] === 'C:\\a\\z')
+  const e2 = s().popUndo()
+  ok('copy 엔트리 createdPaths', !!e2 && e2.kind === 'copy' && e2.createdPaths[0] === 'C:\\b\\y')
+  const e3 = s().popUndo()
+  ok('move 엔트리 from/to', !!e3 && e3.kind === 'move' && e3.fromDir === 'C:\\a' && e3.toDir === 'C:\\b')
+
+  // 상한 cap=50: 60건 push → 50건 유지, 가장 오래된 것 폐기.
+  s().clearUndo()
+  for (let i = 0; i < 60; i++) s().pushUndo({ kind: 'create', path: `C:\\cap\\${i}` })
+  ok('undo cap 50 유지', s().undoStack.length === 50)
+  // 가장 오래된 0~9 폐기 → top 은 마지막 push(59), bottom 은 10.
+  ok('cap 오래된 것 폐기(bottom=10)', (s().undoStack[0] as { path: string }).path === 'C:\\cap\\10')
+  const capTop = s().popUndo()
+  ok('cap top=59', !!capTop && capTop.kind === 'create' && capTop.path === 'C:\\cap\\59')
+
+  // 영구삭제(delete)는 undo 엔트리를 만들지 않는다 → delete kind 자체가 UndoEntry 에 없음.
+  // registerOperation 에 delete undoMeta 를 주지 않으므로 done 시 push 안 됨(설계 보장).
+  s().clearUndo()
+  ok('delete 후 빈 스택(미push 보장)', s().undoStack.length === 0)
+}
+
+// ── K1: registerOperation undoMeta 보관 ────────────────────────────────────
+{
+  s().registerOperation('undo-op-1', 'trash', [], { kind: 'trash', originalPaths: ['C:\\a\\f'] })
+  const op = s().operations['undo-op-1']
+  ok('registerOperation undoMeta 보관', !!op && op.undoMeta?.kind === 'trash')
+  s().registerOperation('undo-op-2', 'move', [])
+  ok('registerOperation undoMeta 없음 허용', s().operations['undo-op-2']?.undoMeta === undefined)
+  s().dismissOperation('undo-op-1')
+  s().dismissOperation('undo-op-2')
+}
+
+// ── K2: trashSlice 목록/선택 ───────────────────────────────────────────────
+{
+  s()._trashLoading()
+  ok('trash loading 상태', s().trashStatus === 'loading')
+  s()._setTrashItems([
+    { id: 'r1', name: 'a.txt', originalPath: 'C:\\x\\a.txt', deletedAt: 100, size: 10 },
+    { id: 'r2', name: 'b.txt', originalPath: 'C:\\x\\b.txt', deletedAt: 200, size: 20 }
+  ])
+  ok('trash ready + 2건', s().trashStatus === 'ready' && s().trashItems.length === 2)
+  s().toggleTrashSelect('r1')
+  s().toggleTrashSelect('r2')
+  ok('trash 선택 2건', s().trashSelected.size === 2)
+  // 목록 갱신 시 사라진 선택 정리(r2 제거).
+  s()._setTrashItems([{ id: 'r1', name: 'a.txt', originalPath: 'C:\\x\\a.txt', deletedAt: 100, size: 10 }])
+  ok('trash 갱신 후 사라진 선택 정리', s().trashSelected.size === 1 && s().trashSelected.has('r1'))
+  s().setAllTrashSelected(false)
+  ok('trash 전체 해제', s().trashSelected.size === 0)
+  s()._trashError('x')
+  ok('trash error 상태', s().trashStatus === 'error' && s().trashError === 'x')
+}
+
+// ── K2: 휴지통 모달 inputContext 게이트(uiSlice) ────────────────────────────
+{
+  s().setInputContext('list')
+  s().openTrash()
+  ok('openTrash → dialog', s().trashOpen && s().inputContext === 'dialog')
+  s().closeTrash()
+  ok('closeTrash → list 복귀', !s().trashOpen && s().inputContext === 'list')
+  // 휴지통 위에서 컨텍스트 메뉴 차단.
+  s().openTrash()
+  s().openContextMenu({ x: 0, y: 0, panelId: 'p', targetPath: null })
+  ok('휴지통 위 컨텍스트 메뉴 차단', s().contextMenu === null)
+  s().closeTrash()
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

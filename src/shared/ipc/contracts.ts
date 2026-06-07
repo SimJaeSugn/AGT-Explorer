@@ -30,6 +30,7 @@ import type {
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
+  TrashItemDTO,
   WorkspaceInfo
 } from '../dto'
 
@@ -207,6 +208,15 @@ export interface WorkspaceDeleteReq {
 export interface PreviewReadReq {
   readonly path: string
 }
+/** preview:thumbnail (L1) — 그리드 이미지 썸네일 요청. size=긴 변 px(버킷 화이트리스트). */
+export interface ThumbnailReq {
+  readonly path: string
+  readonly size: number
+}
+/** 썸네일 결과. dataUrl=null 이면 폴백(미지원/손상/대용량) → 렌더러가 OS 아이콘 표시. */
+export interface ThumbnailRes {
+  readonly dataUrl: string | null
+}
 
 // ── fs:watch:* (신규 J장 J2 — 디렉토리 실시간 감시, 계약만 동결) ───────
 /** 패널이 현재 보고 있는 디렉토리 1개를 non-recursive 로 감시. */
@@ -219,6 +229,20 @@ export interface FsWatchStartRes {
 }
 export interface FsWatchStopReq {
   readonly watchId: string
+}
+
+// ── trash:* (신규 K장 K2 — 휴지통 관리, 계약만 동결) ───────────────────
+/** trash:restore 요청 — 복원할 항목의 토큰 id 목록(TrashItemDTO.id = $R 실경로). */
+export interface TrashRestoreReq {
+  readonly ids: string[]
+}
+/**
+ * trash:empty 요청 — 전체 비우기 확인 게이트.
+ * Renderer 확인 모달을 통과했음을 나타내는 표식으로, `confirmed === true` 일 때만
+ * 핸들러가 실제 비우기를 실행한다(미확인 호출은 거부).
+ */
+export interface TrashEmptyReq {
+  readonly confirmed: boolean
 }
 
 // ── analyze:scan:* (신규 I장 — Top10 스캔, 계약만 동결) ────────────────
@@ -298,6 +322,7 @@ export interface IpcRequestMap {
 
   // preview:* (P6 — 신규 Should)
   [CHANNELS.PREVIEW_READ]: { req: PreviewReadReq; res: Result<PreviewData> }
+  [CHANNELS.PREVIEW_THUMBNAIL]: { req: ThumbnailReq; res: Result<ThumbnailRes> }
 
   // analyze:scan:* (신규 I장 — 계약만 동결)
   [CHANNELS.ANALYZE_SCAN_START]: { req: AnalyzeScanStartReq; res: Result<AnalyzeScanStartRes> }
@@ -306,6 +331,11 @@ export interface IpcRequestMap {
   // fs:watch:* (신규 J장 J2 — 계약만 동결, 핸들러 impl: 다음 단계)
   [CHANNELS.FS_WATCH_START]: { req: FsWatchStartReq; res: Result<FsWatchStartRes> }
   [CHANNELS.FS_WATCH_STOP]: { req: FsWatchStopReq; res: Result<void> }
+
+  // trash:* (신규 K장 K2 — 계약만 동결, 핸들러/recycleBin impl: 다음 단계)
+  [CHANNELS.TRASH_LIST]: { req: void; res: Result<TrashItemDTO[]> }
+  [CHANNELS.TRASH_RESTORE]: { req: TrashRestoreReq; res: Result<void> }
+  [CHANNELS.TRASH_EMPTY]: { req: TrashEmptyReq; res: Result<void> }
 }
 
 /** invoke/handle 채널 키 집합. */

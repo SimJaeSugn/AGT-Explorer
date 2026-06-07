@@ -38,6 +38,18 @@ export interface OperationProgress {
   readonly bytesPerSec: number
 }
 
+/**
+ * op:done 시점에 undo 엔트리를 만들기 위해 op 시작 시 보관하는 역연산 메타(K1).
+ *  - move: toDir→fromDir 역방향 move 에 필요한 정보.
+ *  - copy: 생성 사본 경로 산출용(destDir + source basename). 충돌(failedItems>0) 시
+ *          createdPaths 가 부정확할 수 있어 undo 엔트리를 만들지 않는다(보수적).
+ *  - trash: 휴지통 복원(trash:restore) 매칭용 원래 전체 경로들.
+ */
+export type OperationUndoMeta =
+  | { readonly kind: 'move'; readonly sources: string[]; readonly fromDir: string; readonly toDir: string }
+  | { readonly kind: 'copy'; readonly sources: string[]; readonly destDir: string }
+  | { readonly kind: 'trash'; readonly originalPaths: string[] }
+
 /** 진행 중 작업 1개. */
 export interface Operation {
   readonly operationId: string
@@ -50,6 +62,8 @@ export interface Operation {
   readonly startedAt: number
   /** 완료 후 패널 새로고침 대상 경로(있으면). */
   readonly refreshPaths: string[]
+  /** op:done 에서 undo 엔트리 생성에 쓰는 역연산 메타(없으면 undo 미생성, K1). */
+  readonly undoMeta?: OperationUndoMeta
 }
 
 /** 충돌 큐 항목(op:conflict 미러). */
@@ -80,11 +94,12 @@ export interface OperationsSlice {
   readonly conflictQueue: ConflictItem[]
 
   // 시작/취소 등록(usecase 가 op.start 후 호출) ──────────────────────────
-  /** 새 작업을 pending 으로 등록(op.start 직후). */
+  /** 새 작업을 pending 으로 등록(op.start 직후). undoMeta 가 있으면 op:done 에서 undo 엔트리 생성. */
   registerOperation(
     operationId: string,
     kind: OpKind,
-    refreshPaths: readonly string[]
+    refreshPaths: readonly string[],
+    undoMeta?: OperationUndoMeta
   ): void
   /** 취소 요청 표시(op.cancel 호출 후 status=cancelling). */
   markCancelling(operationId: string): void
@@ -113,7 +128,7 @@ export const createOperationsSlice: SliceCreator<OperationsSlice> = (set, get) =
   operationOrder: [],
   conflictQueue: [],
 
-  registerOperation(operationId, kind, refreshPaths) {
+  registerOperation(operationId, kind, refreshPaths, undoMeta) {
     set((s) => {
       s.operations[operationId] = {
         operationId,
@@ -122,7 +137,8 @@ export const createOperationsSlice: SliceCreator<OperationsSlice> = (set, get) =
         progress: emptyProgress(),
         summary: null,
         startedAt: Date.now(),
-        refreshPaths: [...refreshPaths]
+        refreshPaths: [...refreshPaths],
+        ...(undoMeta ? { undoMeta } : {})
       }
       if (!s.operationOrder.includes(operationId)) s.operationOrder.push(operationId)
     })

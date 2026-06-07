@@ -12,12 +12,20 @@
 import { ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
-import type { Result } from '@shared/ipc/contracts'
+import type { Result, ThumbnailRes } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import type { PreviewData } from '@shared/dto'
 import { fileSystemService } from '../fs/FileSystemService'
 import { toFileOpError } from '../fs/errors'
-import { guardPath, isTrustedSender, parseArgs, untrustedSenderError, zPreviewReadReq } from './guard'
+import { getThumbnailDataUrl } from '../os/thumbnail'
+import {
+  guardPath,
+  isTrustedSender,
+  parseArgs,
+  untrustedSenderError,
+  zPreviewReadReq,
+  zThumbnailReq
+} from './guard'
 
 function handleGuarded<TSchema extends import('zod').ZodTypeAny, TVal>(
   channel: string,
@@ -46,5 +54,16 @@ export function registerPreviewHandlers(): void {
     } catch (e) {
       return err(toFileOpError(e, g.value))
     }
+  })
+
+  // ── preview:thumbnail (그리드 이미지 셀 → 비율 보존 축소 dataUrl, L장) ──
+  // sender/parseArgs(size 버킷 화이트리스트)는 handleGuarded 가 처리. 여기선 guardPath
+  // (정규화·상위이탈 차단)만 추가한다. "썸네일 불가"(미지원/손상/대용량/빈)는 예외가
+  // 아니라 ok({dataUrl:null}) — 프런트가 OS 아이콘으로 폴백한다(throw 0).
+  handleGuarded(CHANNELS.PREVIEW_THUMBNAIL, zThumbnailReq, async (req): Promise<Result<ThumbnailRes>> => {
+    const g = guardPath(req.path)
+    if (!g.ok) return g as Result<ThumbnailRes>
+    const dataUrl = await getThumbnailDataUrl({ path: g.value, size: req.size })
+    return ok({ dataUrl })
   })
 }

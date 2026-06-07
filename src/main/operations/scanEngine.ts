@@ -24,7 +24,26 @@
  */
 import * as fsp from 'node:fs/promises'
 import { win32 } from 'node:path'
-import type { ScanEntry, ScanResult } from '@shared/dto'
+import type { CategoryUsage, FileCategory, ScanEntry, ScanResult } from '@shared/dto'
+import { categorizeExt } from './categorize'
+
+/** byCategory 누적기 7키(FileCategory 전수) — 항상 0으로 초기화. */
+const CATEGORY_KEYS: readonly FileCategory[] = [
+  'image',
+  'video',
+  'audio',
+  'document',
+  'code',
+  'archive',
+  'other'
+]
+
+/** 7카테고리 0 누적기 생성(매 스캔 1회). */
+function emptyCategoryAcc(): Record<FileCategory, { bytes: number; count: number }> {
+  const acc = {} as Record<FileCategory, { bytes: number; count: number }>
+  for (const k of CATEGORY_KEYS) acc[k] = { bytes: 0, count: 0 }
+  return acc
+}
 
 /** 항목 상한(폭주 방어). 초과 시 truncated=true 로 중단. */
 export const SCAN_ITEM_CAP = 2_000_000
@@ -102,6 +121,8 @@ interface ScanState {
   truncated: boolean
   readonly topFolders: TopNHeap
   readonly topFiles: TopNHeap
+  /** 파일 유형(카테고리)별 bytes/count 누적기(K3, 7키). 추가 I/O 0 — 이름만 분류. */
+  readonly byCategory: Record<FileCategory, { bytes: number; count: number }>
   /** 방문 realpath 집합(순환 차단). */
   readonly visited: Set<string>
   /** 항목 상한(초과 시 truncated). 기본 SCAN_ITEM_CAP, 검증에서 주입 가능. */
@@ -203,6 +224,11 @@ async function scanDir(dir: string, state: ScanState, hooks: ScanHooks): Promise
         bytes,
         isDir: false
       })
+      // K3: 파일 유형(카테고리)별 누적(추가 I/O 0 — 이름에서 확장자만 분류).
+      const cat = categorizeExt(win32.extname(dirent.name).slice(1).toLowerCase())
+      const bucket = state.byCategory[cat]
+      bucket.bytes += bytes
+      bucket.count++
     }
     // 그 외(블록/소켓/FIFO 등)는 항목만 카운트하고 바이트 0.
   }
@@ -230,6 +256,7 @@ export async function runScan(
     truncated: false,
     topFolders: new TopNHeap(TOP_N),
     topFiles: new TopNHeap(TOP_N),
+    byCategory: emptyCategoryAcc(),
     visited: new Set<string>(),
     itemCap,
     lastPath: root
@@ -247,8 +274,21 @@ export async function runScan(
     topFiles: state.topFiles.toSortedDesc(),
     skipped: state.skipped,
     canceled: state.canceled,
-    truncated: state.truncated
+    truncated: state.truncated,
+    byCategory: toByCategory(state.byCategory)
   }
+}
+
+/**
+ * 누적기(7키 Record)를 CategoryUsage[] 로 변환한다(K3). bytes desc 정렬(상위 카테고리
+ * 우선) — 0 카테고리도 포함(대시보드가 0 표시·차트는 소비측에서 0 제외 가능).
+ */
+function toByCategory(
+  acc: Record<FileCategory, { bytes: number; count: number }>
+): CategoryUsage[] {
+  return (Object.entries(acc) as [FileCategory, { bytes: number; count: number }][])
+    .map(([category, v]) => ({ category, bytes: v.bytes, count: v.count }))
+    .sort((a, b) => b.bytes - a.bytes)
 }
 
 /**

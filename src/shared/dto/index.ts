@@ -178,6 +178,30 @@ export interface ScanEntry {
   readonly isDir: boolean
 }
 
+/**
+ * 파일 확장자 카테고리(K3 유형별 비중). 확장자→카테고리 분류의 키 집합.
+ * scanEngine 의 byCategory 집계·대시보드 라벨이 공유한다.
+ * 미등록/빈 확장자는 'other'.
+ */
+export type FileCategory =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'code'
+  | 'archive'
+  | 'other'
+
+/** 확장자 카테고리별 용량/개수 집계 1건(K3). */
+export interface CategoryUsage {
+  /** 카테고리 키. */
+  readonly category: FileCategory
+  /** 해당 카테고리 파일들의 바이트 합계. */
+  readonly bytes: number
+  /** 해당 카테고리 파일 개수(폴더 제외). */
+  readonly count: number
+}
+
 /** analyze:scan:done 결과 — 상위 N 폴더/파일 + 요약(계획서 §2.3). */
 export interface ScanResult {
   /** 스캔 루트 경로(폴더 또는 드라이브). */
@@ -196,6 +220,37 @@ export interface ScanResult {
   readonly canceled: boolean
   /** 항목 상한 초과로 잘렸는지. */
   readonly truncated: boolean
+  /**
+   * 파일 유형(카테고리)별 용량/개수 집계(K3). **비파괴 추가(optional)** —
+   * 기존 소비측은 무시, 신규 대시보드 섹션만 사용. scanEngine byCategory
+   * 집계 impl 은 K장 다음 단계(현재 미산출 → 소비측은 없으면 폴백).
+   */
+  readonly byCategory?: CategoryUsage[]
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 휴지통 (trash:* — 신규 K장 K2, 계약만 동결)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 휴지통 항목 1개(trash:list). Windows 휴지통 COM 열거 결과의 경량 표현.
+ * 직렬화 가능 타입만(시각은 number).
+ */
+export interface TrashItemDTO {
+  /**
+   * 복원 토큰 = 휴지통 내부 실경로($Recycle.Bin\...\$R...). 복원/식별 키이며
+   * 이름 동명 다수에도 안전(restore 가 이 id 로 매칭). 핸들러는 $Recycle.Bin
+   * 화이트리스트만 통과시킨다(임의 경로 실행 차단).
+   */
+  readonly id: string
+  /** 표시 이름(원래 파일명). */
+  readonly name: string
+  /** 원래 전체 경로(DeletedFrom\Name). 조회 불가 시 빈 문자열. */
+  readonly originalPath: string
+  /** 삭제 시각(epoch ms, UTC). 파싱 실패 시 0. */
+  readonly deletedAt: number
+  /** 바이트 크기. 폴더는 0 또는 집계불가. */
+  readonly size: number
 }
 
 // ────────────────────────────────────────────────────────────────────────

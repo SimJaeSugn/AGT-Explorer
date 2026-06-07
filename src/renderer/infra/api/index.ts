@@ -19,6 +19,7 @@ import type {
   PreviewData,
   SessionSnapshot,
   SettingsSnapshot,
+  TrashItemDTO,
   WorkspaceInfo
 } from '@shared/dto'
 import type {
@@ -51,6 +52,7 @@ import type {
   Result,
   ShellIconReq,
   ShellIconRes,
+  ThumbnailRes,
   TelemetryGetOptInRes
 } from '@shared/ipc/contracts'
 
@@ -219,6 +221,17 @@ export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
   }
 }
 
+// ── trash:* 어댑터 (K장 K2: 휴지통 관리 — 핸들러/recycleBin impl: K장 다음 단계) ──
+// analyzeApi 동형. confirmed=true 는 empty() 래퍼에서 고정 주입(확인 모달 통과 표식).
+export const trashApi = {
+  /** trash:list — 휴지통 항목 열거(이름·원래경로·삭제일·크기). */
+  list: (): Promise<Result<TrashItemDTO[]>> => bridge().trash.list(),
+  /** trash:restore — 선택 항목($R 토큰 id) 원위치 복원. */
+  restore: (ids: string[]): Promise<Result<void>> => bridge().trash.restore({ ids }),
+  /** trash:empty — 전체 비우기. Renderer 확인 모달 통과 후에만 confirmed=true 로 호출. */
+  empty: (confirmed: boolean): Promise<Result<void>> => bridge().trash.empty({ confirmed })
+}
+
 // ── clipboard:* 어댑터 (P4: OS 클립보드 파일 연동) ──────────────────────
 export const clipboardApi = {
   copyFiles: (paths: string[]): Promise<Result<void>> => bridge().clipboard.copyFiles({ paths }),
@@ -262,7 +275,10 @@ export const telemetryApi = {
 // ── preview:* 어댑터 (P6: 미리보기 데이터 읽기) ──────────────────────────
 export const previewApi = {
   /** preview:read — 단일 경로의 미리보기 데이터(이미지/텍스트/메타/미지원). */
-  read: (path: string): Promise<Result<PreviewData>> => bridge().preview.read({ path })
+  read: (path: string): Promise<Result<PreviewData>> => bridge().preview.read({ path }),
+  /** preview:thumbnail — 그리드 이미지 썸네일 dataUrl(미지원/실패 시 dataUrl=null → OS 아이콘 폴백, L1). */
+  thumbnail: (path: string, size: number): Promise<Result<ThumbnailRes>> =>
+    bridge().preview.thumbnail({ path, size })
 }
 
 // ── workspace:* 어댑터 (P6c: 명시적 워크스페이스 저장/복원) ───────────────

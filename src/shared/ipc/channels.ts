@@ -76,6 +76,7 @@ export const CHANNELS = {
 
   // ── preview:* 미리보기 데이터 읽기 ─ 신규(P6 Should) ──────────────────
   PREVIEW_READ: 'preview:read', // impl: P6 (텍스트 앞부분/이미지 바이트/메타)
+  PREVIEW_THUMBNAIL: 'preview:thumbnail', // impl: L1 (그리드 이미지 썸네일 — nativeImage)
 
   // ── analyze:scan:* 디렉토리 사용량 Top10 스캔 ─ 신규(I장) ─────────────
   // op:* 스트림 패턴(streamId 상관·SharedArrayBuffer 협조취소·200ms 스로틀)을
@@ -85,6 +86,14 @@ export const CHANNELS = {
   ANALYZE_SCAN_DONE: 'analyze:scan:done', // 푸시 evt
   ANALYZE_SCAN_ERROR: 'analyze:scan:error', // 푸시 evt
   ANALYZE_SCAN_CANCEL: 'analyze:scan:cancel', // invoke → Result<void>
+
+  // ── trash:* 휴지통 관리(열거·복원·비우기) ─ 신규(K장 K2, K1 공유) ────
+  // Windows 휴지통 COM(recycleBin.ts) 위 요청-응답 채널. 전부 invoke(푸시 evt
+  // 없음) → EVENT_CHANNELS 무변. 핸들러/recycleBin impl: K장 다음 단계(여기선
+  // 계약 동결만). list=열거, restore=선택 복원, empty=전체 비우기(confirmed 게이트).
+  TRASH_LIST: 'trash:list', // invoke → Result<TrashItemDTO[]>
+  TRASH_RESTORE: 'trash:restore', // invoke → Result<void>
+  TRASH_EMPTY: 'trash:empty', // invoke → Result<void> (confirmed=true 만 실행)
 
   // ── fs:watch:* 디렉토리 실시간 감시 ─ 신규(J장 J2) ───────────────────
   // 패널이 보는 **현재 디렉토리 1개**를 non-recursive 로 감시(watchId 상관).

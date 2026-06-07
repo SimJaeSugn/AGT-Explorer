@@ -11,12 +11,13 @@
  * 셀렉터 격리: 이 본문만 analyzeSlice/드라이브를 구독한다(차트는 props로만 받음).
  */
 import { useEffect, useMemo, useState } from 'react'
-import type { ScanEntry } from '@shared/dto'
+import type { CategoryUsage, ScanEntry } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { cancelScan, loadDriveUsage, startScan } from '@renderer/app/usecases/dashboard'
 import { isMyPc } from '@renderer/domain/paths'
 import { DiskDonut } from '@renderer/ui/dashboard/charts/DiskDonut'
 import { TopBar } from '@renderer/ui/dashboard/charts/TopBar'
+import { CategoryBar, CATEGORY_LABELS } from '@renderer/ui/dashboard/charts/CategoryBar'
 import {
   deriveDriveUsages,
   tightestDrive,
@@ -178,6 +179,65 @@ function TopTable({
         )}
       </tbody>
     </table>
+  )
+}
+
+// ── 유형별 비중 섹션 (K3) ───────────────────────────────────────────────────
+function CategorySection({ byCategory }: { byCategory: readonly CategoryUsage[] }): JSX.Element {
+  // 용량 내림차순 정렬(표시·인사이트 공유). 전체 합으로 비중% 산출.
+  const sorted = useMemo(
+    () => [...byCategory].sort((a, b) => b.bytes - a.bytes),
+    [byCategory]
+  )
+  const totalBytes = sorted.reduce((a, c) => a + c.bytes, 0)
+  const largest = sorted.find((c) => c.bytes > 0)
+
+  return (
+    <section aria-label="파일 유형별 비중" style={{ marginTop: 16 }}>
+      <h4 style={sectionTitle}>파일 유형별 비중</h4>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {insightChip(
+          '가장 큰 유형',
+          largest
+            ? `${CATEGORY_LABELS[largest.category]} (${formatBytes(largest.bytes)})`
+            : '—'
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 320px', minWidth: 300 }}>
+          <CategoryBar usages={sorted} />
+        </div>
+        <div style={{ flex: '1 1 320px', minWidth: 300 }}>
+          <table style={tableStyle}>
+            <caption
+              style={{ textAlign: 'left', fontSize: 11, color: tokens.color.textMuted, paddingBottom: 4 }}
+            >
+              유형별 용량(표)
+            </caption>
+            <thead>
+              <tr>
+                <th style={thStyle} scope="col">유형</th>
+                <th style={{ ...thStyle, textAlign: 'right' }} scope="col">용량</th>
+                <th style={{ ...thStyle, textAlign: 'right' }} scope="col">개수</th>
+                <th style={{ ...thStyle, textAlign: 'right' }} scope="col">비중</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((c) => (
+                <tr key={c.category}>
+                  <th style={{ ...tdStyle, fontWeight: 500 }} scope="row">
+                    {CATEGORY_LABELS[c.category]}
+                  </th>
+                  <td style={tdNum}>{formatBytes(c.bytes)}</td>
+                  <td style={tdNum}>{formatCount(c.count)}</td>
+                  <td style={tdNum}>{totalBytes > 0 ? formatPct(c.bytes / totalBytes) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -350,6 +410,11 @@ function ScanSection(): JSX.Element {
               <TopTable title="상위 파일" entries={scanResult.topFiles} />
             </div>
           </div>
+
+          {/* K3: 파일 유형별 비중(byCategory 가 있을 때만). */}
+          {scanResult.byCategory && scanResult.byCategory.length > 0 && (
+            <CategorySection byCategory={scanResult.byCategory} />
+          )}
         </div>
       )}
     </section>
