@@ -168,11 +168,17 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
           </div>
         ) : (
           <div
+            onClick={(e) => {
+              // 개별 브레드크럼 <button> 클릭은 navigate 전담 → 컨테이너 클릭만 편집 진입.
+              if ((e.target as HTMLElement).closest('button')) return
+              focusPanel()
+              setAddressEditing(true)
+            }}
             onDoubleClick={() => {
               focusPanel()
               setAddressEditing(true)
             }}
-            title="더블클릭 또는 Ctrl+L 로 경로 편집"
+            title="클릭/더블클릭 또는 Ctrl+L 로 경로 편집"
             style={{
               display: 'flex',
               alignItems: 'center',

@@ -16,16 +16,19 @@ import { constants as fsConstants } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import { z } from 'zod'
 import { CHANNELS } from '@shared/ipc/channels'
-import type { Result } from '@shared/ipc/contracts'
+import type { Result, ShellIconRes } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import { fileOpError, toFileOpError } from '../fs/errors'
-import { openPath, openWith, showProperties } from '../os/shell'
+import { getFileIconDataUrl } from '../os/icon'
+import { openPath, openTerminal, openWith, showProperties } from '../os/shell'
 import {
   guardPath,
   isTrustedSender,
   parseArgs,
   untrustedSenderError,
   zPath,
+  zShellIconReq,
+  zShellOpenTerminalReq,
   zShellOpenWithReq,
   zShellShowPropertiesReq
 } from './guard'
@@ -138,5 +141,60 @@ export function registerShellHandlers(): void {
       return err(fileOpError('EUNKNOWN', `속성창을 열 수 없습니다: ${r.errorMessage}`, path))
     }
     return ok(undefined)
+  })
+
+  // ── shell:open-terminal (터미널 열기, H4 · ADR-005) ─────────────────
+  // shell:open 패턴 + 디렉토리 검증 추가: 파일 경로로 터미널 cwd 를 열 수 없게
+  // fsp.stat 로 !isDirectory() 면 ENOTDIR 거부(미존재는 ENOENT). 검증 통과 경로만
+  // openTerminal(wt→PowerShell 폴백)에 위임. throw 금지 — 전부 Result.err 전파.
+  ipcMain.handle(CHANNELS.SHELL_OPEN_TERMINAL, async (event, raw): Promise<Result<void>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+
+    const parsed = parseArgs(zShellOpenTerminalReq, raw)
+    if (!parsed.ok) return parsed as Result<void>
+
+    // (a) 경로 정규화·상위이탈 차단.
+    const g = guardPath(parsed.value.cwd)
+    if (!g.ok) return g as Result<void>
+    const cwd = g.value
+
+    // (b) 디렉토리 검증 — stat 으로 존재(ENOENT)·디렉토리(ENOTDIR) 동시 확인.
+    //     파일 경로면 ENOTDIR, 미존재면 ENOENT 로 실행 없이 거부.
+    try {
+      const st = await fsp.stat(cwd)
+      if (!st.isDirectory()) {
+        return err(fileOpError('ENOTDIR', '폴더가 아닙니다.', cwd))
+      }
+    } catch (e) {
+      const fe = toFileOpError(e, cwd)
+      return err(fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', cwd) : fe)
+    }
+
+    // 검증 통과 → 터미널 실행 위임. 실패만 EUNKNOWN 으로 전파.
+    const r = await openTerminal(cwd)
+    if (r.errorMessage) {
+      return err(fileOpError('EUNKNOWN', `터미널을 열 수 없습니다: ${r.errorMessage}`, cwd))
+    }
+    return ok(undefined)
+  })
+
+  // ── shell:icon (OS 파일 아이콘 dataUrl, H6 · ADR-005) ───────────────
+  // 읽기 전용: dataUrl 외 실행 표면 없음. sender·zod·guardPath(상위이탈 차단) 후
+  // 추출. 실패해도 UI 폴백(이모지)이 있으므로 ok({dataUrl:''})로 부드럽게 반환
+  // (토스트 폭주 방지). 실패(미존재·추출 null)는 캐시에 저장하지 않음.
+  ipcMain.handle(CHANNELS.SHELL_ICON, async (event, raw): Promise<Result<ShellIconRes>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+
+    const parsed = parseArgs(zShellIconReq, raw)
+    if (!parsed.ok) return parsed as Result<ShellIconRes>
+
+    const g = guardPath(parsed.value.path)
+    if (!g.ok) return g as Result<ShellIconRes>
+    const path = g.value
+
+    // 미존재 경로도 폴백(빈 dataUrl) — getFileIconDataUrl 이 추출 예외를 null 로 흡수.
+    const { ext } = parsed.value
+    const dataUrl = await getFileIconDataUrl(ext === undefined ? { path } : { path, ext })
+    return ok({ dataUrl: dataUrl ?? '' })
   })
 }

@@ -33,6 +33,12 @@ import type {
   OpResolveReq,
   OpStartReq,
   OpStartRes,
+  AnalyzeScanStartReq,
+  AnalyzeScanStartRes,
+  AnalyzeScanCancelReq,
+  ScanProgressEvt,
+  ScanDoneEvt,
+  ScanErrorEvt,
   PreviewReadReq,
   Result,
   SessionSaveReq,
@@ -40,6 +46,7 @@ import type {
   ShellIconReq,
   ShellIconRes,
   ShellOpenReq,
+  ShellOpenTerminalReq,
   ShellOpenWithReq,
   ShellShowPropertiesReq,
   TelemetryGetOptInRes,
@@ -115,6 +122,7 @@ export interface ExplorerApi {
     openWith(req: ShellOpenWithReq): Promise<Result<void>>
     showProperties(req: ShellShowPropertiesReq): Promise<Result<void>>
     icon(req: ShellIconReq): Promise<Result<ShellIconRes>>
+    openTerminal(req: ShellOpenTerminalReq): Promise<Result<void>>
   }
 
   // ── op:* (타입만 노출, impl: P4) ───────────────────────────────
@@ -171,6 +179,15 @@ export interface ExplorerApi {
   readonly preview: {
     read(req: PreviewReadReq): Promise<Result<PreviewData>>
   }
+
+  // ── analyze:scan:* (타입만 노출, 핸들러 impl: I장 다음 단계) ────
+  readonly analyze: {
+    scanStart(req: AnalyzeScanStartReq): Promise<Result<AnalyzeScanStartRes>>
+    scanCancel(req: AnalyzeScanCancelReq): Promise<Result<void>>
+    onScanProgress(cb: (evt: ScanProgressEvt) => void): Unsubscribe
+    onScanDone(cb: (evt: ScanDoneEvt) => void): Unsubscribe
+    onScanError(cb: (evt: ScanErrorEvt) => void): Unsubscribe
+  }
 }
 
 export const api: ExplorerApi = {
@@ -198,7 +215,8 @@ export const api: ExplorerApi = {
     open: (req) => invoke(CHANNELS.SHELL_OPEN, req),
     openWith: (req) => invoke(CHANNELS.SHELL_OPEN_WITH, req),
     showProperties: (req) => invoke(CHANNELS.SHELL_SHOW_PROPERTIES, req),
-    icon: (req) => invoke(CHANNELS.SHELL_ICON, req)
+    icon: (req) => invoke(CHANNELS.SHELL_ICON, req),
+    openTerminal: (req) => invoke(CHANNELS.SHELL_OPEN_TERMINAL, req)
   },
 
   op: {
@@ -243,6 +261,14 @@ export const api: ExplorerApi = {
 
   preview: {
     read: (req) => invoke(CHANNELS.PREVIEW_READ, req)
+  },
+
+  analyze: {
+    scanStart: (req) => invoke(CHANNELS.ANALYZE_SCAN_START, req),
+    scanCancel: (req) => invoke(CHANNELS.ANALYZE_SCAN_CANCEL, req),
+    onScanProgress: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_PROGRESS, cb),
+    onScanDone: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_DONE, cb),
+    onScanError: (cb) => subscribe(CHANNELS.ANALYZE_SCAN_ERROR, cb)
   }
 }
 

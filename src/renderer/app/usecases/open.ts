@@ -29,6 +29,35 @@ function openErrorMessage(code: string, name: string): string {
   }
 }
 
+/** 터미널 전용 에러 메시지(터미널 맥락 문구 — open 계열과 분리). */
+function terminalErrorMessage(code: string): string {
+  switch (code) {
+    case 'ENOTDIR':
+      return '폴더가 아닙니다. 터미널은 폴더에서만 열 수 있습니다.'
+    case 'ENOENT':
+      return '경로가 존재하지 않습니다. 이동/삭제되었을 수 있습니다.'
+    case 'EACCES':
+    case 'EPERM':
+      return '해당 경로에 접근할 권한이 없습니다.'
+    case 'ESECURITY':
+      return '경로가 차단되어 터미널을 열 수 없습니다.'
+    default: // EUNKNOWN 등
+      return '터미널을 열 수 없습니다.'
+  }
+}
+
+/**
+ * "터미널 열기"(shell:open-terminal) — 컨텍스트 메뉴에서 디렉토리/패널 경로 대상.
+ * 성공은 무음(터미널 창이 뜸), 실패만 안내 토스트(터미널 전용 문구).
+ * ui→infra 직접 import 금지 규칙을 이 usecase 경유로 준수(ContextMenu→여기→shellApi).
+ */
+export async function openTerminalAt(path: string): Promise<void> {
+  const res = await shellApi.openTerminal(path)
+  if (!res.ok) {
+    store.getState().pushToast('error', terminalErrorMessage(res.error.code))
+  }
+}
+
 /**
  * 항목 활성화. 폴더면 panelId 패널을 그 폴더로 진입시키고,
  * 파일이면 shell:open 으로 실행한다.

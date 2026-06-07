@@ -21,8 +21,10 @@
     "verify:ops": "esbuild scripts/verify-ops.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-ops.cjs && node ./out/verify-ops.cjs",
     "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
     "verify:persistence": "esbuild scripts/verify-persistence.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-persistence.cjs && node ./out/verify-persistence.cjs",
+    "verify:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-scan.cjs && node ./out/verify-scan.cjs",
     "verify:p6": "esbuild scripts/verify-p6-backend.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-p6-backend.cjs && node ./out/verify-p6-backend.cjs",
     "verify:open-with": "esbuild scripts/verify-open-with.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-open-with.cjs && node ./out/verify-open-with.cjs",
+    "verify:shell-h4h6": "esbuild scripts/verify-shell-h4h6.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --alias:electron=./scripts/stub-electron-icon.ts --outfile=./out/verify-shell-h4h6.cjs && node ./out/verify-shell-h4h6.cjs",
     "verify:store": "esbuild tests/store.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/store.verify.mjs && node ./out/store.verify.mjs",
     "verify:domain": "esbuild tests/domain.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/domain.verify.mjs && node ./out/domain.verify.mjs",
     "verify:operations": "esbuild tests/operations.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/operations.verify.mjs && node ./out/operations.verify.mjs",
@@ -33,6 +35,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "immer": "^10.1.1",
+    "recharts": "^3.8.1",
     "zod": "^3.25.76",
     "zustand": "^4.5.5"
   },

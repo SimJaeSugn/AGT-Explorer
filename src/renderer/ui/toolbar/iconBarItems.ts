@@ -213,6 +213,13 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
 
   // ── 도구 ────────────────────────────────────────────────────────────────
   {
+    id: 'dashboard.open',
+    label: '사용량 대시보드',
+    icon: '📊',
+    group: 'tool',
+    active: (s) => s.dashboardOpen
+  },
+  {
     id: 'app.settings',
     label: '설정',
     icon: '⚙',

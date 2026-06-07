@@ -1,6 +1,6 @@
 # 개발 로드맵 — Explorer (멀티 디렉토리 파일탐색기)
 
-> 작성: 테크리드 · 2026-06-06 · **갱신: 2026-06-07** · 상태: **P0~P5(MVP) 구현 완료 · P6(Should) 구현 완료 · 신규 UX(H장: 아이콘바·사이드바 토글·분할 크기조절) 구현 완료 · P7 부분**
+> 작성: 테크리드 · 2026-06-06 · **갱신: 2026-06-07** · 상태: **P0~P5(MVP) 구현 완료 · P6(Should) 구현 완료 · 신규 UX(H장: 아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘) 구현 완료 · 신규 분석·접근성(I장: 사용량 대시보드·블루라이트 차단 테마) 구현 완료 · P7 부분**
 > 입력 설계: [system-architecture.md](./architecture/system-architecture.md) · [software-architecture.md](./architecture/software-architecture.md) · [directory-structure.md](./architecture/directory-structure.md) · [traceability.md](./architecture/traceability.md) · [adr/](./architecture/adr/)
 > 우선순위 출처: [PRD.md §6 MoSCoW](./PRD.md) · [user-stories.md](./user-stories.md)
 > 상태 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수
@@ -20,11 +20,12 @@
 
 ## 0.5 진행 현황 (2026-06-07 기준)
 
-> **MVP(Must, P0~P5) 구현 완료 + P6(Should 4종: 4분할·미리보기·워크스페이스·텔레메트리) 구현 완료 + 신규 UX(H장 3기능: 상단 아이콘바·사이드바 토글·분할 크기조절) 구현 완료.**
-> 자동 verify 하니스 누계 **375 pass / 0 fail**(직전 339 + 신규 UX 구현분: `splitRatios` 비율수학·정규화·세션 직렬화 + store H-케이스 등), typecheck/lint 0,
+> **MVP(Must, P0~P5) 구현 완료 + P6(Should 4종: 4분할·미리보기·워크스페이스·텔레메트리) 구현 완료 + 신규 UX(H장 6기능: 상단 아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘) 구현 완료 + 신규 분석·접근성(I장 2기능: 사용량 대시보드·블루라이트 차단 테마) 구현 완료.**
+> 자동 verify 하니스 누계 **434 pass / 0 fail**(직전 400 + `verify:persistence` 보강 +6 + `verify:scan` 28: scanEngine 재귀 집계·Top10 힙·순환 realpath Set·skipped 격리·취소 부분결과·truncated 상한), typecheck/lint 0, 빌드 성공(메인 466kB + 대시보드 831kB **별도 lazy 청크 분리**),
 > NSIS 인스톨러 + 앱 아이콘 생성 완료. 기획→설계→구현 추적성 검증 **PASS(Must 18/18 = 100%)**,
-> 통합 QA **PASS**(P6·신규 UX 블로커/높음 0건; 잔여 성능 실측은 P7 항목).
-> **추가(2026-06-07):** Should `shell:open-with`(연결 프로그램으로 열기) 구현 완료 ✅, **P4 산출물 컨텍스트 메뉴(우클릭)가 P6 시점에 뒤늦게 구현되어 드리프트 해소**(직전까지 P4가 ✅였으나 `ui/contextmenu/`·속성→show-properties 호출 UI는 미구현이었음 — 아래 §0.5 주석 참조), 그리고 **신규 UX 3기능(H장: feat-H1/H2/H3 · 에픽7 US-7.1~7.3, PRD §6 Should)이 구현·QA PASS** 됨(아래 "신규 UX(H장)" 표 참조).
+> 통합 QA **PASS**(P6·신규 UX·I장 블로커/높음/보통 0건, 결함 0; 잔여 성능 실측·네이티브 statfs·대용량 스캔 성능은 런타임 스모크 권장).
+> **추가(2026-06-07):** Should `shell:open-with`(연결 프로그램으로 열기) 구현 완료 ✅, **P4 산출물 컨텍스트 메뉴(우클릭)가 P6 시점에 뒤늦게 구현되어 드리프트 해소**(직전까지 P4가 ✅였으나 `ui/contextmenu/`·속성→show-properties 호출 UI는 미구현이었음 — 아래 §0.5 주석 참조), **신규 UX 3기능(H장: feat-H1/H2/H3 · 에픽7 US-7.1~7.3)이 구현·QA PASS**, 그리고 **신규 UX 추가 3기능(H장: feat-H4/H5/H6 · 에픽7 US-7.4~7.6, PRD §6 Should)이 구현·QA PASS** 됨(아래 "신규 UX(H장)" 표 참조). **이때 P1에서 "전 채널 동결" 후 P2/P4 단계의 시스템 아이콘 캐시로 예약·미구현이던 `shell:icon` 채널이 feat-H6로 정식 구현(호출부 추가)되어 예약→구현 드리프트가 해소**됐고, **터미널 열기용 신규 채널 `shell:open-terminal`이 추가**됐다(동결 예외 — 아래 신규 채널 주석).
+> **추가(2026-06-07, I장):** **신규 분석·접근성 2기능(I장: feat-I1 디렉토리 사용량 대시보드 · feat-I2 블루라이트 차단 테마 · 에픽8 US-8.1/8.2, PRD §6 Should)이 구현·QA PASS** 됨(아래 "신규 분석·접근성(I장)" 표 참조). **I1은 신규 채널 `analyze:scan:*` 5종을 추가**(P1 동결 이후 Should 신기능 신규 채널 — `preview:read`·`shell:open-terminal` 선례와 동일 규약, 아래 신규 채널 주석), 디스크 요약은 기존 `DriveDTO.totalBytes/freeBytes`+`diskSpace()` 재사용(backend 신규 0). **차트 라이브러리 recharts 3.8.1(MIT) 신규 도입** — `DashboardModalBody` React.lazy로 **831kB 별도 청크 분리**(메인 번들 비대화 없음). I2는 신규 채널 0(테마 토큰 1종 추가).
 
 | Phase | 상태 | 비고 |
 |---|---|---|
@@ -37,7 +38,8 @@
 | **P6** (Should) 4분할·미리보기·워크스페이스·텔레메트리 | ✅ 완료 | 4종 구현(verify:p6 26/26) **+ 연결 프로그램으로 열기(`shell:open-with`) 구현 완료(verify:open-with 12/12)**. **Should 잔여(그리드/썸네일 보기·되돌리기 Ctrl+Z)는 미구현 🔜 — 아래 표** |
 | **P7** 안정화·성능실측·접근성·패키징 | 🟡 부분 | **NSIS 패키징·앱 아이콘 완료**, 성능 3종 실측·접근성·코드서명·`npm audit` 미완 |
 | **릴리스/도구**(G장, 기획 정식 편입) | ✅ 완료 | 앱 아이콘(G1·US-6.1) · 원클릭 빌드 `build-installer.ps1`(G2·US-6.2) · 가상 스크롤 결함 수정(G3·US-5.6 보강) — PRD §6·§7·§12, features §G, user-stories 에픽6 |
-| **신규 UX**(H장, 기획 정식 편입, Should) | ✅ 완료 | 상단 전역 아이콘바(H1·US-7.1) · 사이드바 온오프 토글(H2·US-7.2, `Ctrl+B`) · 분할 크기조절(H3·US-7.3) — PRD §6 Should·§8 `Ctrl+B`, features §H, user-stories 에픽7. **US-7.2/7.3 실제 마우스 드래그는 런타임 DOM 의존 → 런타임 스모크 권장(코드 정합 충족)** |
+| **신규 UX**(H장, 기획 정식 편입, Should) | ✅ 완료 | 상단 전역 아이콘바(H1·US-7.1) · 사이드바 온오프 토글(H2·US-7.2, `Ctrl+B`) · 분할 크기조절(H3·US-7.3) · **우클릭 터미널 열기(H4·US-7.4, 신규 채널 `shell:open-terminal`) · 디렉토리 경로 직접 입력(H5·US-7.5) · 파일 유형별 OS 아이콘(H6·US-7.6, 예약 채널 `shell:icon` 정식 구현)** — PRD §6 Should·§8 `Ctrl+B`, features §H, user-stories 에픽7. **US-7.2/7.3 실제 마우스 드래그·US-7.4 `wt.exe`·US-7.6 `app.getFileIcon` 실제 네이티브 실행은 런타임 의존 → 런타임 스모크 권장(코드 정합 충족)** |
+| **신규 분석·접근성**(I장, 기획 정식 편입, Should) | ✅ 완료 | 디렉토리 사용량 대시보드(I1·US-8.1, **신규 채널 `analyze:scan:*` 5종**·recharts 도넛/막대+표·진행률·취소·비차단·자동 팝업 토글) · 블루라이트 차단 테마(I2·US-8.2, #FBF0D9 크림 배경 4번째 테마) — PRD §6 Should·§10 R4/R5, features §I, user-stories 에픽8. **WCAG: 블루라이트 본문 11.04:1·muted 5.25:1 등 AA 통과. 네이티브 실제 statfs·대용량 스캔 성능 실측은 런타임 스모크 권장(코드 정합·verify:scan 28 충족). 파일 유형별 비중 인사이트는 "(가능하면)" 선택항으로 미구현** |
 
 **P6(Should) — 구현 완료분 ✅ (구현 파일)**
 
@@ -74,8 +76,20 @@
 | 상단 전역 아이콘바 (H1·US-7.1) | ✅ `ui/toolbar/IconBar.tsx`·`iconBarItems.ts`(4그룹 20버튼, 활성조건·`aria-pressed`·툴팁에 단축키 표기, execCommand 수렴), `ui/App.tsx` 마운트. 신규 commandId 4건 `sidebar.toggle`·`theme.toggle`·`view.setMode.list`·`view.setMode.details`(`commandBus.ts`), `settings.ts#toggleThemeMode`·`applyTheme.ts#systemPrefersDark` export |
 | 사이드바 온오프 토글 (H2·US-7.2) | ✅ `domain/keybindings/index.ts`(`ctrl+b`→`sidebar.toggle`) + 아이콘바 버튼 → `sidebarSlice.toggleSidebar`(collapsed 상태·세션 영속 기존 재사용). **실제 토글 마우스 클릭/단축키는 런타임 DOM 의존 → 런타임 스모크 권장** |
 | 분할 패널 크기조절 (H3·US-7.3) | ✅ `ui/layout/SplitDivider.tsx`·`splitMath.ts`(`ratioFromPoint` 순수함수)·`LayoutHost.tsx`(2분할 flex·4분할 grid 컨테이너 ref 측정·2축 독립), `tabsSlice.setSplitRatio`(클램프 `SPLIT_MIN_RATIO=0.15`~0.85), `Tab.splitRatios`(`domain/entities`)·`shared/dto TabSnapshot.splitRatios?`·`usecases/session.ts` 직렬화·`main/persistence/defaults.ts#coerceSplitRatios` 정규화. **실제 분할선 드래그는 런타임 DOM 의존 → 런타임 스모크 권장** |
+| 우클릭 "터미널 열기" (H4·US-7.4) | ✅ **신규 채널 `shell:open-terminal`**(`channels.ts`·`contracts.ts ShellOpenTerminalReq`), `src/main/os/shell.ts#openTerminal`(`wt.exe -d`→`powershell.exe -NoExit` 폴백·`execFile` 인자 배열), `shell.handlers.ts`(sender 검증·zod·guardPath·stat 디렉토리 검증 ADR-005), `guard.ts#zShellOpenTerminalReq`, `usecases/open.ts#openTerminalAt`·`terminalErrorMessage`, `contextMenu.ts`(단일 폴더·빈 영역 항목; 파일·My PC 미표시). **네이티브 `wt.exe` 실제 실행은 런타임 스모크 권장** |
+| 디렉토리 경로 직접 입력 (H5·US-7.5) | ✅ `PanelToolbar.tsx` 단일 클릭 편집 진입(`closest('button')` 가드로 브레드크럼 버튼 클릭과 분리), 기존 `Ctrl+L`·더블클릭·`validateAndNavigate` 재사용(신규 채널·단축키 불요) |
+| 파일 유형별 OS 아이콘 (H6·US-7.6) | ✅ **예약 채널 `shell:icon` 정식 구현(호출부 추가)** — `src/main/os/icon.ts`(`getFileIconDataUrl`·`cacheKeyFor`·LRU512·실패 비캐싱), `shell.handlers.ts SHELL_ICON`, `iconCache.ts`(`iconKeyFor`·`iconRequestFor`·디듀프·구독), `usecases/icons.ts`, `FileListView.tsx OSIcon`. 확장자 단위 캐시·per-file(exe/lnk 등) path 키·가상 스크롤 `iconRef` 지연. **네이티브 `app.getFileIcon` 실제 실행은 런타임 스모크 권장** |
 
-> **신규 UX 설계 원칙 정합(드리프트 아님)**: 신규 commandId 4건은 **renderer 내부 commandId**(IPC 채널 아님)이고, `splitRatios`는 **세션 스냅샷 DTO(`TabSnapshot`) 필드 확장**이다. 둘 다 P1 "전 채널 타입 동결"(IPC 채널 계약 동결) 원칙과 **무관**하다 — `Ctrl+B`도 신규 IPC 채널이 아니라 기존 `sidebarSlice.toggleSidebar`를 호출하는 단축키 매핑일 뿐이다. 스코프 일탈 아님(product-planner가 PRD §6 Should·§8·features §H·US-7.1~7.3로 정식 편입).
+> **신규 UX 설계 원칙 정합(드리프트 아님)**: H1~H3·H5의 신규 commandId·`splitRatios`는 **renderer 내부 commandId / 세션 스냅샷 DTO(`TabSnapshot`) 필드 확장**으로 P1 "전 채널 타입 동결"(IPC 채널 계약 동결)과 **무관**하다 — `Ctrl+B`·단일 클릭 편집도 신규 IPC 채널이 아니라 기존 슬라이스/`validateAndNavigate` 호출일 뿐이다. **H4의 신규 채널 `shell:open-terminal`은 P1 동결 이후 추가된 채널이나, 동결 원칙은 *기존* MVP 채널 계약을 고정해 병렬화 출발선을 잡으려는 것이고 Should 신기능에 필요한 신규 채널 추가는 위반이 아니다** — `preview:read`·`telemetry:get-opt-in`(P6)과 동일 선례·동일 guard/zod/Result 규약 준수. **H6의 `shell:icon`은 P1에 계약만 동결되고 호출부가 없어 "P2/P4 시스템 아이콘 캐시"로 예약·미구현이던 채널을 이번에 정식 구현(호출부 추가)** 한 것으로, 계약·보안·캐시 설계를 변경하지 않고 따른다(예약→구현, 드리프트 해소). 스코프 일탈 아님(product-planner가 PRD §6 Should·§8·features §H·US-7.4~7.6로 정식 편입).
+
+**신규 분석·접근성(I장, Should) — 구현 완료 ✅ (구현 파일)**: 디스크 사용 현황 시각화(읽기 전용 스캔)와 저청색광 접근성 테마. 2026-06-07 정식 편입(features §I·user-stories 에픽8·PRD §6 Should·§10 R4/R5). 코드 사실로 ✅ 확인됨(typecheck/lint 0·`verify:scan` 28/0·QA PASS).
+
+| 기능 | 구현 상태 / 핵심 파일 |
+|---|---|
+| 디렉토리 사용량 대시보드 (I1·US-8.1) | ✅ **신규 채널 `analyze:scan:*` 5종**(`channels.ts`·`contracts.ts`·`dto ScanResult/ScanEntry`) — `src/main/operations/scanEngine.ts`(재귀 집계·Top10 힙·순환 realpath Set·skipped·취소·truncated)·`src/main/workers/scanWorker.ts`·`src/main/workers/scanProtocol.ts`(SharedArrayBuffer 취소)·`src/main/operations/ScanManager.ts`(scanId·200ms 스로틀·푸시)·`src/main/ipc/analyze.handlers.ts`(guardPath·디렉토리 검증). 디스크 요약은 기존 `DriveDTO.totalBytes/freeBytes`+`diskSpace()` 재사용(backend 신규 0). frontend: `app/stores/analyzeSlice.ts`·`app/usecases/dashboard.ts`(scanId 상관 브리지)·`ui/dashboard/DashboardModal.tsx`(+`DashboardModalBody.tsx` **React.lazy**)·recharts 도넛/막대+표 병행·`iconBarItems`(dashboard.open)·`App.tsx` 자동 팝업·`uiSlice.showDashboardOnStartup`(기본 `true`)·SettingsDialog 토글. **recharts 3.8.1(MIT) 설치, 831kB 별도 lazy 청크 분리.** ※ 파일 유형별 비중 인사이트는 "(가능하면)" 선택항으로 미구현(정직 표기). 네이티브 statfs·대용량 스캔 성능은 런타임 스모크 권장 |
+| 블루라이트 차단 테마 (I2·US-8.2) | ✅ `ui/theme/palette.ts BLUELIGHT_PALETTE`(13토큰·`#FBF0D9`)·`applyTheme.ts ResolvedTheme` 확장(bluelight **독립 resolved**·light 폴백 아님)·`ThemeMode` 4종(+`'bluelight'`)·`main/persistence/defaults.ts THEME_MODES`/`guard.ts zThemeMode` 화이트리스트·SettingsDialog 테마 4종 선택. `toggleThemeMode`는 light↔dark 유지(블루라이트는 설정에서 선택). 신규 채널 0. **WCAG: 본문 11.04:1·muted 5.25:1 등 AA 통과** |
+
+**I장 신규 IPC 채널(설계 원칙 정합)**: `analyze:scan:start/progress/done/error/cancel`(5종)은 P1 "전 채널 타입 동결" 이후 I장에서 **추가된** 채널이다. P1 동결 원칙은 *기존* MVP 채널 계약을 고정해 병렬화 출발선을 잡으려는 것이며, **Should 신기능에 필요한 신규 채널 추가는 위반이 아니다** — P6 `preview:read`·`telemetry:get-opt-in`, H4 `shell:open-terminal`과 **동일 선례·동일 guard/zod/Result 규약** 준수(`channels.ts`에 "신규(I장)"로 명시). 스코프 일탈 아님(product-planner가 PRD §6 Should·§10·features §I·US-8.1로 정식 편입). I2는 신규 채널 0(테마 토큰 추가). **recharts(MIT)는 차트 라이브러리 신규 의존성**이나 PRD §10 R5에서 라이선스·번들 영향을 사전 검토했고, lazy 청크 분리로 메인 번들 비대화를 피했다(드리프트 아님 — 기획 근거 있음).
 
 ---
 

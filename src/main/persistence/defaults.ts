@@ -26,7 +26,12 @@ import type {
 export const SESSION_SCHEMA_VERSION = 1
 export const SETTINGS_SCHEMA_VERSION = 1
 
-const THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>(['light', 'dark', 'system'])
+const THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>([
+  'light',
+  'dark',
+  'system',
+  'bluelight'
+])
 const SORT_KEYS: ReadonlySet<SortKey> = new Set<SortKey>(['name', 'size', 'ext', 'mtime'])
 const SORT_DIRS: ReadonlySet<SortDir> = new Set<SortDir>(['asc', 'desc'])
 const VIEW_MODES: ReadonlySet<ViewMode> = new Set<ViewMode>(['list', 'details'])
@@ -49,7 +54,8 @@ export function defaultSettings(): SettingsSnapshot {
     startLocation: '', // 빈 문자열 → "내 PC"
     showHidden: false,
     showExtensions: true,
-    recentLimit: 10
+    recentLimit: 10,
+    showDashboardOnStartup: true
   }
 }
 
@@ -102,7 +108,8 @@ export function coerceSettings(raw: unknown): SettingsSnapshot {
     showHidden: asBool(o['showHidden'], d.showHidden),
     showExtensions: asBool(o['showExtensions'], d.showExtensions),
     // 1~1000 범위로 클램프(비정상 값 방어).
-    recentLimit: Math.min(1000, Math.max(1, Math.trunc(recentLimit)))
+    recentLimit: Math.min(1000, Math.max(1, Math.trunc(recentLimit))),
+    showDashboardOnStartup: asBool(o['showDashboardOnStartup'], d.showDashboardOnStartup)
   }
 }
 

@@ -83,6 +83,12 @@ export async function changeRecentLimit(n: number): Promise<void> {
   await persist({ recentLimit: limit })
 }
 
+/** 시작 시 대시보드 표시 토글: 슬라이스 반영 + 영속(I장 §4.4·§5). */
+export async function changeShowDashboardOnStartup(v: boolean): Promise<void> {
+  store.getState().setShowDashboardOnStartup(v)
+  await persist({ showDashboardOnStartup: v })
+}
+
 /** 텔레메트리 옵트인 변경: 별도 채널로 영속(기본 false, D5). */
 export async function changeTelemetryOptIn(v: boolean): Promise<void> {
   store.getState().setTelemetryOptIn(v)

@@ -12,10 +12,19 @@
 import type { ThemeMode } from '@shared/dto'
 import { paletteFor } from './palette'
 
-/** ThemeMode 를 실제 라이트/다크로 해석(순수). system 은 prefersDark 로 결정. */
-export function resolveTheme(mode: ThemeMode, prefersDark: boolean): 'light' | 'dark' {
+/**
+ * 해석된 실제 테마(I장 §6.3). 'bluelight' 는 light 폴백이 아닌 **독립 resolved**다.
+ * data-theme 속성·팔레트 분기 키로 쓰인다.
+ */
+export type ResolvedTheme = 'light' | 'dark' | 'bluelight'
+
+/**
+ * ThemeMode 를 실제 테마로 해석(순수). system 은 prefersDark 로 결정.
+ * 'bluelight' 는 그대로 통과(독립 resolved) — light 폴백 아님.
+ */
+export function resolveTheme(mode: ThemeMode, prefersDark: boolean): ResolvedTheme {
   if (mode === 'system') return prefersDark ? 'dark' : 'light'
-  return mode
+  return mode // 'light' | 'dark' | 'bluelight'
 }
 
 /** 현재 OS 가 다크를 선호하는지(미디어쿼리). 헤드리스/미지원 시 false. */
@@ -25,7 +34,7 @@ export function systemPrefersDark(): boolean {
 }
 
 /** resolved 팔레트를 document 루트에 CSS 변수로 주입한다. */
-function injectPalette(resolved: 'light' | 'dark'): void {
+function injectPalette(resolved: ResolvedTheme): void {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   const palette = paletteFor(resolved)
@@ -33,7 +42,8 @@ function injectPalette(resolved: 'light' | 'dark'): void {
     root.style.setProperty(name, value)
   }
   root.setAttribute('data-theme', resolved)
-  root.style.colorScheme = resolved
+  // bluelight 는 밝은 크림 톤 → colorScheme 은 light 로 취급(폼 컨트롤·스크롤바 대비).
+  root.style.colorScheme = resolved === 'dark' ? 'dark' : 'light'
 }
 
 let mql: MediaQueryList | null = null
@@ -42,9 +52,9 @@ let mqlListener: ((e: MediaQueryListEvent) => void) | null = null
 /**
  * ThemeMode 를 적용한다. 'system' 이면 OS 변경을 구독해 자동 반영한다.
  * 호출 시마다 이전 system 리스너를 정리하고 새로 건다(중복 방지).
- * @returns 해석된 실제 테마('light'|'dark').
+ * @returns 해석된 실제 테마('light'|'dark'|'bluelight').
  */
-export function applyTheme(mode: ThemeMode): 'light' | 'dark' {
+export function applyTheme(mode: ThemeMode): ResolvedTheme {
   // 이전 system 리스너 정리.
   if (mql && mqlListener) {
     mql.removeEventListener('change', mqlListener)

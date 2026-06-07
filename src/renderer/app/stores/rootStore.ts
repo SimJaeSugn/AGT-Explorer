@@ -15,6 +15,7 @@ import { createTabsSlice } from './tabsSlice'
 import { createSidebarSlice } from './sidebarSlice'
 import { createUiSlice } from './uiSlice'
 import { createOperationsSlice } from './operationsSlice'
+import { createAnalyzeSlice } from './analyzeSlice'
 import type { AppStore } from './types'
 
 enableMapSet()
@@ -26,7 +27,8 @@ export const useRootStore = create<AppStore>()(
     ...createTabsSlice(...a),
     ...createSidebarSlice(...a),
     ...createUiSlice(...a),
-    ...createOperationsSlice(...a)
+    ...createOperationsSlice(...a),
+    ...createAnalyzeSlice(...a)
   }))
 )
 

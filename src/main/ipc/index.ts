@@ -8,6 +8,7 @@
  *   - registerSessionHandlers()   // P5
  *   - registerWorkspaceHandlers() // P6
  */
+import { registerAnalyzeHandlers } from './analyze.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
 import { registerFsHandlers } from './fs.handlers'
 import { registerOpHandlers } from './op.handlers'
@@ -24,4 +25,5 @@ export function registerIpcHandlers(): void {
   registerSessionHandlers() // P5: session:* / settings:* / telemetry:set-opt-in/get-opt-in
   registerPreviewHandlers() // P6: preview:read
   registerWorkspaceHandlers() // P6: workspace:save/list/load/delete
+  registerAnalyzeHandlers() // I장: analyze:scan:start/cancel (+ progress/done/error 푸시)
 }

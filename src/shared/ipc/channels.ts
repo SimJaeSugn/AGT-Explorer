@@ -40,7 +40,8 @@ export const CHANNELS = {
   SHELL_OPEN: 'shell:open', // impl: P2
   SHELL_OPEN_WITH: 'shell:open-with', // impl: P6 (Should)
   SHELL_SHOW_PROPERTIES: 'shell:show-properties', // impl: P4
-  SHELL_ICON: 'shell:icon', // impl: P2/P4 (시스템 아이콘 캐시)
+  SHELL_ICON: 'shell:icon', // impl: H6 (OS 파일 아이콘·확장자 캐시)
+  SHELL_OPEN_TERMINAL: 'shell:open-terminal', // impl: H4 (wt.exe→PowerShell)
 
   // ── op:* 파일 작업(비동기·취소·진행률) ─ 계약만 동결, impl: P4 ────────
   OP_START: 'op:start', // impl: P4
@@ -74,7 +75,16 @@ export const CHANNELS = {
   WORKSPACE_DELETE: 'workspace:delete', // impl: P6
 
   // ── preview:* 미리보기 데이터 읽기 ─ 신규(P6 Should) ──────────────────
-  PREVIEW_READ: 'preview:read' // impl: P6 (텍스트 앞부분/이미지 바이트/메타)
+  PREVIEW_READ: 'preview:read', // impl: P6 (텍스트 앞부분/이미지 바이트/메타)
+
+  // ── analyze:scan:* 디렉토리 사용량 Top10 스캔 ─ 신규(I장) ─────────────
+  // op:* 스트림 패턴(streamId 상관·SharedArrayBuffer 협조취소·200ms 스로틀)을
+  // 모사한 신규 스캔 서브시스템. 핸들러/Worker impl: I장 다음 단계.
+  ANALYZE_SCAN_START: 'analyze:scan:start', // invoke → Result<{ scanId }>
+  ANALYZE_SCAN_PROGRESS: 'analyze:scan:progress', // 푸시 evt
+  ANALYZE_SCAN_DONE: 'analyze:scan:done', // 푸시 evt
+  ANALYZE_SCAN_ERROR: 'analyze:scan:error', // 푸시 evt
+  ANALYZE_SCAN_CANCEL: 'analyze:scan:cancel' // invoke → Result<void>
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -89,7 +99,11 @@ export const EVENT_CHANNELS = [
   CHANNELS.FS_LIST_ERROR,
   CHANNELS.OP_PROGRESS,
   CHANNELS.OP_CONFLICT,
-  CHANNELS.OP_DONE
+  CHANNELS.OP_DONE,
+  // analyze:scan:* 푸시 evt (신규 I장)
+  CHANNELS.ANALYZE_SCAN_PROGRESS,
+  CHANNELS.ANALYZE_SCAN_DONE,
+  CHANNELS.ANALYZE_SCAN_ERROR
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

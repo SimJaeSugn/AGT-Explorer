@@ -106,11 +106,22 @@ export const zDialogConfirmPermanentDeleteReq = z.object({ paths: z.array(zPath)
 export const zShellShowPropertiesReq = z.object({ path: zPath })
 export const zShellOpenWithReq = z.object({ path: zPath })
 
+// ── H4/H6: shell:open-terminal / shell:icon ──────────────────────────────
+// open-terminal: cwd 는 항상 실존 디렉토리(핸들러가 stat 으로 추가 검증).
+export const zShellOpenTerminalReq = z.object({ cwd: zPath })
+// icon: 항상 실존 path 필수. ext 는 폴더/드라이브 합성키 전용 힌트(__dir__/__drive__)이며
+// 일반 파일에는 오지 않는다(파일 키는 backend 가 win32.extname(path) 로 환원). 이로써
+// "빈 요청"·"임의 ext 문자열"을 입구에서 거부한다(동결 contracts 보다 좁게 허용).
+export const zShellIconReq = z.object({
+  path: zPath,
+  ext: z.enum(['__dir__', '__drive__']).optional()
+})
+
 // ── P5: session:* / settings:* / telemetry:set-opt-in ────────────────────
 // SessionSnapshot 은 구조가 깊고 Renderer 가 생성한 직렬화 객체이므로,
 // 형태 1차만 통과시키고(중첩 무효 필드는 Store 의 coerceSession 이 정규화),
 // 본문 정규화는 persistence 계층에 위임한다(단일 책임).
-const zThemeMode = z.enum(['light', 'dark', 'system'])
+const zThemeMode = z.enum(['light', 'dark', 'system', 'bluelight'])
 export const zSessionSaveReq = z.object({
   snapshot: z.object({ version: z.number() }).passthrough()
 })
@@ -121,7 +132,8 @@ export const zSettingsSetReq = z.object({
       startLocation: z.string().optional(),
       showHidden: z.boolean().optional(),
       showExtensions: z.boolean().optional(),
-      recentLimit: z.number().int().optional()
+      recentLimit: z.number().int().optional(),
+      showDashboardOnStartup: z.boolean().optional()
     })
     .strict()
 })
@@ -141,3 +153,8 @@ export const zWorkspaceSaveReq = z.object({
 })
 export const zWorkspaceLoadReq = z.object({ name: z.string().min(1).max(120) })
 export const zWorkspaceDeleteReq = z.object({ name: z.string().min(1).max(120) })
+
+// ── I장: analyze:scan:* (Top10 디스크 사용량 스캔) ────────────────────────
+// root 는 guardPath 로 정규화·상위이탈 차단 후 핸들러가 stat 으로 디렉토리 검증.
+export const zAnalyzeScanStartReq = z.object({ root: zPath })
+export const zAnalyzeScanCancelReq = z.object({ scanId: z.string().min(1) })

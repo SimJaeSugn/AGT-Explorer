@@ -163,6 +163,42 @@ export interface OpSummary {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// 디렉토리 사용량 Top10 스캔 (analyze:scan:* — 신규 I장, 계약만 동결)
+// ────────────────────────────────────────────────────────────────────────
+
+/** 스캔 상위 항목(폴더 또는 파일) 1개. */
+export interface ScanEntry {
+  /** 정규화된 절대 경로. */
+  readonly path: string
+  /** 표시 이름. */
+  readonly name: string
+  /** 바이트 크기. 폴더는 재귀 합계, 파일은 자기 크기. */
+  readonly bytes: number
+  /** 디렉토리 여부. */
+  readonly isDir: boolean
+}
+
+/** analyze:scan:done 결과 — 상위 N 폴더/파일 + 요약(계획서 §2.3). */
+export interface ScanResult {
+  /** 스캔 루트 경로(폴더 또는 드라이브). */
+  readonly root: string
+  /** 트리 전체 바이트 합계. */
+  readonly totalBytes: number
+  /** 스캔한 항목 총 개수. */
+  readonly totalItems: number
+  /** 상위 폴더(bytes desc, 최대 10). */
+  readonly topFolders: ScanEntry[]
+  /** 상위 파일(bytes desc, 최대 10). */
+  readonly topFiles: ScanEntry[]
+  /** 권한거부·순환으로 건너뛴 항목 수(격리 카운트). */
+  readonly skipped: number
+  /** 사용자 취소로 중단되었는지. */
+  readonly canceled: boolean
+  /** 항목 상한 초과로 잘렸는지. */
+  readonly truncated: boolean
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 세션 / 설정 스냅샷 (session:* / settings:* — 계약만 동결, 구현 P5)
 // ────────────────────────────────────────────────────────────────────────
 
@@ -170,7 +206,8 @@ export type LayoutKind = 'single' | 'split-2-h' | 'split-2-v' | 'grid-4'
 export type SortKey = 'name' | 'size' | 'ext' | 'mtime'
 export type SortDir = 'asc' | 'desc'
 export type ViewMode = 'list' | 'details'
-export type ThemeMode = 'light' | 'dark' | 'system'
+/** 테마 모드. 'bluelight' = 블루라이트 차단(저청색광 크림 톤, I장). */
+export type ThemeMode = 'light' | 'dark' | 'system' | 'bluelight'
 
 /** 패널 1개의 직렬화 상태(SA §5.1). 선택·스트림 상태는 휘발 → 제외. */
 export interface PanelSnapshot {
@@ -236,6 +273,8 @@ export interface SettingsSnapshot {
   readonly showExtensions: boolean
   /** 최근 목록 보관 개수. */
   readonly recentLimit: number
+  /** 프로그램 시작 시 용량 대시보드 자동 표시(기본 true, I장 §4.4·§6.5). */
+  readonly showDashboardOnStartup: boolean
 }
 
 /** 워크스페이스 1개 메타(workspace:list — 계약만 동결, 구현 P6). */

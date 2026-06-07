@@ -11,11 +11,12 @@
  *
  * 셀렉터 격리(SA §5.2): 자기 panelId 의 directory/view/selection 만 구독.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FileEntryDTO } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
+import { getCachedIcon, iconKeyFor, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
 import { commitRename } from '@renderer/app/usecases/fileOps'
 import { openEmptyContextMenu, openRowContextMenu } from '@renderer/app/usecases/contextMenu'
 import { highlightRange } from '@renderer/domain/rules/filter'
@@ -391,7 +392,6 @@ function FileRow({
         : tokens.color.bgSelectedInactive
       : 'transparent'
   const name = displayName(entry, showExt)
-  const icon = entry.isDir ? '📁' : '📄'
   const dim = entry.attrs.hidden || entry.attrs.system ? 0.55 : 1
 
   // 드래그 소스(이 행에서 시작) + 폴더면 드롭 타겟(그 폴더 안).
@@ -436,7 +436,18 @@ function FileRow({
         whiteSpace: 'nowrap'
       }}
     >
-      <span style={{ flex: '0 0 auto' }}>{icon}</span>
+      <span
+        style={{
+          flex: '0 0 auto',
+          width: 16,
+          height: 16,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <OSIcon entry={entry} />
+      </span>
       {renaming ? (
         <RenameInput panelId={panelId} path={entry.path} initialName={initialName} />
       ) : (
@@ -485,6 +496,29 @@ function FileRow({
       )}
     </div>
   )
+}
+
+/**
+ * OSIcon — 항목의 OS 실제 아이콘(있으면 <img>, 로드 전/실패 시 이모지 폴백, H6).
+ *
+ * 전역 아이콘 캐시(infra/icon, app/usecases/icons 경유)를 useSyncExternalStore 로
+ * 구독한다. 같은 키(확장자/폴더/드라이브)는 IPC 1회만(가상 스크롤 1만개 정합) —
+ * in-flight 디듀프. 캐시는 패널 store 무관 전역이라 셀렉터 격리(SA §5.2)를 지킨다.
+ * 아이콘 크기는 rowHeight(26) 안의 16×16 박스에 정합한다.
+ */
+function OSIcon({ entry }: { entry: FileEntryDTO }): JSX.Element {
+  const key = iconKeyFor(entry)
+  const dataUrl = useSyncExternalStore(subscribeIcon, () => getCachedIcon(key))
+
+  useEffect(() => {
+    if (!getCachedIcon(key)) void requestIcon(entry)
+    // key 변화(행 재사용으로 다른 항목 매핑)마다 미캐시면 로드 트리거.
+  }, [key, entry])
+
+  if (dataUrl) {
+    return <img src={dataUrl} width={16} height={16} alt="" draggable={false} />
+  }
+  return <span aria-hidden>{entry.isDir ? '📁' : '📄'}</span>
 }
 
 /**

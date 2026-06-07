@@ -9,6 +9,7 @@
 import { useEffect, useRef } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { initOperationsBridge } from '@renderer/app/usecases/operationsBridge'
+import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -21,6 +22,7 @@ import { KeyboardDispatcher } from '@renderer/ui/keyboard/KeyboardDispatcher'
 import { ShortcutHelp } from '@renderer/ui/keyboard/ShortcutHelp'
 import { SettingsDialog } from '@renderer/ui/settings/SettingsDialog'
 import { WorkspaceDialog } from '@renderer/ui/workspace/WorkspaceDialog'
+import { DashboardModal } from '@renderer/ui/dashboard/DashboardModal'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
@@ -37,12 +39,14 @@ export function App(): JSX.Element {
   // 드래그 중 수정키 실시간 추적 + Esc 취소.
   useDragController()
 
-  // op:* 이벤트 → operationsSlice 브리지(진행률/충돌/완료).
+  // op:* / analyze:scan:* 이벤트 → 슬라이스 브리지(진행률/충돌/완료).
   useEffect(() => {
     initOperationsBridge()
+    initScanBridge()
   }, [])
 
-  // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독.
+  // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독
+  // → 시작 시 대시보드 자동 팝업(설정 showDashboardOnStartup, I장 §4.4).
   // StrictMode 의 이중 마운트 방지를 위해 1회 가드.
   useEffect(() => {
     if (bootedRef.current) return
@@ -52,6 +56,9 @@ export function App(): JSX.Element {
       await loadSettings()
       await restoreSession()
       stopAutosave = startSessionAutosave()
+      // 설정 로드(applySettings)로 showDashboardOnStartup 가 반영된 뒤 분기.
+      const s = useRootStore.getState()
+      if (s.showDashboardOnStartup) s.openDashboard()
     })()
     return () => {
       if (stopAutosave) stopAutosave()
@@ -94,6 +101,7 @@ export function App(): JSX.Element {
       <ShortcutHelp />
       <SettingsDialog />
       <WorkspaceDialog />
+      <DashboardModal />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}
       <ProgressDialog />

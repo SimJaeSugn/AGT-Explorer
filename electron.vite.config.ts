@@ -12,7 +12,9 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          fileOpWorker: resolve('src/main/workers/fileOpWorker.ts')
+          fileOpWorker: resolve('src/main/workers/fileOpWorker.ts'),
+          // I장: Top10 디스크 사용량 스캔 Worker(별도 청크 out/main/scanWorker.js).
+          scanWorker: resolve('src/main/workers/scanWorker.ts')
         },
         output: {
           entryFileNames: '[name].js'

@@ -12,7 +12,7 @@ import type { FileEntryDTO } from '@shared/dto'
 import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc } from '@renderer/domain/paths'
 import { execCommand } from './commandBus'
-import { openWithEntry, showPropertiesFor } from './open'
+import { openTerminalAt, openWithEntry, showPropertiesFor } from './open'
 import { visibleEntries } from './selectors'
 
 /** 메뉴 항목 1개. separator 면 구분선만 그린다. */
@@ -76,12 +76,19 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     if (isMyPc(panelPath)) {
       return [{ id: 'refresh', label: '새로고침', run: cmd('panel.refresh') }]
     }
-    return [
+    const empty: MenuItem[] = [
       { id: 'paste', label: '붙여넣기', run: cmd('file.paste') },
       { id: 'sep-empty', separator: true },
-      { id: 'newFolder', label: '새 폴더', run: cmd('file.newFolder') },
-      { id: 'refresh', label: '새로고침', run: cmd('panel.refresh') }
+      { id: 'newFolder', label: '새 폴더', run: cmd('file.newFolder') }
     ]
+    // 터미널 열기: 비-MyPc 실존 디렉토리 경로일 때만(붙여넣기·새폴더 다음/새로고침 앞).
+    // 노출 시에만 separator 추가(§1.7 배치). panelPath 는 navigate 가 보장하는 실존 디렉토리.
+    if (!isMyPc(panelPath) && panelPath !== '') {
+      empty.push({ id: 'terminal', label: '터미널 열기', run: () => void openTerminalAt(panelPath) })
+      empty.push({ id: 'sep-terminal', separator: true })
+    }
+    empty.push({ id: 'refresh', label: '새로고침', run: cmd('panel.refresh') })
+    return empty
   }
 
   const multi = ctx.selectedPaths.size > 1
@@ -92,6 +99,14 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   if (!multi && single) {
     // 폴더=진입, 파일=연결 프로그램 실행. 둘 다 panel.activate(activateEntry) 로 수렴.
     items.push({ id: 'open', label: '열기', run: cmd('panel.activate') })
+    // 단일 디렉토리 선택만 "터미널 열기"(열기 그룹 내, 열기 바로 다음). 파일은 cwd 개념 부적합.
+    if (single.isDir) {
+      items.push({
+        id: 'terminal',
+        label: '터미널 열기',
+        run: () => void openTerminalAt(single.path)
+      })
+    }
     if (!single.isDir) {
       items.push({
         id: 'openWith',

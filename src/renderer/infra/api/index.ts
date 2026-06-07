@@ -39,7 +39,14 @@ import type {
   OpResolveReq,
   OpStartReq,
   OpStartRes,
+  AnalyzeScanStartReq,
+  AnalyzeScanStartRes,
+  ScanProgressEvt,
+  ScanDoneEvt,
+  ScanErrorEvt,
   Result,
+  ShellIconReq,
+  ShellIconRes,
   TelemetryGetOptInRes
 } from '@shared/ipc/contracts'
 
@@ -109,7 +116,11 @@ export const shellApi = {
   openWith: (path: string): Promise<Result<void>> => bridge().shell.openWith({ path }),
   /** shell:show-properties — OS 속성창 호출(컨텍스트 메뉴 "속성"). */
   showProperties: (path: string): Promise<Result<void>> =>
-    bridge().shell.showProperties({ path })
+    bridge().shell.showProperties({ path }),
+  /** shell:icon — OS 파일 아이콘 dataUrl 조회(확장자/폴더/드라이브 캐시, H6). */
+  icon: (req: ShellIconReq): Promise<Result<ShellIconRes>> => bridge().shell.icon(req),
+  /** shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4). */
+  openTerminal: (cwd: string): Promise<Result<void>> => bridge().shell.openTerminal({ cwd })
 }
 
 // ── op:* 어댑터 (P4: 파일 작업 시작/취소/충돌해소) ──────────────────────
@@ -141,6 +152,41 @@ export function subscribeOpStream(h: OpStreamHandlers): Unsubscribe {
     offProgress()
     offConflict()
     offDone()
+  }
+}
+
+// ── analyze:scan:* 어댑터 (I장: 디렉토리 사용량 Top10 스캔) ──────────────
+// 핸들러/Worker impl 은 I장 다음 단계. 여기서는 invoke 래퍼 + raw 이벤트 구독만 노출한다.
+export const analyzeApi = {
+  /** analyze:scan:start — 루트 폴더/드라이브 스캔 시작(scanId 발급). */
+  scanStart: (req: AnalyzeScanStartReq): Promise<Result<AnalyzeScanStartRes>> =>
+    bridge().analyze.scanStart(req),
+  /** analyze:scan:cancel — 진행 중 스캔 협조취소(SharedArrayBuffer 플래그). */
+  scanCancel: (scanId: string): Promise<Result<void>> => bridge().analyze.scanCancel({ scanId })
+}
+
+/**
+ * analyze:scan:* 진행률/완료/오류 이벤트 구독 묶음.
+ * subscribeOpStream 의 scan 버전 — raw 이벤트를 그대로 콜백에 전달하며,
+ * scanId 상관(필터)은 소비측(analyzeSlice/usecase)에서 수행한다.
+ *
+ * 반환된 dispose 로 세 구독을 모두 해제한다(누수 방지).
+ */
+export interface ScanStreamHandlers {
+  onProgress: (evt: ScanProgressEvt) => void
+  onDone: (evt: ScanDoneEvt) => void
+  onError: (evt: ScanErrorEvt) => void
+}
+
+export function subscribeScanStream(h: ScanStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offProgress = api.analyze.onScanProgress((evt) => h.onProgress(evt))
+  const offDone = api.analyze.onScanDone((evt) => h.onDone(evt))
+  const offError = api.analyze.onScanError((evt) => h.onError(evt))
+  return () => {
+    offProgress()
+    offDone()
+    offError()
   }
 }
 

@@ -13,6 +13,7 @@ import type { ThemeMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import {
   changeRecentLimit,
+  changeShowDashboardOnStartup,
   changeShowExtensions,
   changeShowHidden,
   changeStartLocation,
@@ -40,6 +41,7 @@ export function SettingsDialog(): JSX.Element | null {
   const showExtensions = useRootStore((s) => s.showExtensions)
   const startLocation = useRootStore((s) => s.startLocation)
   const recentLimit = useRootStore((s) => s.recentLimit)
+  const showDashboardOnStartup = useRootStore((s) => s.showDashboardOnStartup)
   const telemetryOptIn = useRootStore((s) => s.telemetryOptIn)
   const close = useRootStore((s) => s.closeSettings)
   const openWorkspace = useRootStore((s) => s.openWorkspace)
@@ -77,6 +79,7 @@ export function SettingsDialog(): JSX.Element | null {
             <option value="light">라이트</option>
             <option value="dark">다크</option>
             <option value="system">시스템</option>
+            <option value="bluelight">블루라이트(청색광 차단)</option>
           </select>
         </div>
 
@@ -133,6 +136,20 @@ export function SettingsDialog(): JSX.Element | null {
             style={{ ...inputStyle, width: 90, flex: '0 0 auto' }}
           />
         </div>
+
+        {/* 시작 시 대시보드 표시(I장) */}
+        <label style={labelStyle}>
+          <span style={fieldLabel}>시작 시 대시보드 표시</span>
+          <input
+            type="checkbox"
+            checked={showDashboardOnStartup}
+            onChange={(e) => void changeShowDashboardOnStartup(e.target.checked)}
+            aria-label="시작 시 용량 대시보드 표시"
+          />
+          <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
+            프로그램 시작 시 용량 대시보드를 자동으로 엽니다(기본 켜짐).
+          </span>
+        </label>
 
         {/* 텔레메트리 옵트인 */}
         <label style={labelStyle}>

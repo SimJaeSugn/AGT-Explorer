@@ -27,6 +27,7 @@ import type {
   OpSummary,
   PathValidation,
   PreviewData,
+  ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
   WorkspaceInfo
@@ -117,6 +118,10 @@ export interface ShellOpenWithReq {
 export interface ShellShowPropertiesReq {
   readonly path: string
 }
+export interface ShellOpenTerminalReq {
+  /** 터미널 작업 디렉토리(검증된 실존 폴더). */
+  readonly cwd: string
+}
 export interface ShellIconReq {
   /** 경로 또는 확장자 중 하나(아이콘 캐시 키). */
   readonly path?: string
@@ -203,6 +208,19 @@ export interface PreviewReadReq {
   readonly path: string
 }
 
+// ── analyze:scan:* (신규 I장 — Top10 스캔, 계약만 동결) ────────────────
+export interface AnalyzeScanStartReq {
+  /** 스캔 대상 폴더 또는 드라이브 경로(루트). */
+  readonly root: string
+}
+export interface AnalyzeScanStartRes {
+  /** 이후 progress/done/error/cancel 이벤트를 묶는 스캔 ID. */
+  readonly scanId: string
+}
+export interface AnalyzeScanCancelReq {
+  readonly scanId: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
@@ -229,6 +247,7 @@ export interface IpcRequestMap {
   [CHANNELS.SHELL_OPEN_WITH]: { req: ShellOpenWithReq; res: Result<void> }
   [CHANNELS.SHELL_SHOW_PROPERTIES]: { req: ShellShowPropertiesReq; res: Result<void> }
   [CHANNELS.SHELL_ICON]: { req: ShellIconReq; res: Result<ShellIconRes> }
+  [CHANNELS.SHELL_OPEN_TERMINAL]: { req: ShellOpenTerminalReq; res: Result<void> }
 
   // op:* (P4)
   [CHANNELS.OP_START]: { req: OpStartReq; res: Result<OpStartRes> }
@@ -266,6 +285,10 @@ export interface IpcRequestMap {
 
   // preview:* (P6 — 신규 Should)
   [CHANNELS.PREVIEW_READ]: { req: PreviewReadReq; res: Result<PreviewData> }
+
+  // analyze:scan:* (신규 I장 — 계약만 동결)
+  [CHANNELS.ANALYZE_SCAN_START]: { req: AnalyzeScanStartReq; res: Result<AnalyzeScanStartRes> }
+  [CHANNELS.ANALYZE_SCAN_CANCEL]: { req: AnalyzeScanCancelReq; res: Result<void> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -298,6 +321,23 @@ export interface OpDoneEvt {
   readonly summary: OpSummary
 }
 
+// ── analyze:scan:* 진행률/완료/오류 이벤트 (신규 I장, 계약만 동결) ─────
+/** 진행률(200ms 스로틀) — 누적 항목/바이트 + 현재 경로. */
+export interface ScanProgressEvt {
+  readonly scanId: string
+  readonly scannedItems: number
+  readonly scannedBytes: number
+  readonly currentPath: string
+}
+export interface ScanDoneEvt {
+  readonly scanId: string
+  readonly result: ScanResult
+}
+export interface ScanErrorEvt {
+  readonly scanId: string
+  readonly error: FileOpError
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -308,6 +348,11 @@ export interface IpcEventMap {
   [CHANNELS.OP_PROGRESS]: OpProgressEvt
   [CHANNELS.OP_CONFLICT]: OpConflictEvt
   [CHANNELS.OP_DONE]: OpDoneEvt
+
+  // analyze:scan:* 스트림 (신규 I장, 계약만 동결)
+  [CHANNELS.ANALYZE_SCAN_PROGRESS]: ScanProgressEvt
+  [CHANNELS.ANALYZE_SCAN_DONE]: ScanDoneEvt
+  [CHANNELS.ANALYZE_SCAN_ERROR]: ScanErrorEvt
 }
 
 export type EventChannel = keyof IpcEventMap

@@ -92,6 +92,10 @@ export interface UiSlice {
   readonly settingsLoaded: boolean
   /** 설정 화면 열림 여부. */
   readonly settingsOpen: boolean
+  /** 사용량 대시보드 모달 열림 여부(I장 §4.1). */
+  readonly dashboardOpen: boolean
+  /** 프로그램 시작 시 용량 대시보드 자동 표시(설정 영속, I장 §4.4). */
+  readonly showDashboardOnStartup: boolean
 
   // P6 미리보기 / 워크스페이스 ────────────────────────────────────────────
   /** 미리보기 패널 열림 여부(기본 false, Ctrl+P 토글, US-4.3). 세션 복원 대상. */
@@ -137,6 +141,12 @@ export interface UiSlice {
   /** 설정 화면 열기/닫기(열림 시 inputContext='dialog'). */
   openSettings(): void
   closeSettings(): void
+  /** 사용량 대시보드 모달 열기(inputContext='dialog'). */
+  openDashboard(): void
+  /** 사용량 대시보드 모달 닫기(다른 모달 없으면 inputContext='list' 복귀). */
+  closeDashboard(): void
+  /** 시작 시 대시보드 표시 설정(영속은 usecase/settings 가 처리). */
+  setShowDashboardOnStartup(v: boolean): void
 
   // P6 미리보기 / 워크스페이스 액션 ────────────────────────────────────────
   /** 미리보기 패널 토글(Ctrl+P). */
@@ -185,6 +195,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   telemetryOptIn: false,
   settingsLoaded: false,
   settingsOpen: false,
+  dashboardOpen: false,
+  showDashboardOnStartup: true,
   previewOpen: false,
   workspaceOpen: false,
   clipboardHasFiles: false,
@@ -196,6 +208,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       s.showHidden = snapshot.showHidden
       s.showExtensions = snapshot.showExtensions
       s.recentLimit = Math.min(1000, Math.max(1, Math.trunc(snapshot.recentLimit)))
+      s.showDashboardOnStartup = snapshot.showDashboardOnStartup
       s.telemetryOptIn = telemetryOptIn
       s.settingsLoaded = true
     })
@@ -247,7 +260,31 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   closeSettings() {
     set((s) => {
       s.settingsOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen) s.inputContext = 'list'
+      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.dashboardOpen) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openDashboard() {
+    set((s) => {
+      s.dashboardOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeDashboard() {
+    set((s) => {
+      s.dashboardOpen = false
+      if (!s.confirmDelete && !s.renameTarget && !s.workspaceOpen && !s.settingsOpen) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  setShowDashboardOnStartup(v) {
+    set((s) => {
+      s.showDashboardOnStartup = v
     })
   },
 
@@ -273,7 +310,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   closeWorkspace() {
     set((s) => {
       s.workspaceOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen) s.inputContext = 'list'
+      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen) {
+        s.inputContext = 'list'
+      }
     })
   },
 
@@ -349,7 +388,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   openContextMenu(menu) {
     set((s) => {
       // 모달(영구삭제 확인·설정·워크스페이스)·이름편집 중에는 컨텍스트 메뉴를 열지 않는다.
-      if (s.confirmDelete || s.settingsOpen || s.workspaceOpen || s.renameTarget) return
+      if (s.confirmDelete || s.settingsOpen || s.workspaceOpen || s.dashboardOpen || s.renameTarget) {
+        return
+      }
       s.contextMenu = menu
       s.inputContext = 'dialog'
     })
@@ -359,7 +400,13 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     set((s) => {
       s.contextMenu = null
       // 다른 다이얼로그/편집이 없으면 list 로 복귀.
-      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.workspaceOpen) {
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.workspaceOpen &&
+        !s.dashboardOpen
+      ) {
         s.inputContext = 'list'
       }
     })

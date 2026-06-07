@@ -49,6 +49,46 @@ export async function openWith(normalizedPath: string): Promise<OpenResult> {
 }
 
 /**
+ * 검증된 디렉토리 경로에서 터미널을 연다(shell:open-terminal, H4 · ADR-005).
+ *
+ * Windows Terminal(`wt.exe -d <dir>`)을 우선 시도하고, 미설치(ENOENT)·spawn 실패
+ * 시 `powershell.exe -NoExit`(cwd=경로) 로 폴백한다. 둘 다 셸(cmd)을 경유하지 않는
+ * execFile + 인자 배열/cwd 옵션으로만 경로를 전달한다(명령행 문자열 합성 0 — ADR-005
+ * §3.3-4, 공백·한글·`&` 포함 경로도 주입 무해). 터미널은 보여야 하므로
+ * windowsHide:false. 비-Windows 는 미지원 안내 반환(개발/CI 폴백, openWith 스타일).
+ *
+ * 호출부(shell.handlers)는 이미 정규화·존재·디렉토리(stat) 검증을 통과한 경로만 전달.
+ */
+export async function openTerminal(normalizedDir: string): Promise<OpenResult> {
+  if (process.platform !== 'win32') {
+    return { errorMessage: '터미널 열기는 Windows 에서만 지원됩니다.' }
+  }
+
+  // 1차: Windows Terminal. wt 는 런처라 즉시 반환(detach) — error 없으면 성공.
+  const wt = await new Promise<OpenResult | null>((resolve) => {
+    execFile('wt.exe', ['-d', normalizedDir], { windowsHide: false }, (error) => {
+      // wt.exe 부재(미설치/Server)는 ENOENT 등 → 폴백 신호로 null 반환.
+      if (error) resolve(null)
+      else resolve({ errorMessage: '' })
+    })
+  })
+  if (wt) return wt
+
+  // 2차(폴백): PowerShell. -NoExit 로 창 유지, cwd 옵션으로 작업 디렉토리 지정
+  // (경로를 명령행 문자열로 합성하지 않음 — 주입 차단).
+  return new Promise<OpenResult>((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoExit'],
+      { cwd: normalizedDir, windowsHide: false },
+      (error) => {
+        resolve({ errorMessage: error ? error.message : '' })
+      }
+    )
+  })
+}
+
+/**
  * Windows OS 속성 대화상자 호출(shell:show-properties, ADR-005).
  *
  * Electron 은 SHObjectProperties/ShellExecuteEx("properties") 를 직접 노출하지

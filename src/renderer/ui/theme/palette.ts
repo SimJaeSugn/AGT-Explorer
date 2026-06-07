@@ -29,6 +29,29 @@ export const LIGHT_PALETTE: Palette = {
   '--c-highlight': '#fff1a8'
 }
 
+/**
+ * 블루라이트 차단 팔레트(I장 §6.2). 배경 #FBF0D9(따뜻한 크림) 기반 저청색광.
+ * 청색을 최소화한 따뜻한 갈/황 톤으로 13개 토큰 전부 채운다(미주입 시 색 깨짐).
+ * 텍스트/배경 대비는 WCAG AA(4.5:1) 지향 — #3A3326 본문은 #FBF0D9 위에서 ≈10:1.
+ */
+export const BLUELIGHT_PALETTE: Palette = {
+  '--c-bg': '#FBF0D9',
+  '--c-bg-alt': '#F3E6C9',
+  '--c-bg-hover': '#ECDCBA',
+  '--c-bg-selected': '#E3CFA0',
+  '--c-bg-selected-inactive': '#EADCC0',
+  '--c-border': '#E0D0AE',
+  '--c-border-strong': '#C9B488',
+  '--c-text': '#3A3326',
+  '--c-text-muted': '#6E6346',
+  '--c-accent': '#9A6A1F',
+  '--c-accent-border': '#9A6A1F',
+  '--c-danger': '#B23A2E',
+  '--c-folder': '#C79A3A',
+  '--c-file': '#8A7B55',
+  '--c-highlight': '#F2D98A'
+}
+
 export const DARK_PALETTE: Palette = {
   '--c-bg': '#1e1f22',
   '--c-bg-alt': '#26282c',
@@ -47,7 +70,12 @@ export const DARK_PALETTE: Palette = {
   '--c-highlight': '#6b5d1f'
 }
 
-/** resolved(light/dark) 테마의 팔레트 반환. */
-export function paletteFor(resolved: 'light' | 'dark'): Palette {
-  return resolved === 'dark' ? DARK_PALETTE : LIGHT_PALETTE
+/**
+ * resolved 테마(light/dark/bluelight)의 팔레트 반환(I장 §6.3).
+ * ResolvedTheme 은 applyTheme.ts 에서 정의(순환참조 회피 위해 여기선 리터럴 유니온).
+ */
+export function paletteFor(resolved: 'light' | 'dark' | 'bluelight'): Palette {
+  if (resolved === 'dark') return DARK_PALETTE
+  if (resolved === 'bluelight') return BLUELIGHT_PALETTE
+  return LIGHT_PALETTE
 }

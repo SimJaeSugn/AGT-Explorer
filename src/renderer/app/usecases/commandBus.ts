@@ -142,6 +142,11 @@ export function execCommand(commandId: string): boolean {
       s.openSettings()
       return true
 
+    // ── 사용량 대시보드(I장) ──────────────────────────────────────────
+    case 'dashboard.open':
+      s.openDashboard()
+      return true
+
     // ── 보기 ─────────────────────────────────────────────────────────
     case 'panel.refresh': {
       const p = activePanel()
