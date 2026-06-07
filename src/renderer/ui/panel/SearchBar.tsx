@@ -90,8 +90,8 @@ export function SearchBar({ panelId }: { panelId: string }): JSX.Element {
           fontSize: 13,
           fontFamily: tokens.font,
           background: tokens.color.bg,
-          color: tokens.color.text,
-          outline: 'none'
+          color: tokens.color.text
+          // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
         }}
       />
       <SearchCount panelId={panelId} />

@@ -193,8 +193,8 @@ function FavoriteLabelInput({
           borderRadius: 3,
           padding: '0 6px',
           fontSize: 12,
-          fontFamily: tokens.font,
-          outline: 'none'
+          fontFamily: tokens.font
+          // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
         }}
       />
     </div>

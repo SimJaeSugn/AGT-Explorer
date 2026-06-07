@@ -159,7 +159,7 @@ Windows 기본 탐색기의 답답함을 해결하는 것이 목표다. (Electro
 - FTP/SSH 등 원격 프로토콜 브라우징
 - 파일 편집기(텍스트 편집은 미리보기까지만)
 
-### 릴리스 요건 / 개발 도구 (Must for 릴리스 · DevEx) — ✅ 구현 완료
+### 릴리스 요건 / 개발 도구 (Must for 릴리스 · DevEx) — ✅ 구현 완료 (G장 4종) · 🟡 P7 릴리스 안정화(헤드리스분 ✅ / 런타임 실측·서명 잔여)
 > 사용자 기능이 아니라 **릴리스 준비·개발 도구·기존 기능 결함 수정** 성격의 항목이다.
 > 원래 로드맵에 미반영된 채 진행됐던 추가물을 **사후에 정식 추적 대상으로 편입**한 것이다(roadmap §0.5 "로드맵 외 추가 반영" → 정식화). 모두 **구현 완료(✅)**.
 > 상세 규칙은 [features.md G장](./features.md) 참조.
@@ -168,6 +168,7 @@ Windows 기본 탐색기의 답답함을 해결하는 것이 목표다. (Electro
 - [x] **원클릭 인스톨러 빌드 스크립트** (DevEx 도구) — 루트 `build-installer.ps1`. 의존성 점검 → typecheck → electron-vite build → electron-builder(NSIS)를 한 번에 실행하고 인스톨러 경로 출력. (US-6.2) ✅
 - [x] **가상 스크롤 뷰포트 높이 측정 결함 수정** (기존 Must "가상 스크롤"의 품질 — US-5.6 보강) — `FileListView` 뷰포트 높이 측정을 콜백 ref 기반 ResizeObserver로 전환(로딩 중 컨테이너 미마운트로 viewportH가 400px에 고정되던 결함 해소) + 전역 CSS 리셋. ✅
 - [x] **제품명 AGT-Finder 브랜딩** (Must for 릴리스 · ✅ 구현 완료, 2026-06-07 편입) — *(features §J4·US-9.4)* productName·**appId `com.agtfinder.app`**·창 타이틀·`<title>`·`package.json` 메타·문서 표기를 전부 **AGT-Finder**로 교체(`package.json`·`electron-builder.yml`·`index.html`·`mainWindow.ts`·`main/index.ts`·`paths.ts`). 사용자 노출 표면에 잔존 "Explorer" 없음(내부 ExplorerApi 타입·코드 주석만 유지). 코드네임 "Explorer"는 개발용으로만 유지. ※ 실행 파일명(`AGT-Finder.exe`)·NSIS 인스톨러·바로가기 이름은 패키징 산출물 런타임 확인 권장(설정은 productName 기준 완료). ✅
+- [~] **P7 릴리스 안정화** (Must for 릴리스 · 🟡 부분 — 헤드리스분 ✅ / 런타임 잔여 🟡, 2026-06-07) — *(roadmap §3 P7)* **헤드리스 충족 ✅**: 접근성(`useFocusTrap`·모달 6종 `role=dialog`/`aria-modal`/Esc·행 `aria-posinset/setsize`·`:focus-visible`·Shift+F10), WCAG AA 대비 4팔레트 전수(`scripts/verify-contrast.ts`), 성능 측정 불변식(`windowing.ts`·`scripts/verify-perf.ts` 25), F장 QA 매트릭스(`scripts/verify-fmatrix.ts` 32·`docs/P7-qa-matrix.md`), npm audit 점검(`docs/P7-security-audit.md` — 릴리스 차단 아님), sourcemap 분리(`!out/**/*.map`), 코드서명 설정(`CSC_LINK`/`CSC_KEY_PASSWORD`). **런타임 잔여 🟡**: 성능 3종 실측 숫자(`docs/P7-perf-measurement.md`)·실제 코드서명(.pfx 인증서)·NSIS 설치/실행/제거 실측·F장 실케이스(실 네트워크/symlink/ACL)·실 스크린리더. **→ M4 1차 릴리스 미완(🟡).**
 
 ---
 
@@ -193,6 +194,7 @@ Windows 기본 탐색기의 답답함을 해결하는 것이 목표다. (Electro
 ### 성능
 - 10,000개 이상 항목 폴더: 가상 스크롤(virtualized list)로 렌더, 첫 화면 1.5초 이내.
   - **[2026-06-07 결함 수정 ✅]** 가상 스크롤 뷰포트 높이 측정을 콜백 ref 기반 ResizeObserver로 전환. 로딩 중 컨테이너가 아직 마운트되지 않아 viewportH가 400px에 고정되던 결함을 해소(전역 CSS 리셋 동반). 이는 기존 Must "가상 스크롤"(US-5.6)의 품질/결함 수정 항목이다.
+  - **[2026-06-07 P7 ✅ 헤드리스 불변식 / 🟡 실측]** windowing 순수함수(`windowing.ts`) 추출 + `scripts/verify-perf.ts`(25 pass)로 1만 항목 가상 스크롤 DOM 후보 수십개·200ms 스로틀·검색 필터 **불변식 증명**. **첫 렌더 ≤1.5초·진행률/검색 ≤200ms 실측 숫자는 GUI 런타임 측정 잔여(🟡 — `docs/P7-perf-measurement.md` 절차).**
 - 디렉토리 읽기·복사 등 I/O는 **워커/별도 프로세스**에서 처리해 UI 스레드 비차단.
 - 대용량 복사: 청크 단위 진행률, 200ms 이내 갱신, 사용자 취소 가능.
 - 메모리: 썸네일은 화면 진입 항목만 지연 로드(lazy)·캐시 상한 적용.
@@ -204,14 +206,15 @@ Windows 기본 탐색기의 답답함을 해결하는 것이 목표다. (Electro
 - 비정상 종료 후 탭/패널 세션 복원.
 
 ### 접근성
-- 모든 핵심 동작 키보드 접근 가능, 포커스 표시 명확.
-- 테마 대비 WCAG AA 수준 지향, 글자 크기 시스템 설정 존중.
-- 스크린리더용 항목 레이블(파일명/형식/크기) 제공(Should).
+- 모든 핵심 동작 키보드 접근 가능, 포커스 표시 명확. **[2026-06-07 ✅ P7 코드]** 공용 포커스 트랩(`useFocusTrap`: 첫 포커스·Tab 순환·opener 복귀·Esc 위임)·모달 6종 `role=dialog`/`aria-modal`/Esc·`:focus-visible`(인라인 outline 제거)·Shift+F10 컨텍스트 메뉴 구현. **실 스크린리더 발화·포커스 육안은 런타임 🟡.**
+- 테마 대비 WCAG AA 수준 지향, 글자 크기 시스템 설정 존중. **[2026-06-07 ✅ P7]** 4종 팔레트(LIGHT/DARK/BLUELIGHT) 주요 토큰쌍 WCAG AA 전수 통과(`scripts/verify-contrast.ts`, 실패 0).
+- 스크린리더용 항목 레이블(파일명/형식/크기) 제공(Should). **[2026-06-07 ✅ 코드]** 행 `aria-posinset/setsize` 등 ARIA 레이블 구현(실 스크린리더 검증은 런타임 🟡).
 
 ### 보안 / 권한
 - OS 파일시스템 권한을 그대로 존중. 권한 없는 경로 접근 시 명확한 안내.
 - 앱은 사용자 권한 범위 내에서만 동작(권한 상승은 OS 표준 흐름 따름).
 - 외부 네트워크 전송 없음(로컬 전용)이 기본. **텔레메트리는 옵트인(기본 꺼짐)**, 동의 시에만 익명 집계 전송(결정 기록 D5).
+- **[2026-06-07 P7 ✅ 보안 점검]** `npm audit` 점검·판정(`docs/P7-security-audit.md`): 9건 전부 major 업그레이드 필요(비파괴 fix 0건) — 8건 빌드 툴체인(배포 산출물 영향 0)·1건 electron 본체(ADR-005 하드닝 완화). **major 업그레이드는 사용자 결정 보류 → 릴리스 차단 아님.** sourcemap 배포 제외(`!out/**/*.map`)·코드서명 설정(`CSC_LINK`/`CSC_KEY_PASSWORD`, 실제 서명은 .pfx 인증서 필요 🟡).
 
 ### 호환 / 플랫폼
 - 1차: Windows 10/11. 한글/유니코드 경로·긴 경로(Long Path) 처리 고려.
@@ -319,5 +322,5 @@ Windows 기본 탐색기의 답답함을 해결하는 것이 목표다. (Electro
 | M1 | 단일 패널 탐색 기반(목록/정렬/탐색/기본 조작) | 동작하는 탐색기 코어 | ✅ 완료 |
 | M2 | 탭(복제 포함) + 2분할 패널 + 패널 간 이동/복사 + 충돌 해결 | 핵심 차별점 동작 | ✅ 완료 |
 | M3 | 검색/필터, 즐겨찾기/최근, 진행률, 테마, 단축키, 상태바, 자동 세션 복원 | MVP 기능 완성 | ✅ 완료 |
-| M4 | 안정화·성능 튜닝(1.5초/200ms 검증)·접근성·QA | **1차 릴리스** | 🟡 부분 (패키징·**앱 아이콘·원클릭 인스톨러 빌드(`build-installer.ps1`)** 완료, 성능 실측·접근성·코드서명 미완) |
+| M4 | 안정화·성능 튜닝(1.5초/200ms 검증)·접근성·QA | **1차 릴리스** | 🟡 부분 (**헤드리스분 ✅**: 접근성 코드(`useFocusTrap`·모달 6종 ARIA/Esc·focus-visible·행 ARIA)·WCAG AA 4팔레트 전수·성능/F장 검증 하니스(`verify:perf`/`verify:fmatrix`)·npm audit 점검(릴리스 차단 아님)·sourcemap 분리·코드서명 설정·앱 아이콘·원클릭 인스톨러 빌드(`build-installer.ps1`). **런타임 잔여 🟡**: 성능 3종 실측·실제 코드서명(.pfx)·NSIS 설치/실행/제거 실측·F장 실케이스·실 스크린리더) |
 | M5+ | 4분할·미리보기 패널·명시적 워크스페이스 저장·신규 UX(아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘)·**분석·접근성(사용량 대시보드·블루라이트 차단 테마)**·**보기·실시간·뷰어·브랜딩(박스 선택·패널 실시간 갱신·보기 5종·AGT-Finder·미리보기 2단 뷰어/폭 조절·즐겨찾기 별칭)** 등 Should | 후속 릴리스 | 🟡 부분(P6: 4분할·미리보기·워크스페이스·텔레메트리·연결프로그램 열기 완료 + 신규 UX 6종(H1~H6) 완료 + **분석·접근성 2종(I1·I2) 완료** + **J장 7종(J1·J3·J4·J5·J6·J7 완료, J2 실시간 갱신도 보류 2건(선택/스크롤 보존·UNC 폴링 폴백) 구현 완료 + 매핑 네트워크 드라이브 `X:\` `GetDriveType` 연동(`os/driveType.ts`) 완료 ✅ — `subst`·일부 클라우드(`DriveType≠4`)만 미포함 한계)** / 그리드 썸네일 자체 생성·되돌리기·휴지통 관리 화면 미착수) |

@@ -9,6 +9,7 @@
  * 적용, 확장자는 즉시 표기. 단축키 섹션은 KeyBindingRegistry.listBindings() 를
  * 읽어 PRD §8 표를 표시(P3 DoD "설정에서 단축키 표시"의 실제 호스트).
  */
+import { useEffect, useRef } from 'react'
 import type { ThemeMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import {
@@ -21,6 +22,7 @@ import {
   changeTheme
 } from '@renderer/app/usecases/settings'
 import { listShortcutGroups, prettyChord } from '@renderer/ui/keyboard/shortcuts'
+import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/dialogStyles'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -45,6 +47,26 @@ export function SettingsDialog(): JSX.Element | null {
   const telemetryOptIn = useRootStore((s) => s.telemetryOptIn)
   const close = useRootStore((s) => s.closeSettings)
   const openWorkspace = useRootStore((s) => s.openWorkspace)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  // 포커스 트랩: 컨테이너는 **내부 패널 div** 만(오버레이 onClick 닫기 보존).
+  // 첫 포커스(닫기 ✕)·Tab 순환·opener 복귀(P7-A).
+  useFocusTrap(open, panelRef, { initialFocus: closeBtnRef })
+
+  // Esc = 닫기(신규, 오버레이 클릭 닫기와 공존). 다이얼로그 컨텍스트 단축키 차단 상태.
+  useEffect(() => {
+    if (!open) return undefined
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        close()
+      }
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [open, close])
 
   if (!open) return null
 
@@ -53,12 +75,14 @@ export function SettingsDialog(): JSX.Element | null {
   return (
     <div style={overlayStyle} onClick={close} role="dialog" aria-modal="true" aria-label="설정">
       <div
+        ref={panelRef}
         style={{ ...panelStyle, width: 600, maxWidth: '92vw', maxHeight: '86vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ ...titleStyle, margin: 0 }}>설정</h2>
           <button
+            ref={closeBtnRef}
             onClick={close}
             aria-label="닫기"
             style={{ marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: tokens.color.text }}
@@ -243,6 +267,6 @@ const inputStyle: React.CSSProperties = {
   padding: '0 8px',
   background: tokens.color.bg,
   color: tokens.color.text,
-  outline: 'none',
+  // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
   boxSizing: 'border-box'
 }

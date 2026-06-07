@@ -1,6 +1,6 @@
 # 개발 로드맵 — AGT-Finder (멀티 디렉토리 파일탐색기 · 코드네임 Explorer)
 
-> 작성: 테크리드 · 2026-06-06 · **갱신: 2026-06-07** · 상태: **P0~P5(MVP) 구현 완료 · P6(Should) 구현 완료 · 신규 UX(H장: 아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘) 구현 완료 · 신규 분석·접근성(I장: 사용량 대시보드·블루라이트 차단 테마) 구현 완료 · 신규 보기·실시간·뷰어·브랜딩(J장: 박스 선택·패널 실시간 갱신·보기 5종·AGT-Finder 브랜딩·미리보기 2단 뷰어·미리보기 폭 조절·즐겨찾기 별칭) 구현 완료 · F5/F6 제거 · P7 부분**
+> 작성: 테크리드 · 2026-06-06 · **갱신: 2026-06-07** · 상태: **P0~P5(MVP) 구현 완료 · P6(Should) 구현 완료 · 신규 UX(H장: 아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘) 구현 완료 · 신규 분석·접근성(I장: 사용량 대시보드·블루라이트 차단 테마) 구현 완료 · 신규 보기·실시간·뷰어·브랜딩(J장: 박스 선택·패널 실시간 갱신·보기 5종·AGT-Finder 브랜딩·미리보기 2단 뷰어·미리보기 폭 조절·즐겨찾기 별칭) 구현 완료 · F5/F6 제거 · P7 부분(헤드리스분 ✅: 접근성·WCAG AA·성능/F장 검증 하니스·npm audit 점검·sourcemap 분리·코드서명 설정 / 런타임 잔여 🟡: 성능 실측·실제 서명·NSIS 실측·F장 실케이스)**
 > 입력 설계: [system-architecture.md](./architecture/system-architecture.md) · [software-architecture.md](./architecture/software-architecture.md) · [directory-structure.md](./architecture/directory-structure.md) · [traceability.md](./architecture/traceability.md) · [adr/](./architecture/adr/)
 > 우선순위 출처: [PRD.md §6 MoSCoW](./PRD.md) · [user-stories.md](./user-stories.md)
 > 상태 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수
@@ -21,7 +21,7 @@
 ## 0.5 진행 현황 (2026-06-07 기준)
 
 > **MVP(Must, P0~P5) 구현 완료 + P6(Should 4종: 4분할·미리보기·워크스페이스·텔레메트리) 구현 완료 + 신규 UX(H장 6기능: 상단 아이콘바·사이드바 토글·분할 크기조절·터미널 열기·경로 직접 입력·파일 유형 아이콘) 구현 완료 + 신규 분석·접근성(I장 2기능: 사용량 대시보드·블루라이트 차단 테마) 구현 완료 + 신규 보기·실시간·뷰어·브랜딩(J장 7기능: 박스 선택·패널 실시간 갱신·보기 5종·AGT-Finder 브랜딩·미리보기 2단 뷰어·미리보기 폭 조절·즐겨찾기 별칭) 구현 완료 + F5/F6 복사·이동 단축키 제거.**
-> 자동 verify 하니스 누계 **570 pass / 0 fail**(직전 548 + J2 매핑 네트워크 드라이브 `GetDriveType` 연동으로 `verify:watch` 55→77(DriveTypeService PowerShell CIM `Win32_LogicalDisk DriveType=4` 조회·원자 Set 교체·throttle·재진입 가드·빈집합 폴백·헤드리스 주입, `paths.isNetworkDriveRoot` 캐시 조회·`isLikelyRemotePath=isUncPath||isNetworkDriveRoot`); 직전 누계엔 `verify:store` 55→76·`verify:watch` 23→55(WatchService non-recursive·디바운스·격리·경로 교체 + UNC eager 폴링·reactive fs.watch error 폴백·4s readdir diff·stat 승계·pollBusy·>20k 비활성·stop 정리, panelsSlice softRefresh/capturePreserve/_applyPreserve·navigate resetSelection·pendingScrollRestore) 포함), typecheck/lint 0, 빌드 성공(메인 번들 + 대시보드·미리보기 코드강조/마크다운 **별도 lazy 청크 분리**),
+> 자동 verify 하니스 누계 **627 pass / 0 fail**(직전 570 + P7 헤드리스 검증 `verify:perf` 25(windowing computeWindow 불변식·1만 항목 가상 스크롤 DOM 후보 수십개·200ms 스로틀·검색 필터)·`verify:fmatrix` 32(롱패스·정션 순환·UNC/매핑 판정·ENOENT/ENOTDIR throw 0); 추가로 **WCAG 대비 게이트 `verify:contrast`** 4종 팔레트(LIGHT/DARK/BLUELIGHT) 주요 토큰쌍 AA 전수 통과(실패 0·경고 0). 그 직전 570은 J2 매핑 네트워크 드라이브 `GetDriveType` 연동으로 `verify:watch` 55→77(DriveTypeService PowerShell CIM `Win32_LogicalDisk DriveType=4` 조회·원자 Set 교체·throttle·재진입 가드·빈집합 폴백·헤드리스 주입, `paths.isNetworkDriveRoot` 캐시 조회·`isLikelyRemotePath=isUncPath||isNetworkDriveRoot`); 직전 누계엔 `verify:store` 55→76·`verify:watch` 23→55(WatchService non-recursive·디바운스·격리·경로 교체 + UNC eager 폴링·reactive fs.watch error 폴백·4s readdir diff·stat 승계·pollBusy·>20k 비활성·stop 정리, panelsSlice softRefresh/capturePreserve/_applyPreserve·navigate resetSelection·pendingScrollRestore) 포함), typecheck/lint 0, 빌드 성공(메인 번들 + 대시보드·미리보기 코드강조/마크다운 **별도 lazy 청크 분리**),
 > NSIS 인스톨러 + 앱 아이콘 생성 완료. 기획→설계→구현 추적성 검증 **PASS(Must 18/18 = 100%)**,
 > 통합 QA **PASS**(P6·신규 UX·I장·J장 블로커/높음/보통 0건, 결함 0; 잔여 성능 실측·네이티브 statfs·대용량 스캔 성능·워처/뷰어 네이티브 동작은 런타임 스모크 권장).
 > **추가(2026-06-07):** Should `shell:open-with`(연결 프로그램으로 열기) 구현 완료 ✅, **P4 산출물 컨텍스트 메뉴(우클릭)가 P6 시점에 뒤늦게 구현되어 드리프트 해소**(직전까지 P4가 ✅였으나 `ui/contextmenu/`·속성→show-properties 호출 UI는 미구현이었음 — 아래 §0.5 주석 참조), **신규 UX 3기능(H장: feat-H1/H2/H3 · 에픽7 US-7.1~7.3)이 구현·QA PASS**, 그리고 **신규 UX 추가 3기능(H장: feat-H4/H5/H6 · 에픽7 US-7.4~7.6, PRD §6 Should)이 구현·QA PASS** 됨(아래 "신규 UX(H장)" 표 참조). **이때 P1에서 "전 채널 동결" 후 P2/P4 단계의 시스템 아이콘 캐시로 예약·미구현이던 `shell:icon` 채널이 feat-H6로 정식 구현(호출부 추가)되어 예약→구현 드리프트가 해소**됐고, **터미널 열기용 신규 채널 `shell:open-terminal`이 추가**됐다(동결 예외 — 아래 신규 채널 주석).
@@ -29,6 +29,15 @@
 > **추가(2026-06-07, J장):** **신규 보기·실시간·뷰어·브랜딩 7기능(J장: feat-J1~J7 · 에픽9 US-9.1~9.7)이 구현·QA PASS** 됨(아래 "신규 보기·실시간·뷰어·브랜딩(J장)" 표 참조). **J2 실시간 갱신은 신규 채널 `fs:watch:*` 4종을 추가**(P1 동결 이후 — `preview:read`·`shell:open-terminal`·`analyze:scan:*` 선례와 동일 규약, 아래 신규 채널 주석). **J4 브랜딩으로 제품명을 `AGT-Finder`(appId `com.agtfinder.app`)로 전환** — `package.json`·`electron-builder.yml`·`index.html`·`mainWindow.ts`·`main/index.ts`·`paths.ts` 일괄(코드네임 "Explorer"는 개발용 유지). **J5 미리보기 2단 뷰어로 신규 의존성 3종 도입: highlight.js 11.x(BSD-3)·marked 18.x(MIT)·dompurify 3.x(MPL-2.0)** — 코드강조/마크다운 렌더러는 **lazy 청크 분리**(recharts 선례 준수, 마크다운은 DOMPurify 새니타이즈). **F5/F6 복사·이동 단축키 제거(사용자 결정 2026-06-07)** — `keybindings`·`commandBus`·`fileOps`(copyToOtherPanel/moveToOtherPanel 제거·panelPaths 보존)·`ShortcutHelp`에서 제거, P4 산출물·DoD·traceability 정정(아래 P4 정정 주석).
 > **추가(2026-06-07, J2 보류분 구현 완료):** **J2 US-9.2가 🟡→✅로 격상**. 직전 동기화에서 잔여였던 ① **선택/스크롤 보존**과 ② **네트워크 드라이브 폴링 폴백** 2건을 구현·QA PASS. ①은 `panelsSlice`(`softRefresh`·`capturePreserve`·`_applyPreserve`·navigate 3종 `resetSelection`·`pendingScrollRestore` 1회성)·`selectionSlice.setSelection`·`watchBridge`(onEvent→`softRefresh`)·`FileListView`(1회성 스크롤 복원)로 **완전 구현 ✅**(정렬/필터 패널 anchor는 computeVisible 기준, navigate 시 잔존선택 0). ②는 `WatchService`(UNC eager 폴링 + reactive `fs.watch` error 폴백·4s readdir diff·stat 승계·pollBusy 재진입 가드·>20k 항목 비활성·stop 정리)·`paths.ts`(`isUncPath`·`isLikelyRemotePath`)로 **UNC ✅**. 계약/채널 변경 0(폴링은 backend 내부·투명, P1 동결 무관).
 > **추가(2026-06-07, J2 매핑 네트워크 드라이브 `GetDriveType` 연동 완료):** **직전 🟡 부분 한계였던 매핑 네트워크 드라이브(`X:\`)가 ✅로 격상**. 신규 `src/main/os/driveType.ts`(`DriveTypeService`)가 PowerShell CIM `Win32_LogicalDisk -Filter 'DriveType=4'`(=`DRIVE_REMOTE`)을 `execFile`(셸 미경유·고정 상수 스크립트·`^[A-Z]:` 화이트리스트 파싱·`windowsHide`·timeout)로 조회해 **네트워크 드라이브 문자 집합을 캐시**(원자 Set 교체·30s throttle·재진입 가드·실패/비-Windows 빈집합 폴백·헤드리스 `queryFn`/`setNetworkDriveLetters` 주입)한다. `paths.ts#isNetworkDriveRoot`가 동기 캐시 조회로 실구현되고 `isLikelyRemotePath=isUncPath||isNetworkDriveRoot`가 매핑 드라이브를 eager 폴링 대상에 포함한다. `WatchService.start`가 미지 고정 드라이브에서 lazy refresh trigger, `main/index.ts` 부팅 시 non-blocking refresh. **계약/채널/신규 의존성 0**(PowerShell 시스템 내장·backend 내부, P1 동결 무관). **잔여 한계(정직 표기): `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백 유지.** 런타임 매핑 변경 시 첫 진입은 reactive, 차순부터 eager(점진 정확성). `verify:watch` 55→77.
+> **추가(2026-06-07, P7 릴리스 안정화 — 헤드리스분 구현 완료 ✅ / 런타임·인증서 잔여 🟡):** 직전 🟡(NSIS·앱 아이콘만)이던 P7에서 **헤드리스로 가능한 부분을 구현·QA PASS**(typecheck/lint 0·build 성공(sourcemap 생성)·verify 누계 627/0·qa-engineer 결함 0). 항목별 정직 구분:
+> - **접근성 ✅(코드)**: 공용 `src/renderer/ui/keyboard/useFocusTrap.ts`(첫 포커스·Tab 순환·opener 복귀·Esc 위임), 모달 6종 `role=dialog`·`aria-modal`·Esc 규칙(ConfirmDialog/DashboardModal 기존·ConflictDialog/WorkspaceDialog/SettingsDialog 신규 Esc·ProgressDialog Esc 무동작), `FileListView` 행 `aria-posinset/setsize`, `:focus-visible` 전역+인라인 outline 제거, Shift+F10 컨텍스트 메뉴. **실 스크린리더 ARIA 발화·포커스 육안 확인은 런타임 🟡.**
+> - **WCAG AA ✅(검증)**: `scripts/verify-contrast.ts` 4종 팔레트(LIGHT/DARK/BLUELIGHT) 주요 토큰쌍 전수 통과(실패 0), LIGHT text-muted·DARK danger 미세 보정.
+> - **성능 측정 하니스 ✅(헤드리스 불변식) / 실측 🟡**: `src/renderer/ui/panel/views/windowing.ts` 순수함수 추출(computeWindow·`startIdx≤endIdx` 클램프)·`scripts/verify-perf.ts`(25 pass)로 windowing 불변식·1만 항목 DOM 후보 수십개·200ms 스로틀·검색 필터 검증. **실측 숫자(첫 렌더 ≤1.5초·진행률/검색 ≤200ms)는 GUI 런타임 측정 필요 → `docs/P7-perf-measurement.md` 절차로 사용자 환경 실측 잔여 🟡.**
+> - **F장 QA 매트릭스 ✅(헤드리스분) / 실케이스 🟡**: `scripts/verify-fmatrix.ts`(32 pass — 롱패스·정션 순환·UNC/매핑 판정·ENOENT/ENOTDIR throw 0)·`docs/P7-qa-matrix.md`. **실 네트워크 드라이브·실 symlink·실 ACL deny(EACCES)는 권한/환경 필요 → 런타임 🟡.**
+> - **npm audit ✅(점검·판정, 릴리스 차단 아님)**: 9건 전부 major 업그레이드 필요(비파괴 `npm audit fix` 0건). 8건은 빌드 툴체인(배포 산출물 영향 0)·1건은 electron 본체(ADR-005 하드닝으로 완화). **major 업그레이드는 사용자 결정 보류 → 릴리스 차단 아님.** `docs/P7-security-audit.md`.
+> - **sourcemap 분리 ✅**: `electron.vite.config.ts`(main/preload `sourcemap:true`·renderer `'hidden'`)·`electron-builder.yml`(`!out/**/*.map` 배포 제외).
+> - **코드서명 설정 ✅(준비완료) / 실제 서명 🟡**: `electron-builder.yml`이 env(`CSC_LINK`/`CSC_KEY_PASSWORD`) 구조·`signingHashAlgorithms`를 갖추고 미설정 시 미서명 빌드 성공. **실제 서명은 코드서명 인증서(.pfx) 필요 → 인증서/사용자 환경 잔여 🟡.**
+> **P7 전체는 아직 🟡(릴리스 실측·실제 서명·NSIS 설치/실행/제거 실측 미완) — ✅ 위장 아님.** 신규 검증: `verify:perf`·`verify:fmatrix`·`verify:contrast`. 신규 문서: `docs/P7-security-audit.md`·`docs/P7-perf-measurement.md`·`docs/P7-qa-matrix.md`(+`docs/P7-execution-plan.md`).
 
 | Phase | 상태 | 비고 |
 |---|---|---|
@@ -39,7 +48,7 @@
 | **P4** 파일작업·진행률·충돌·D&D | ✅ 완료 | Worker Threads·휴지통·충돌해결 (BUG-001 수정 완료) |
 | **P5** 검색·세션복원·설정·테마·상태바 | ✅ 완료 | **MVP(Must 18/18) 완성** |
 | **P6** (Should) 4분할·미리보기·워크스페이스·텔레메트리 | ✅ 완료 | 4종 구현(verify:p6 26/26) **+ 연결 프로그램으로 열기(`shell:open-with`) 구현 완료(verify:open-with 12/12)**. **Should 잔여(그리드/썸네일 보기·되돌리기 Ctrl+Z)는 미구현 🔜 — 아래 표** |
-| **P7** 안정화·성능실측·접근성·패키징 | 🟡 부분 | **NSIS 패키징·앱 아이콘 완료**, 성능 3종 실측·접근성·코드서명·`npm audit` 미완 |
+| **P7** 안정화·성능실측·접근성·패키징 | 🟡 부분 | **헤드리스분 ✅**: 접근성(`useFocusTrap`·모달 6종 role/aria/Esc·행 aria·focus-visible·Shift+F10)·WCAG AA(`verify:contrast` 4팔레트 전수)·성능 측정 하니스(`windowing.ts`·`verify:perf` 25)·F장 매트릭스(`verify:fmatrix` 32)·npm audit 점검(릴리스 차단 아님)·sourcemap 분리·코드서명 설정(준비완료)·NSIS 패키징·앱 아이콘. **런타임 잔여 🟡**: 성능 3종 실측·실제 코드서명(.pfx)·NSIS 설치/실행/제거 실측·F장 실케이스(실 네트워크/symlink/ACL)·실 스크린리더 |
 | **릴리스/도구**(G장, 기획 정식 편입) | ✅ 완료 | 앱 아이콘(G1·US-6.1) · 원클릭 빌드 `build-installer.ps1`(G2·US-6.2) · 가상 스크롤 결함 수정(G3·US-5.6 보강) — PRD §6·§7·§12, features §G, user-stories 에픽6 |
 | **신규 UX**(H장, 기획 정식 편입, Should) | ✅ 완료 | 상단 전역 아이콘바(H1·US-7.1) · 사이드바 온오프 토글(H2·US-7.2, `Ctrl+B`) · 분할 크기조절(H3·US-7.3) · **우클릭 터미널 열기(H4·US-7.4, 신규 채널 `shell:open-terminal`) · 디렉토리 경로 직접 입력(H5·US-7.5) · 파일 유형별 OS 아이콘(H6·US-7.6, 예약 채널 `shell:icon` 정식 구현)** — PRD §6 Should·§8 `Ctrl+B`, features §H, user-stories 에픽7. **US-7.2/7.3 실제 마우스 드래그·US-7.4 `wt.exe`·US-7.6 `app.getFileIcon` 실제 네이티브 실행은 런타임 의존 → 런타임 스모크 권장(코드 정합 충족)** |
 | **신규 분석·접근성**(I장, 기획 정식 편입, Should) | ✅ 완료 | 디렉토리 사용량 대시보드(I1·US-8.1, **신규 채널 `analyze:scan:*` 5종**·recharts 도넛/막대+표·진행률·취소·비차단·자동 팝업 토글) · 블루라이트 차단 테마(I2·US-8.2, #FBF0D9 크림 배경 4번째 테마) — PRD §6 Should·§10 R4/R5, features §I, user-stories 에픽8. **WCAG: 블루라이트 본문 11.04:1·muted 5.25:1 등 AA 통과. 네이티브 실제 statfs·대용량 스캔 성능 실측은 런타임 스모크 권장(코드 정합·verify:scan 28 충족). 파일 유형별 비중 인사이트는 "(가능하면)" 선택항으로 미구현** |
@@ -124,7 +133,7 @@
 | **P4** | ✅ | 파일 작업(CRUD·휴지통) + 진행률/취소 + 충돌해결 + 패널 간 D&D | `op:*`/`fs:mkdir·create-file·rename` 핸들러, Worker, OperationManager, ProgressDialog/ConflictDialog, dnd/ ~~F5/F6~~(2026-06-07 제거) | P3 (계약은 P1) | backend+frontend | Must |
 | **P5** | ✅ | 검색/필터 + 설정 화면(숨김·확장자 토글) + 즐겨찾기/최근 + 자동 세션복원 + 다크모드 + 상태바 | SearchBar/필터, `ui/settings/`(설정·숨김/확장자 토글), sidebarSlice(즐겨찾기·최근), session/settings 영속화, theme/, StatusBar | **P5a: P2** / **P5b: P3·P4** | backend+frontend | Must → **MVP 완성** |
 | **P6** | ✅ | (Should) 4분할·미리보기·워크스페이스 저장·텔레메트리(옵트인)·연결프로그램으로 열기 | LayoutHost(grid-4), PreviewPanel/렌더러, `preview:read`, `workspace:*`, `telemetry:get/set-opt-in`, `shell:open-with`(+컨텍스트 메뉴 인프라) | P5 | backend+frontend | Should |
-| **P7** | 🟡 | 안정화·성능검증·접근성·패키징(M4 릴리스 준비) | 1.5초/200ms 성능검증, 접근성, NSIS 인스톨러, QA 매트릭스 | P5(+P6 일부) | 전원 | Must(릴리스) |
+| **P7** | 🟡 | 안정화·성능검증·접근성·패키징(M4 릴리스 준비) — **헤드리스분 ✅(접근성·WCAG AA·성능/F장 검증 하니스·audit 점검·sourcemap·서명 설정) / 런타임 잔여 🟡(성능 실측·실제 서명·NSIS 실측·F장 실케이스)** | 1.5초/200ms 성능검증, 접근성, NSIS 인스톨러, QA 매트릭스 | P5(+P6 일부) | 전원 | Must(릴리스) |
 
 > **마일스톤 매핑(PRD §12)**: P0~P2 ≈ M1(단일 패널 코어) · P3~P4 ≈ M2(핵심 차별점) · P5 ≈ M3(MVP 기능 완성) · P7 ≈ M4(1차 릴리스) · P6 ≈ M5+(후속).
 
@@ -260,17 +269,19 @@ P0 → P1 → P2 → P3 → P4 → P5(=MVP 완성) → P7(릴리스)
 
 ---
 
-### P7 — 안정화 · 성능검증 · 접근성 · 패키징(1차 릴리스 준비)  🟡 부분(패키징·아이콘 완료)
+### P7 — 안정화 · 성능검증 · 접근성 · 패키징(1차 릴리스 준비)  🟡 부분(헤드리스분 ✅ / 런타임·인증서 잔여 🟡)
+
+> **헤드리스/런타임 정직 구분(2026-06-07)**: 헤드리스로 증명 가능한 부분(접근성 코드·WCAG 대비·검증 불변식·audit 점검·빌드 설정)은 **✅ 완료**, GUI 실행/인증서/실 환경이 필요한 부분(성능 실측 숫자·실제 코드서명·NSIS 설치 실측·F장 실케이스·실 스크린리더)은 **🟡 잔여**. P7 전체는 아직 🟡 — ✅ 위장 아님.
 
 | 항목 | 내용 |
 |---|---|
 | **목표** | PRD 성능/안정/접근성 목표를 실측 검증하고, 인스톨러·QA 매트릭스를 완비해 1차 릴리스(M4) 준비. |
-| **산출물(모듈·파일)** | 성능 검증 하니스(1.5초/200ms), 접근성 보강(ARIA 행 레이블·포커스 트랩), QA 매트릭스(F장 Windows 특수케이스), `electron-builder.yml` 코드서명·sourcemap 분리, `tests/`(도메인 단위·IPC 통합·e2e) |
+| **산출물(모듈·파일)** | ✅ 접근성: `src/renderer/ui/keyboard/useFocusTrap.ts`(첫 포커스·Tab 순환·opener 복귀·Esc 위임)·모달 6종 `role=dialog`/`aria-modal`/Esc 규칙·`FileListView` 행 `aria-posinset/setsize`·`:focus-visible`·Shift+F10. ✅ WCAG: `scripts/verify-contrast.ts`(4팔레트 AA 전수). ✅ 성능 하니스: `src/renderer/ui/panel/views/windowing.ts`(순수함수)·`scripts/verify-perf.ts`(25). ✅ F장 매트릭스: `scripts/verify-fmatrix.ts`(32)·`docs/P7-qa-matrix.md`. ✅ 보안 점검: `docs/P7-security-audit.md`(npm audit 9건 판정). ✅ `electron.vite.config.ts`(sourcemap main/preload true·renderer hidden)·`electron-builder.yml`(`!out/**/*.map` 제외·`CSC_LINK`/`CSC_KEY_PASSWORD` 서명 설정·`signingHashAlgorithms`). 🟡 실측/실제 서명/NSIS 실측/실케이스(런타임). |
 | **의존** | P5(+P6 일부) |
 | **담당** | 전원(qa 주도 검증, devops 패키징, backend/frontend 결함 수정) |
-| **완료 기준(DoD)** | ☑ 1만 항목 첫 렌더 1.5초·진행률 200ms·검색 200ms 실측 충족(미달 시 폴백 적용 후 재측정)<br>☑ 크래시 프리 세션 99.5% 지향(세션복원·원자적 저장 검증)<br>☑ 핵심 동작 전부 키보드 접근·포커스 표시·WCAG AA 대비 지향<br>☑ NSIS 인스톨러(코드서명) 설치/실행/제거 검증<br>☑ F장 매트릭스(롱패스/링크/네트워크/권한) 통과 |
-| **QA 검증 포인트** | 성능 3종 실측, 회귀 스위트, Windows 특수케이스, 보안(네트워크 차단·CSP·senderFrame) 최종 점검 |
-| **추적성** | PRD §3·§7(성능·안정·접근성·보안), §12 M4, traceability §3 |
+| **완료 기준(DoD)** | **헤드리스 충족 ✅**: ☑ 가상 스크롤 windowing 불변식·1만 항목 DOM 후보 수십개·200ms 스로틀·검색 필터 검증(`verify:perf` 25) ☑ 핵심 동작 키보드 접근·포커스 트랩·포커스 표시(`:focus-visible`)·행 ARIA 레이블·모달 role/aria/Esc 코드 충족 ☑ WCAG AA 대비 4팔레트 전수 통과(`verify:contrast`) ☑ F장 매트릭스 롱패스/링크(정션 순환)/네트워크(UNC·매핑 판정)/권한(ENOENT·ENOTDIR throw 0) 코드경로 검증(`verify:fmatrix` 32) ☑ npm audit 점검·판정(릴리스 차단 아님) ☑ sourcemap 분리·코드서명 설정(준비완료)·NSIS 인스톨러 산출.<br>**런타임 잔여 🟡**: 🟡 1만 항목 첫 렌더 1.5초·진행률 200ms·검색 200ms **실측 숫자**(GUI 실행 — `docs/P7-perf-measurement.md`) 🟡 크래시 프리 세션 99.5% 실측 🟡 실 스크린리더 ARIA 발화·포커스 육안 🟡 NSIS 인스톨러(**실제 코드서명** .pfx 필요) 설치/실행/제거 실측 🟡 F장 실케이스(실 네트워크 드라이브·실 symlink·실 ACL deny EACCES). |
+| **QA 검증 포인트** | (헤드리스 ✅) windowing 불변식·F장 코드경로·WCAG 대비 게이트·audit 판정·sourcemap/서명 설정·빌드. (런타임 🟡) 성능 3종 실측, 회귀 스위트, Windows 특수케이스 실케이스, 보안(네트워크 차단·CSP·senderFrame) 최종 점검. |
+| **추적성** | PRD §3·§7(성능·안정·접근성·보안), §12 M4, traceability §3·§1-P7(P7 매핑) |
 
 ---
 
@@ -310,4 +321,4 @@ P0 → P1 → P2 → P3 → P4 → P5(=MVP 완성) → P7(릴리스)
 - P4: 200ms 진행률 + 충돌매트릭스 + D&D 의도 진리표 + **드롭 하이라이트·속성창**
 - P5: 검색 200ms + **설정 화면(숨김/확장자 토글 즉시 반영·영속)** + 크래시 후 세션복원 (→ MVP 완성)
 - P6: Should 기능 (변화 격리 경계 내)
-- P7: 성능 3종 실측 + 릴리스 패키징
+- P7: (헤드리스 ✅) 접근성·WCAG AA·성능/F장 검증 하니스·audit 점검·서명 설정 / (런타임 🟡) 성능 3종 실측 + 실제 코드서명 + NSIS 실측

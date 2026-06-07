@@ -8,12 +8,13 @@
  *
  * 다이얼로그 열림 동안 전역 단축키 차단(uiSlice.inputContext='dialog').
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ConflictResolution } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import type { ConflictItem } from '@renderer/app/stores/operationsSlice'
 import { resolveConflict } from '@renderer/app/usecases/fileOps'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { btn, overlayStyle, panelStyle, titleStyle } from './dialogStyles'
 
 function formatBytes(b: number): string {
@@ -57,14 +58,32 @@ function ConflictBody({
 }): JSX.Element {
   const [applyToAll, setApplyToAll] = useState(false)
   const isFolder = conflict.source.isDir && conflict.target.isDir
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const firstBtnRef = useRef<HTMLButtonElement | null>(null)
 
   function choose(resolution: ConflictResolution): void {
     void resolveConflict(conflict.operationId, conflict.conflictId, resolution, applyToAll)
   }
 
+  // 포커스 트랩: 첫 포커스(건너뛰기)·Tab 순환·opener 복귀(P7-A).
+  useFocusTrap(true, panelRef, { initialFocus: firstBtnRef })
+
+  // Esc = 취소(이 충돌만 건너뛰기 — 비파괴 안전 기본). applyToAll 무시(이번 1건만).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        void resolveConflict(conflict.operationId, conflict.conflictId, 'skip', false)
+      }
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [conflict.operationId, conflict.conflictId])
+
   return (
     <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="이름 충돌 해결">
-      <div style={{ ...panelStyle, minWidth: 520 }}>
+      <div ref={panelRef} style={{ ...panelStyle, minWidth: 520 }}>
         <div style={titleStyle}>
           이름 충돌 {queueLen > 1 ? `(남은 충돌 ${queueLen}건)` : ''}
         </div>
@@ -103,7 +122,7 @@ function ConflictBody({
             flexWrap: 'wrap'
           }}
         >
-          <button style={btn('default')} onClick={() => choose('skip')}>
+          <button ref={firstBtnRef} style={btn('default')} onClick={() => choose('skip')}>
             건너뛰기
           </button>
           <button style={btn('default')} onClick={() => choose('rename')}>

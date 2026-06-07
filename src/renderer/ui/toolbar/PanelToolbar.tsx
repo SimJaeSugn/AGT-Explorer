@@ -159,8 +159,8 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
                 borderRadius: 4,
                 padding: '0 8px',
                 fontSize: 13,
-                fontFamily: tokens.font,
-                outline: 'none'
+                fontFamily: tokens.font
+                // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
               }}
             />
             {pathError && (

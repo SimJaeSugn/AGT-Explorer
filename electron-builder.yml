@@ -8,9 +8,10 @@ directories:
   output: dist
   buildResources: resources
 
-# electron-vite 산출물(out/) 만 패키징에 포함
+# electron-vite 산출물(out/) 만 패키징에 포함. sourcemap(.map)은 배포 제외(P7).
 files:
   - out/**/*
+  - '!out/**/*.map'
   - package.json
 
 asar: true
@@ -21,7 +22,14 @@ win:
       arch:
         - x64
   icon: resources/icon.ico
-  # 코드 서명은 P7(릴리스 준비)에서 설정.
+  # 코드 서명(P7 준비): 인증서는 환경변수로 주입한다(저장소 커밋 금지).
+  #   CSC_LINK=<.pfx 경로 또는 base64>   CSC_KEY_PASSWORD=<인증서 암호>
+  # electron-builder 가 CSC_* 를 자동 인식한다. 미설정 시 미서명 빌드(경고만, 빌드 성공).
+  # 실제 서명은 유효한 코드서명 인증서(.pfx)가 필요하다 → 사용자/CI 환경에서 수행.
+  signingHashAlgorithms:
+    - sha256
+  # 타임스탬프 서버(서명 시 적용). 인증서 준비 후 주석 해제.
+  # rfc3161TimeStampServer: http://timestamp.digicert.com
 
 nsis:
   oneClick: false

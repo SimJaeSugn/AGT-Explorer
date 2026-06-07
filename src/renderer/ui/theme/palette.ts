@@ -20,7 +20,8 @@ export const LIGHT_PALETTE: Palette = {
   '--c-border': '#dfe3e8',
   '--c-border-strong': '#c4cad2',
   '--c-text': '#1f2328',
-  '--c-text-muted': '#6a737d',
+  // P7-B: bg-alt(#f6f7f9) 위 보조텍스트 AA(4.5:1) 보장 위해 #6a737d→#677078 미세 보정(4.49→4.70).
+  '--c-text-muted': '#677078',
   '--c-accent': '#2563eb',
   '--c-accent-border': '#2563eb',
   '--c-danger': '#d1242f',
@@ -64,7 +65,8 @@ export const DARK_PALETTE: Palette = {
   '--c-text-muted': '#9aa1ab',
   '--c-accent': '#4f8cff',
   '--c-accent-border': '#4f8cff',
-  '--c-danger': '#ff6b6b',
+  // P7-B: danger 버튼 흰글자 대비 3:1 보장 위해 #ff6b6b→#e85d5d 보정(white-on 2.78→3.41, danger-on-bg 4.83).
+  '--c-danger': '#e85d5d',
   '--c-folder': '#e3c06a',
   '--c-file': '#7f8794',
   '--c-highlight': '#6b5d1f'

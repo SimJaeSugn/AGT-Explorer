@@ -8,7 +8,7 @@
  * SettingsDialog 다이얼로그 패턴(overlay/panel/title) 재사용. 열림 동안
  * inputContext='dialog'(전역 단축키 차단)는 uiSlice.openWorkspace 가 설정.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceInfo } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import {
@@ -18,6 +18,7 @@ import {
   renameWorkspace,
   saveWorkspace
 } from '@renderer/app/usecases/workspace'
+import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { btn, overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/dialogStyles'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -36,6 +37,11 @@ export function WorkspaceDialog(): JSX.Element | null {
   const [name, setName] = useState('')
   const [items, setItems] = useState<WorkspaceInfo[]>([])
   const [busy, setBusy] = useState(false)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
+
+  // 포커스 트랩: 내부 패널만 컨테이너(오버레이 클릭 닫기 보존). 첫 포커스(이름 입력)·Tab 순환·복귀.
+  useFocusTrap(open, panelRef, { initialFocus: nameInputRef })
 
   async function refresh(): Promise<void> {
     setItems(await listWorkspaces())
@@ -47,6 +53,20 @@ export function WorkspaceDialog(): JSX.Element | null {
       void refresh()
     }
   }, [open])
+
+  // Esc = 닫기(신규, 오버레이 클릭 닫기와 공존). 다이얼로그 컨텍스트 단축키 차단 상태.
+  useEffect(() => {
+    if (!open) return undefined
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        close()
+      }
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [open, close])
 
   if (!open) return null
 
@@ -92,6 +112,7 @@ export function WorkspaceDialog(): JSX.Element | null {
       aria-label="워크스페이스 관리"
     >
       <div
+        ref={panelRef}
         style={{ ...panelStyle, width: 520, maxWidth: '92vw', maxHeight: '80vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -116,6 +137,7 @@ export function WorkspaceDialog(): JSX.Element | null {
         {/* 현재 상태 저장 */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input
+            ref={nameInputRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -132,7 +154,7 @@ export function WorkspaceDialog(): JSX.Element | null {
               padding: '0 8px',
               background: tokens.color.bg,
               color: tokens.color.text,
-              outline: 'none',
+              // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
               boxSizing: 'border-box'
             }}
           />

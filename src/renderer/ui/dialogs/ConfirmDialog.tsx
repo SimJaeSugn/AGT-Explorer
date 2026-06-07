@@ -13,21 +13,17 @@ import { useRootStore } from '@renderer/app/stores/rootStore'
 import { confirmPermanentDelete } from '@renderer/app/usecases/fileOps'
 import { baseName } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { btn, overlayStyle, panelStyle, titleStyle } from './dialogStyles'
 
 export function ConfirmDialog(): JSX.Element | null {
   const confirmDelete = useRootStore((s) => s.confirmDelete)
   const closeConfirmDelete = useRootStore((s) => s.closeConfirmDelete)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null)
 
-  // 열릴 때 확인 버튼에 포커스(키보드 접근).
-  useEffect(() => {
-    if (confirmDelete) {
-      const t = setTimeout(() => confirmBtnRef.current?.focus(), 0)
-      return () => clearTimeout(t)
-    }
-    return undefined
-  }, [confirmDelete])
+  // 포커스 트랩: 첫 포커스(확인 버튼)·Tab 순환 가둠·닫힐 때 opener 복귀(P7-A).
+  useFocusTrap(!!confirmDelete, panelRef, { initialFocus: confirmBtnRef })
 
   // Esc 취소(다이얼로그 전역 단축키 차단 상태이므로 직접 처리).
   useEffect(() => {
@@ -49,7 +45,7 @@ export function ConfirmDialog(): JSX.Element | null {
 
   return (
     <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="영구 삭제 확인">
-      <div style={panelStyle}>
+      <div ref={panelRef} style={panelStyle}>
         <div style={titleStyle}>영구 삭제</div>
         <p style={{ marginTop: 0 }}>
           {count === 1 ? (

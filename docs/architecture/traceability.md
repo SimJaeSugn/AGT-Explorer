@@ -1,6 +1,6 @@
 # 추적성 매핑 (기획 → 설계) — AGT-Finder (코드네임 Explorer)
 
-> 작성: 시니어 아키텍트 · 2026-06-06 · **갱신: 2026-06-07**(G장 릴리스/도구 추적 추가 · H장 UX/레이아웃 확장 추적 추가: 아이콘바·사이드바 토글·분할 크기조절 + **터미널 열기(신규 채널 `shell:open-terminal`)·경로 직접 입력·파일 유형 아이콘(예약 채널 `shell:icon` 정식 구현)** · **I장 분석·접근성 추적 추가: 사용량 대시보드(신규 채널 `analyze:scan:*` 5종·recharts MIT lazy 청크)·블루라이트 차단 테마(`BLUELIGHT_PALETTE`·`ThemeMode` 4종)** · **J장 보기·실시간·뷰어·브랜딩 추적 추가: 박스 선택·패널 실시간 갱신(신규 채널 `fs:watch:*`)·보기 5종(`ViewMode`)·AGT-Finder 브랜딩(appId `com.agtfinder.app`)·미리보기 2단 뷰어(highlight.js/marked/dompurify)·미리보기 폭 조절·즐겨찾기 별칭 · **F5/F6 복사·이동 매핑 제거(2026-06-07 사용자 결정)**)
+> 작성: 시니어 아키텍트 · 2026-06-06 · **갱신: 2026-06-07**(G장 릴리스/도구 추적 추가 · H장 UX/레이아웃 확장 추적 추가: 아이콘바·사이드바 토글·분할 크기조절 + **터미널 열기(신규 채널 `shell:open-terminal`)·경로 직접 입력·파일 유형 아이콘(예약 채널 `shell:icon` 정식 구현)** · **I장 분석·접근성 추적 추가: 사용량 대시보드(신규 채널 `analyze:scan:*` 5종·recharts MIT lazy 청크)·블루라이트 차단 테마(`BLUELIGHT_PALETTE`·`ThemeMode` 4종)** · **J장 보기·실시간·뷰어·브랜딩 추적 추가: 박스 선택·패널 실시간 갱신(신규 채널 `fs:watch:*`)·보기 5종(`ViewMode`)·AGT-Finder 브랜딩(appId `com.agtfinder.app`)·미리보기 2단 뷰어(highlight.js/marked/dompurify)·미리보기 폭 조절·즐겨찾기 별칭 · **F5/F6 복사·이동 매핑 제거(2026-06-07 사용자 결정)** · **P7 릴리스 안정화 헤드리스분 추적 추가(§1-P7): 접근성(`useFocusTrap`·모달 6종 ARIA/Esc·행 ARIA·focus-visible)·WCAG AA(`verify:contrast`)·성능 불변식(`windowing.ts`·`verify:perf`)·F장 매트릭스(`verify:fmatrix`)·보안 audit/sourcemap/코드서명 설정 — 헤드리스 ✅ / 실측·실제 서명·실케이스 🟡**)
 > 목적: PRD/features/user-stories의 각 주요 기능이 **어느 컴포넌트·모듈·IPC 채널·ADR**로 실현되는지 추적한다.
 > 약어: SA=[system-architecture.md](./system-architecture.md), SW=[software-architecture.md](./software-architecture.md), DS=[directory-structure.md](./directory-structure.md)
 
@@ -109,6 +109,22 @@
 
 ---
 
+## 1-P7. 릴리스 안정화 — 성능·접근성·보안·패키징(P7) → 구현 파일 매핑
+
+> 로드맵 P7(안정화·성능검증·접근성·패키징, PRD §3·§7 NFR)의 **헤드리스 구현분**을 추적한다. 사용자 UI 신기능이 아니라 검증 하니스·접근성 보강·빌드 설정이므로 **실제 구현 파일·verify 스크립트·문서**로 추적한다(2026-06-07 코드 확인 ✅). **헤드리스로 증명된 것만 ✅, GUI 실행/인증서/실 환경 필요분은 🟡(런타임 잔여) — ✅ 위장 아님.**
+
+| 기능(추적원) | 구현 파일(실경로) / 검증 | 상태 |
+|---|---|---|
+| **접근성 — 포커스 트랩·모달 ARIA·키보드** (PRD §7 접근성, US-5.4) | `src/renderer/ui/keyboard/useFocusTrap.ts`(첫 포커스·Tab 순환·opener 복귀·Esc 위임) · 모달 6종 `role=dialog`/`aria-modal`/Esc(`ConfirmDialog`·`DashboardModal`·`ConflictDialog`·`WorkspaceDialog`·`SettingsDialog`·`ProgressDialog`) · `FileListView`(행 `aria-posinset/setsize`) · `:focus-visible`(전역+인라인 outline 제거) · Shift+F10 컨텍스트 메뉴 | ✅ 코드(실 스크린리더 발화·포커스 육안은 런타임 🟡) |
+| **WCAG AA 대비** (PRD §7 접근성) | `scripts/verify-contrast.ts`(4팔레트 LIGHT/DARK/BLUELIGHT 주요 토큰쌍 AA 전수·실패 0) · `ui/theme/palette.ts`(LIGHT text-muted·DARK danger 미세 보정) | ✅ |
+| **성능 측정 하니스(불변식)** (PRD §3·§7 1.5초/200ms, US-5.6) | `src/renderer/ui/panel/views/windowing.ts`(computeWindow 순수함수·`startIdx≤endIdx` 클램프) · `scripts/verify-perf.ts`(25: windowing 불변식·1만 항목 DOM 후보 수십개·200ms 스로틀·검색 필터) · `docs/P7-perf-measurement.md`(실측 절차) | ✅ 헤드리스 불변식 / 🟡 실측 숫자(GUI 런타임) |
+| **F장 QA 매트릭스(코드경로)** (PRD F장 Windows 특수케이스) | `scripts/verify-fmatrix.ts`(32: 롱패스·정션 순환·UNC/매핑 판정·ENOENT/ENOTDIR throw 0) · `docs/P7-qa-matrix.md` | ✅ 헤드리스분 / 🟡 실케이스(실 네트워크·symlink·ACL deny EACCES) |
+| **보안 audit·sourcemap·코드서명 설정** (PRD §7 보안, ADR-005/006) | `docs/P7-security-audit.md`(npm audit 9건 판정·릴리스 차단 아님) · `electron.vite.config.ts`(sourcemap main/preload true·renderer `'hidden'`) · `electron-builder.yml`(`!out/**/*.map` 제외·`CSC_LINK`/`CSC_KEY_PASSWORD`·`signingHashAlgorithms`) | ✅ 점검·설정(준비완료) / 🟡 실제 서명(.pfx 인증서)·NSIS 설치 실측 |
+
+> **P7 정직 구분 주석**: 위 매핑은 코드·verify·문서로 **헤드리스 증명된 부분만 ✅**다. 성능 실측 숫자·실제 코드서명·NSIS 설치/실행/제거 실측·F장 실케이스·실 스크린리더는 GUI 실행/인증서/실 환경이 필요해 **🟡 런타임 잔여**다. **P7 전체는 아직 🟡(릴리스 미완)** — roadmap §0.5·§3 P7 단계와 동일 기준. npm audit 9건은 major 업그레이드 필요(비파괴 fix 0)·빌드 툴체인+electron 본체(ADR-005 완화)로 **릴리스 차단 아님**(사용자 결정 보류).
+
+---
+
 ## 2. 단축키 표(PRD 8장) → 처리 위치 매핑
 
 > 단일 출처: `renderer/domain/keybindings`(키→commandId). 디스패치는 SW 7장.
@@ -140,7 +156,7 @@
 
 | 비기능 요구 | 구조적 대응 | 근거 문서 |
 |---|---|---|
-| 10,000개 1.5초 첫 렌더 | 디렉토리 스트리밍(fs:list:chunk) + 가상 스크롤 첫 청크 즉시 렌더 | SA 3.1, SW 6.2, ADR-004 |
+| 10,000개 1.5초 첫 렌더 | 디렉토리 스트리밍(fs:list:chunk) + 가상 스크롤 첫 청크 즉시 렌더 / **P7 ✅ 불변식 검증**(`windowing.ts`·`verify:perf` 25), 🟡 실측 숫자 런타임 | SA 3.1, SW 6.2, ADR-004, §1-P7 |
 | 진행률 200ms·UI 비차단 | Worker 실행 + Main 200ms 스로틀 + 이벤트 스트림 + 셀렉터 리렌더 격리 | SA 4.1, ADR-005, ADR-002 |
 | 검색 입력 200ms (US-4.1 Must) | 도메인 순수함수 메모이즈 + deferred/transition; 미달 시 가시영역 우선 필터 → (필요 시) Web Worker 폴백, M1 측정 항목화 | SW 6.3, SW §10-1 |
 | 삭제 휴지통 경유·되돌리기 | op:trash + Undo 스택 | SA 4.2 |
@@ -149,7 +165,7 @@
 | 보안(로컬·권한·옵트인) | contextIsolation+sandbox, Main FS 격리, 양단 검증, 네트워크 차단 기본 | ADR-005, SA 3.3 |
 | 롱패스/링크/네트워크/권한 | FileSystemService 예외 처리 + FileOpError 전파 + 패널 단위 오류 격리 | SA 4장, ADR-003 |
 | 단일 인스턴스 | Main requestSingleInstanceLock | SA 2.3 |
-| 접근성(키보드/포커스/ARIA) | 중앙 단축키 디스패치·컨텍스트 스코프, ARIA 행 레이블 | SW 7, ADR-004 |
+| 접근성(키보드/포커스/ARIA) | 중앙 단축키 디스패치·컨텍스트 스코프, ARIA 행 레이블 / **P7 ✅**: `useFocusTrap`·모달 6종 role/aria/Esc·행 `aria-posinset/setsize`·`:focus-visible`·Shift+F10·WCAG AA 4팔레트 전수(`verify:contrast`), 🟡 실 스크린리더 | SW 7, ADR-004, §1-P7 |
 
 ---
 

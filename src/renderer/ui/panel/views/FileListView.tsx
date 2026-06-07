@@ -24,6 +24,7 @@ import { normalizeRect, indicesInRect } from '@renderer/domain/rules/boxSelect'
 import type { SelectionState } from '@renderer/domain/rules/selection'
 import { tokens, gridCellFor } from '@renderer/ui/theme/tokens'
 import { useDragSource, useDropTarget, useDragState } from '@renderer/ui/dnd/useDrag'
+import { computeWindow } from './windowing'
 
 const OVERSCAN = 6
 /** 박스 선택 시작 임계(클릭과 구분). DnD threshold 와 동일. */
@@ -161,15 +162,19 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const gridCell = isGrid ? gridCellFor(viewMode) : null
 
   // 윈도잉 계산. 그리드는 보기별 셀 폭/높이, 비그리드는 1열·rowHeight.
+  // cellH/colCount/cellW 는 키보드 스크롤(L246)·박스선택 geomRef 가 재사용하므로 보존.
   const cellW = gridCell ? gridCell.w : viewportW
   const colCount = gridCell ? Math.max(1, Math.floor(viewportW / gridCell.w)) : 1
   const cellH = gridCell ? gridCell.h : rowH
-  const rowCount = Math.ceil(visible.length / colCount)
-  const totalHeight = rowCount * cellH
-  const startRow = Math.max(0, Math.floor(scrollTop / cellH) - OVERSCAN)
-  const endRow = Math.min(rowCount, Math.ceil((scrollTop + viewportH) / cellH) + OVERSCAN)
-  const startIdx = startRow * colCount
-  const endIdx = Math.min(visible.length, endRow * colCount)
+  // 윈도잉 산식은 순수 함수(windowing.ts)로 추출(qa verify-perf 가 동일 함수 소비).
+  const { startIdx, endIdx, totalHeight } = computeWindow({
+    scrollTop,
+    viewportH,
+    cellH,
+    colCount,
+    count: visible.length,
+    overscan: OVERSCAN
+  })
 
   const onRowClick = useCallback(
     (index: number, e: React.MouseEvent) => {
@@ -252,9 +257,43 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault()
         selectAll(panelId, visiblePaths)
+      } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        // 키보드 컨텍스트 메뉴 호출(WCAG 2.1.1): 활성 행 기준 위치에 메뉴를 연다.
+        // 활성 행이 없으면(선택 없음) 빈 영역 메뉴를 패널 좌상단 부근에 연다.
+        e.preventDefault()
+        e.stopPropagation()
+        const el = scrollRef.current
+        const idx = selection && selection.anchorIndex >= 0 ? selection.anchorIndex : -1
+        const entry = idx >= 0 ? visible[idx] : undefined
+        if (el && entry) {
+          // 활성 행의 화면 좌표(콘텐츠 top - scrollTop + 컨테이너 top)에서 약간 안쪽.
+          const rect = el.getBoundingClientRect()
+          const row = Math.floor(idx / colCount)
+          const col = idx % colCount
+          const x = rect.left + Math.min(rect.width - 8, col * cellW + 24)
+          const y = rect.top + (row * cellH - el.scrollTop) + Math.min(cellH, cellH / 2 + 8)
+          openRowContextMenu(panelId, entry, visiblePaths, idx, x, y)
+        } else if (el) {
+          const rect = el.getBoundingClientRect()
+          if (!active) setActivePanel(activeTabId, panelId)
+          openEmptyContextMenu(panelId, rect.left + 16, rect.top + 16)
+        }
       }
     },
-    [selection, visible.length, moveSelect, panelId, visiblePaths, cellH, colCount, selectAll]
+    [
+      selection,
+      visible,
+      moveSelect,
+      panelId,
+      visiblePaths,
+      cellH,
+      cellW,
+      colCount,
+      selectAll,
+      active,
+      setActivePanel,
+      activeTabId
+    ]
   )
 
   // ── 박스 선택(러버밴드, J1) ─────────────────────────────────────────────
@@ -479,6 +518,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         key={entry.path}
         entry={entry}
         index={i}
+        setSize={visible.length}
         top={top}
         left={gridCell ? col * gridCell.w : 0}
         width={gridCell ? gridCell.w : '100%'}
@@ -520,7 +560,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
-        outline: 'none',
+        // outline 은 전역 a11y CSS(:focus-visible)가 키보드 포커스에만 표시.
+        // 인라인 outline:'none' 을 두면 CSS 를 이겨 키보드 포커스가 안 보이므로 제거.
         background: tokens.color.bg,
         boxShadow: panelDropHighlight ? `inset 0 0 0 2px ${tokens.color.accent}` : undefined
       }}
@@ -547,6 +588,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       </div>
       {directory.status === 'streaming' && (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             position: 'sticky',
             bottom: 0,
@@ -567,6 +610,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
 interface RowProps {
   entry: FileEntryDTO
   index: number
+  /** 전체 항목 수(가상 스크롤 aria-setsize 고지용). */
+  setSize: number
   top: number
   left: number | string
   width: number | string
@@ -592,6 +637,7 @@ interface RowProps {
 function FileRow({
   entry,
   index,
+  setSize,
   top,
   left,
   width,
@@ -637,6 +683,8 @@ function FileRow({
         role="row"
         aria-selected={selected}
         aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
+        aria-posinset={index + 1}
+        aria-setsize={setSize}
         onMouseDown={(e) => onClick(index, e)}
         onContextMenu={(e) => onContext(index, entry, e)}
         onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
@@ -707,6 +755,8 @@ function FileRow({
       role="row"
       aria-selected={selected}
       aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
+      aria-posinset={index + 1}
+      aria-setsize={setSize}
       onMouseDown={(e) => onClick(index, e)}
       onContextMenu={(e) => onContext(index, entry, e)}
       onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
@@ -903,8 +953,8 @@ function RenameInput({
         borderRadius: 3,
         padding: '0 4px',
         fontSize: 13,
-        fontFamily: tokens.font,
-        outline: 'none'
+        fontFamily: tokens.font
+        // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임(인라인 outline 제거).
       }}
     />
   )

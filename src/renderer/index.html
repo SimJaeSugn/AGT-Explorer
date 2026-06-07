@@ -51,6 +51,23 @@
       ::-webkit-scrollbar-corner {
         background: transparent;
       }
+
+      /*
+       * 키보드 포커스 표시 (WCAG 2.4.7 Focus Visible) — P7-A 접근성.
+       * :focus-visible 은 키보드 탐색(Tab/화살표) 시에만 매칭되고 마우스 클릭에는
+       * 매칭되지 않으므로, 키보드 사용자에게만 가시 포커스 링을 준다. 색은 테마
+       * accent CSS 변수(applyTheme 주입)를 따라 라이트/다크/블루라이트에 연동.
+       * 인라인 outline:'none' 을 가진 인터랙티브 요소들은 P7 에서 제거해 이 규칙이
+       * 적용되도록 했다(인라인 스타일은 CSS 를 이기므로 가시성 보장 목적).
+       */
+      :focus-visible {
+        outline: 2px solid var(--c-accent, #2563eb);
+        outline-offset: 1px;
+      }
+      /* 마우스 포커스(:focus 이지만 :focus-visible 아님)에는 링 미표시. */
+      :focus:not(:focus-visible) {
+        outline: none;
+      }
     </style>
   </head>
   <body>

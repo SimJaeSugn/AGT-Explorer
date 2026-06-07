@@ -8,9 +8,10 @@
  * 닫힐 때 진행 중 스캔이 있으면 협조취소(누수 방지). inputContext='dialog' 전환은
  * uiSlice.openDashboard/closeDashboard 가 담당.
  */
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { cancelScan } from '@renderer/app/usecases/dashboard'
+import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/dialogStyles'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -25,6 +26,11 @@ function closeDashboardSafely(): void {
 
 export function DashboardModal(): JSX.Element | null {
   const open = useRootStore((s) => s.dashboardOpen)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  // 포커스 트랩: 내부 패널만 컨테이너(오버레이 클릭 닫기 보존). 첫 포커스(닫기)·Tab 순환·복귀.
+  useFocusTrap(open, panelRef, { initialFocus: closeBtnRef })
 
   // Esc 닫기(모달 패턴). 열려 있을 때만 바인딩. 핸들러는 getState 로 최신 상태 참조.
   useEffect(() => {
@@ -51,6 +57,7 @@ export function DashboardModal(): JSX.Element | null {
       aria-label="용량 대시보드"
     >
       <div
+        ref={panelRef}
         style={{
           ...panelStyle,
           width: 880,
@@ -63,6 +70,7 @@ export function DashboardModal(): JSX.Element | null {
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ ...titleStyle, margin: 0 }}>용량 대시보드</h2>
           <button
+            ref={closeBtnRef}
             onClick={closeDashboardSafely}
             aria-label="닫기"
             style={{
