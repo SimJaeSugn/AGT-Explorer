@@ -84,6 +84,8 @@ module.exports = {
     // ── main/preload: renderer import 금지 + 네트워크 송신 모듈 정적 금지 ──
     // 텔레메트리/외부 전송 전무(D5·ADR-005 §3.3-6)를 정적으로 강제한다.
     // 향후 누구도 http(s)/소켓 송신 모듈을 import 할 수 없다(회귀 가드).
+    // ADR-007 결정②(네트워크 화이트리스트): 원격(FTP/SFTP)도 여기서 전면 차단하고,
+    // 아래 `src/main/remote/**` 예외 override 에서만 allow 한다(감사 가능한 단일 디렉토리).
     {
       files: ['src/main/**/*.ts', 'src/preload/**/*.ts'],
       rules: {
@@ -98,10 +100,36 @@ module.exports = {
               { name: 'net', message: '동일 — TCP 소켓 금지.' },
               { name: 'node:net', message: '동일 — TCP 소켓 금지.' },
               { name: 'dgram', message: '동일 — UDP 소켓 금지.' },
-              { name: 'node:dgram', message: '동일 — UDP 소켓 금지.' }
+              { name: 'node:dgram', message: '동일 — UDP 소켓 금지.' },
+              // ── ADR-007 ②-b 신규 차단(remote/ 외 전면 금지) ──
+              // node:tls 가 핵심 — basic-ftp 의 FTPS 가 내부적으로 node:tls 를 쓴다.
+              { name: 'node:tls', message: '원격 TLS import 는 `src/main/remote/` 에만 허용(ADR-007 ②) — 그 외 main 금지.' },
+              { name: 'tls', message: '원격 TLS import 는 `src/main/remote/` 에만 허용(ADR-007 ②) — 그 외 main 금지.' },
+              { name: 'ssh2', message: '원격(SFTP) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' },
+              { name: 'ssh2-sftp-client', message: '원격(SFTP) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' },
+              { name: 'basic-ftp', message: '원격(FTP/FTPS) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' }
             ],
             patterns: [
               { group: ['**/renderer/**', '@renderer/*'], message: 'main/preload 는 renderer import 금지.' }
+            ]
+          }
+        ]
+      }
+    },
+    // ── main/remote: 네트워크 화이트리스트 예외(ADR-007 결정②-c) ──
+    // 유일한 네트워크 특권 디렉토리. 위 main 광역 블록의 네트워크/TLS/원격 라이브러리 차단
+    // (기존 8개 + 신규 node:tls·tls·ssh2·ssh2-sftp-client·basic-ftp)을 여기서만 해제(allow)한다.
+    // ESLint override 는 후순위 매칭이 우선이므로 main 광역 블록 뒤에 두어야 remote/ 만 완화된다.
+    // 단, renderer import 금지는 main 과 동일하게 유지(역방향 의존 차단).
+    {
+      files: ['src/main/remote/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [],
+            patterns: [
+              { group: ['**/renderer/**', '@renderer/*'], message: 'main/remote 도 renderer import 금지(역방향 의존).' }
             ]
           }
         ]

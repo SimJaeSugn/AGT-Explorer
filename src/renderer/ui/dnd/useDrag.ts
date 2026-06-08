@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { decideDrop, type DragModifiers } from '@renderer/domain/rules/dragIntent'
 import { performDrop } from '@renderer/app/usecases/fileOps'
+import { startExternalDrag } from '@renderer/app/usecases/externalDrag'
+import { locationKindOf } from '@renderer/domain/rules/remoteLocation'
 import {
   beginDrag,
   endDrag,
@@ -88,6 +90,7 @@ export function useDragSource(
         const s = getDragState()
         const target = s.target
         if (target && s.allowed) {
+          // 내부 패널 드롭(§A3) — 기존 경로 유지.
           void performDrop({
             sources: s.sources,
             sourcePanelId: s.sourcePanelId,
@@ -96,6 +99,10 @@ export function useDragSource(
             mods: modsFromEvent(ev)
           })
         }
+        // 외부(OS/타 앱)로의 드롭은 더 이상 pointerup 에서 시작하지 않는다(§M M1).
+        // webContents.startDrag 는 native dragstart(버튼 눌린 상태)에서만 OS 드래그로
+        // 인계되므로, 외부 드래그는 useExternalDragSource 의 onDragStart 가 담당한다.
+        // pointerup 시점 호출은 항상 OS 드래그를 시작하지 못해(무동작) 제거함.
         endDrag()
       }
 
@@ -111,6 +118,45 @@ export function useDragSource(
   )
 
   return { onPointerDown }
+}
+
+/**
+ * 외부 OS 드래그 소스 훅 — 파일 행에 native HTML5 draggable 로 연결(§M M1).
+ *
+ * 외부(바탕화면/탐색기/타 앱)로의 드래그-드롭은 OS 가 인계해야 하며,
+ * Electron 의 webContents.startDrag 는 **native dragstart**(마우스 버튼이 눌린
+ * 드래그 제스처 진행 중)에서 호출해야만 OS 드래그로 넘어간다. 따라서 행에
+ * draggable=true 를 주고 onDragStart 에서 즉시 startExternalDrag 를 호출한다.
+ *
+ * - 드래그 소스(현재 선택 + 클릭 항목)가 **모두 로컬**일 때만 위임(원격 포함 시
+ *   브라우저 기본 드래그를 막지 않고 그대로 둠 — externalDrag 도 2중 방어).
+ * - e.preventDefault() 로 브라우저 기본 드래그(텍스트/이미지 ghost)를 막아
+ *   main 의 startDrag 가 OS 드래그를 단독 인계하게 한다.
+ * - 내부 패널 간 D&D(§A3)·박스 선택(J1)은 기존 pointer 경로가 계속 담당한다.
+ *   native dragstart 는 외부 인계 전용이므로 내부 경로와 충돌하지 않는다.
+ *
+ * @param getDragSources 드래그할 경로 묶음을 만드는 콜백(useDragSource 와 동일 소스).
+ */
+export function useExternalDragSource(getDragSources: () => string[]): {
+  draggable: boolean
+  onDragStart: (e: React.DragEvent) => void
+} {
+  const onDragStart = useCallback(
+    (e: React.DragEvent) => {
+      const sources = getDragSources()
+      if (sources.length === 0) return
+      // 모두 로컬일 때만 OS 드래그 인계. 원격 항목이 섞이면 외부 드래그 비활성(기본 동작 유지).
+      const allLocal = sources.every((p) => locationKindOf(p) === 'local')
+      if (!allLocal) return
+      // 브라우저 기본 드래그를 막고 webContents.startDrag(native dragstart 중)로 인계.
+      e.preventDefault()
+      const anyFolder = sources.some((p) => !/\.[^\\/.]+$/.test(p))
+      void startExternalDrag([...sources], anyFolder)
+    },
+    [getDragSources]
+  )
+
+  return { draggable: true, onDragStart }
 }
 
 /**

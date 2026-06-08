@@ -390,12 +390,74 @@ export interface PreviewData {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// 외부 연계 §M — 클립보드 CF_HDROP · 원격(FTP/SFTP) (신규, 계약만 동결 MP1)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 시스템 클립보드 파일 효과(M2 CF_HDROP). write 는 copy/cut 의도를,
+ * read 는 Preferred DropEffect(DROPEFFECT_COPY/MOVE) 해석 결과를 표현한다.
+ * 'none' = 클립보드에 파일이 없음(에러 아님 — 정상 빈 결과).
+ */
+export type ClipboardEffectKind = 'copy' | 'move' | 'none'
+
+/**
+ * 원격 프로토콜(M3). ftp=평문(비암호화·encrypted=false 신호), ftps=암시적/명시적
+ * TLS, sftp=SSH 위 파일전송.
+ */
+export type RemoteProtocol = 'ftp' | 'ftps' | 'sftp'
+
+/**
+ * 원격 인증 방식. privateKey 는 SFTP 전용(FTP/FTPS 는 password 만).
+ * ⚠ 본 타입은 "방식"만 식별한다 — 비밀 본문(password/passphrase/privateKey)은
+ * 어떤 영속·전송 DTO 에도 두지 않는다(구조적 배제·ADR-007 ③).
+ */
+export type RemoteAuthMethod = 'password' | 'privateKey'
+
+/**
+ * 원격 접속 프로필(M3) — **비밀 제외 메타만**(ADR-007 ③).
+ * profiles.json 에 영속되며 IPC 로 전송된다. 비밀(password/passphrase/privateKey
+ * 본문)은 이 DTO 에 **필드 자체가 없다**(컴파일 타임 구조적 배제). 비밀은 별도
+ * remote:cred:save / remote:connect 요청 본문으로만 main 에 전달되어 즉시 safeStorage
+ * 로 가며, 응답·로그·Error 에는 절대 포함되지 않는다(ADR-007 ⑥).
+ */
+export interface RemoteProfileDTO {
+  /** 안정 키. 자격증명 키 = `remote:<id>`. */
+  readonly id: string
+  /** 표시 라벨. */
+  readonly name: string
+  readonly protocol: RemoteProtocol
+  readonly host: string
+  /** 포트(ftp 21 / sftp 22 기본 — 제안·검증은 backend). */
+  readonly port: number
+  readonly username: string
+  readonly authMethod: RemoteAuthMethod
+  // ⚠ 비밀(password/passphrase/privateKey 본문) 필드 없음 — 구조적 배제(ADR-007 ③).
+}
+
+/**
+ * 원격 오류 코드(M3). RemoteError = FileOpError(별도 타입 아님·직렬화 동일)이며
+ * code 유니온만 아래로 확장한다(ADR-007 결정⑥). 기존 FileOpError 소비측은 unknown
+ * code 를 generic 폴백 처리한다(하위호환). 메시지에 비밀 절대 미수록.
+ */
+export type RemoteErrorCode =
+  | 'EAUTH' // 인증 실패(재입력 유도)
+  | 'ETIMEDOUT' // 연결/응답 타임아웃
+  | 'ECONNRESET' // 연결 끊김
+  | 'EHOSTUNREACH' // 호스트 도달 불가
+  | 'EHOSTKEY' // 호스트키 미신뢰/변경(TOFU)
+  | 'EUNSUPPORTED' // 프로토콜 미지원 동작/환경
+
+// ────────────────────────────────────────────────────────────────────────
 // 오류 코드 (FileOpError 와 contracts 가 공유)
 // ────────────────────────────────────────────────────────────────────────
 
 /**
  * 도메인 오류 코드. node `fs` errno 코드 + 도메인 추가 코드.
  * Result.err 로 1급 전파되어 UI 가 사유를 표시한다(throw 금지, ADR-003).
+ *
+ * §M(원격) 코드는 RemoteErrorCode 로 별도 정의 후 여기에 합류한다 —
+ * RemoteError 가 별도 타입이 아니라 FileOpError 의 code 유니온 확장이라는
+ * ADR-007 결정⑥ 직렬화 규약을 타입으로 보장한다.
  */
 export type FileOpErrorCode =
   | 'EEXIST' // 동명 항목 존재(이름 충돌)
@@ -411,3 +473,4 @@ export type FileOpErrorCode =
   | 'ESECURITY' // guard 차단(상위 이탈·보호 경로·senderFrame 불일치)
   | 'ECANCELED' // 사용자 취소
   | 'EUNKNOWN' // 분류 불가
+  | RemoteErrorCode // §M 원격 코드 확장(EAUTH/ETIMEDOUT/ECONNRESET/EHOSTUNREACH/EHOSTKEY/EUNSUPPORTED)

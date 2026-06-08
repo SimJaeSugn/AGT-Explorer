@@ -7,7 +7,12 @@
  * - 읽기: 파싱 실패/손상/미존재 시 throw 하지 않고 `undefined` 를 돌려준다.
  *   호출부(Store)가 기본값으로 폴백한다(SA §5.3 크래시 프리).
  *
- * Main 전용. 비밀정보 저장 금지(로컬 세션/설정만).
+ * Main 전용. **평문** 비밀정보 저장 금지(로컬 세션/설정만).
+ *
+ * 예외(ADR-007 결정③·CN-3): `os/credentials.ts` 가 safeStorage(DPAPI)로 **암호화한 바이트**
+ * (`credentials.enc`)를 본 원자적 쓰기로 보관하는 것은 허용된다 — 디스크에 닿는 것은 평문이
+ * 아니라 DPAPI 암호문이며, 평문 비밀은 credentials.ts 의 메모리에서 암호화 직후에만 존재한다.
+ * 즉 본 모듈에는 평문 비밀이 들어오지 않는다(암호문만).
  */
 import { constants as fsConstants } from 'node:fs'
 import * as fsp from 'node:fs/promises'

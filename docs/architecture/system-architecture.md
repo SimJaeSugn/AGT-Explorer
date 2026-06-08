@@ -257,6 +257,164 @@ SessionSnapshot {
 
 ---
 
+## 5-M. §M 외부 연계 — 외부 D&D · CF_HDROP 클립보드 · FTP/SFTP 원격 (2026-06-08 추가)
+
+> 비파괴 추가. 신규 보안 결정은 [ADR-007](./adr/ADR-007-remote-protocol-and-network-boundary.md)(ADR-005 부분 개정). 채널은 ADR-003 단일출처 규약(`shared/ipc` 채널상수+계약타입, invoke/이벤트, Result, sender·zod·경로 화이트리스트)으로 추가한다. 상태: **🔜 미착수(설계 단계)**.
+
+### 5-M.0 프로세스 배치 요약
+
+| 기능 | 호출 진입 | 실행 위치 | 근거 |
+|---|---|---|---|
+| **M1 외부 D&D** | 렌더러 감지 → `dnd:start-drag` | **Main 스레드**(`webContents.startDrag`는 Main 전용 API) | ADR-007 ⑦ |
+| **M2 CF_HDROP** | 렌더러 `Ctrl+C/X/V` → `clipboard:*` | **Main 스레드**(`os/shellClipboard.ts` clipboard buffer) | ADR-007 ⑦ |
+| **M3 FTP/SFTP** | 렌더러 → `remote:*` | **Main 스레드** `RemoteService`(`src/main/remote/`·네트워크 I/O 바운드·비밀 단일 경계) | ADR-007 ⑤ |
+
+원격은 로컬 대용량 복사와 달리 **Worker Threads로 내리지 않는다**(ADR-007 결정 ⑤ — 비밀 표면 최소·네트워크 I/O 바운드). 진행률·취소·세션은 기존 `OperationManager`(200ms 스로틀·`AbortController`·operationId) 재사용.
+
+### 5-M.1 신규 IPC 채널 카탈로그 (설계 수준 시그니처)
+
+#### M1 외부 드래그 (`dnd:*`)
+```text
+dnd:start-drag(req: { paths: string[]; iconHint?: 'single'|'multi'|'folder' })
+  -> Result<{ started: boolean }, FileOpError>
+  # Main이 paths를 정규화·존재·권한 검증 후 webContents.startDrag({ files: paths, icon }) 호출.
+  # 외부로 나가는 것은 검증된 로컬 파일 경로뿐(ADR-007 ⑦·ADR-005). 원격(M3) 경로는 거부(로컬만).
+  # 도착지가 앱 내부 패널이면 startDrag를 시작하지 않고 기존 A3 D&D 경로(op:start)로 처리 — 분기는 렌더러 드롭 타겟 판정.
+```
+검증: `paths` 비어있지 않음·각 항목 §3.3 경로 정규화·존재·로컬 FS(원격 네임스페이스 `sftp://`·`ftp://` 거부)·권한 확인. 실패 시 `FileOpError`로 거부하고 드래그 미시작.
+
+#### M2 CF_HDROP 양방향 (`clipboard:*` 확장 — 기존 텍스트 폴백 대체)
+```text
+clipboard:write-files(req: { paths: string[]; effect: 'copy'|'cut' })
+  -> Result<void, FileOpError>
+  # CF_HDROP(+effect='cut'면 Preferred DropEffect=Move) 시스템 클립보드 적재 + 텍스트 경로 병기(호환)
+
+clipboard:read-files() -> Result<{ paths: string[]; effect: 'copy'|'move'|'none' }, FileOpError>
+  # 시스템 클립보드의 CF_HDROP·Preferred DropEffect 읽기. 외부 앱이 복사/잘라낸 파일도 동일 경로로 수신.
+  # 파일 포맷 없으면 paths=[], effect='none'(파일 붙여넣기 미동작·렌더러가 안내).
+
+clipboard:has-files() -> Result<{ has: boolean }, FileOpError>
+  # 붙여넣기 버튼/메뉴 활성 판정용(폴링/포커스 시 1회).
+```
+- 붙여넣기 실행: 렌더러가 `clipboard:read-files`로 paths·effect를 얻어 기존 `op:start(kind: effect==='move'?'move':'copy', sources, destDir)` 호출 → **D4 충돌·E4 진행률 기존 경로 그대로**.
+- 외부 입력은 **신뢰 못 하는 데이터**(ADR-007 ⑥): 읽은 경로를 정규화·존재 확인 후 사용.
+- 내부/외부 우선순위: 시스템 클립보드를 단일 출처로 승격(ADR-007 ⑦ 통합 규칙). 기존 `clipboard:copy-files`/`cut-files`/`paste-target`/`read`(텍스트 폴백)는 위 3채널로 **대체·확장**(B4 동작 불변).
+
+#### M3 FTP/SFTP 원격 (`remote:*`)
+```text
+# ── 자격증명·프로필 (비밀=OS 보관소만·D6) ──
+remote:cred:save(req: { profileId: string; secret: { kind:'password'|'passphrase'|'privateKey'; value: string } })
+  -> Result<void, FileOpError>          # safeStorage(DPAPI) 암호화 저장. value는 응답/로그에 미수록.
+remote:cred:has(req: { profileId: string }) -> Result<{ has: boolean }, FileOpError>
+remote:cred:delete(req: { profileId: string }) -> Result<void, FileOpError>
+remote:profile:list() -> Result<RemoteProfileDTO[], FileOpError>   # 비밀 제외 메타만
+remote:profile:upsert(req: { profile: RemoteProfileDTO }) -> Result<RemoteProfileDTO, FileOpError>
+remote:profile:delete(req: { profileId: string }) -> Result<void, FileOpError>
+
+# ── 연결/세션 ──
+remote:connect(req: {
+    profile: RemoteProfileDTO;            # protocol·host·port·username·authMethod (비밀 제외)
+    secret?: { ... };                     # 미저장 1회용(저장 시 보관소에서 로드)
+    hostKeyDecision?: 'accept'|'reject';  # 호스트 키 경고 후 사용자 결정 회신
+  }) -> Result<{ sessionId: string; encrypted: boolean }, RemoteError>
+푸시:  remote:host-key (evt: { connectId; fingerprint; algo; status:'unknown'|'changed' })
+       # TOFU: unknown/changed면 사용자 확인 필요 → remote:connect 재호출(hostKeyDecision)
+
+remote:disconnect(req: { sessionId }) -> Result<void, FileOpError>
+푸시:  remote:session-error (evt: { sessionId; error: RemoteError })  # 타임아웃/끊김/도달불가 — 해당 세션만
+
+# ── 탐색 ──
+remote:list(req: { sessionId; path: string }) -> Result<{ entries: FileEntryDTO[] }, RemoteError>
+remote:stat(req: { sessionId; path: string }) -> Result<FileEntryDTO, RemoteError>
+remote:mkdir / remote:rename / remote:delete(req: { sessionId; ... }) -> Result<..., RemoteError>
+  # 원격 내 기본 조작(프로토콜·권한 허용 범위). 미지원/거부는 RemoteError 사유.
+
+# ── 전송 (진행률·취소: OperationManager 재사용) ──
+remote:download(req: { sessionId; remotePaths: string[]; destDir: string; conflictPolicy? })
+  -> Result<{ operationId: string }, RemoteError>   # 원격→로컬. op:progress/op:conflict/op:done 재사용
+remote:upload(req: { sessionId; localPaths: string[]; remoteDir: string; conflictPolicy? })
+  -> Result<{ operationId: string }, RemoteError>   # 로컬→원격. 동일 스트림
+요청:  op:cancel(operationId)  # 전송 취소(AbortSignal→스트림 destroy·부분파일 .part 정리)
+```
+- **RemoteError**(FileOpError 확장): `code: 'EAUTH'|'ETIMEDOUT'|'ECONNRESET'|'EHOSTUNREACH'|'EHOSTKEY'|'EUNSUPPORTED'|'EACCES'|'ENOENT'`. **비밀 필드 미수록**(ADR-007 ③⑥). **직렬화/하위호환**: `RemoteError`는 `FileOpError`의 `code` 유니온만 확장하며(`message`·구조는 동일 형태) 별도 판별 `kind` 없이 직렬화한다 — 기존 `FileOpError` 소비 코드(렌더러 오류 처리)는 인식 못 하는 `code`를 일반 오류로 폴백 처리한다(unknown code = generic error).
+- **경로 표기**: 렌더러는 원격 패널 경로를 `프로토콜://사용자@호스트/경로`로 표기(로컬과 구분·US-12.4). Main은 sessionId로 실제 연결을 찾고 path만 프로토콜 경로로 처리.
+- **부분 전송 안전**: 다운로드/업로드는 `.part` 임시명 수신 후 완료 시 원자적 rename(ADR-007 ⑥-7·US-12.5). 이어받기는 후속.
+
+### 5-M.2 데이터 흐름
+
+#### F14 — M1 외부 D&D 복사
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant R as Renderer(FileListView/dnd)
+    participant P as Preload
+    participant M as Main(os/dragdrop.ts)
+    participant OS as Windows 셸/외부 앱
+    U->>R: 항목 선택 후 창 바깥으로 드래그
+    R->>R: 드롭 타겟 판정 — 외부면 dnd, 내부면 A3(op:start)
+    R->>P: dnd:start-drag(paths)
+    P->>M: invoke(dnd:start-drag)
+    M->>M: 경로 정규화·존재·권한·로컬 검증(원격 거부)
+    M->>OS: webContents.startDrag({ files, icon })
+    OS-->>U: 외부 위치에 복사(원본 보존·도착지 셸이 처리)
+    Note over M,OS: 외부 노출=검증된 파일 경로뿐(ADR-005/007)
+```
+
+#### F15 — M2 CF_HDROP 양방향
+```mermaid
+sequenceDiagram
+    participant R as Renderer
+    participant M as Main(os/shellClipboard.ts)
+    participant CB as 시스템 클립보드(CF_HDROP)
+    participant EX as Windows 탐색기/타 앱
+    Note over R,EX: [앱→외부]
+    R->>M: clipboard:write-files(paths, effect)
+    M->>CB: CF_HDROP(+cut이면 DropEffect=Move) 적재
+    EX->>CB: Ctrl+V → 복사/이동 수행
+    Note over R,EX: [외부→앱]
+    EX->>CB: 파일 복사/잘라내기 → CF_HDROP 적재
+    R->>M: clipboard:read-files()
+    M->>CB: CF_HDROP·DropEffect 읽기(외부입력=불신·검증)
+    M-->>R: { paths, effect }
+    R->>M: op:start(copy/move, sources=paths, destDir)
+    Note over R,M: D4 충돌·E4 진행률 기존 경로 재사용
+```
+
+#### F16 — M3 FTP/SFTP 접속→탐색→전송
+```mermaid
+sequenceDiagram
+    participant R as Renderer(ui/remote)
+    participant M as Main(remote/RemoteSessionManager)
+    participant RS as RemoteService(ssh2-sftp-client/basic-ftp)
+    participant CRED as os/credentials.ts(safeStorage/DPAPI)
+    participant SRV as 원격 서버
+    R->>M: remote:connect(profile, secret?)
+    M->>CRED: 저장 비밀이면 복호화(메모리 한정)
+    M->>RS: connect(host, auth)
+    RS->>SRV: TCP/TLS/SSH 핸드셰이크
+    SRV-->>RS: 호스트 키(SFTP)
+    RS-->>M: hostVerifier → 미신뢰/변경?
+    M-->>R: remote:host-key(fingerprint) [필요 시]
+    R->>M: remote:connect(hostKeyDecision=accept) [확인 후]
+    M-->>R: { sessionId, encrypted }
+    R->>M: remote:list(sessionId, path)
+    M->>RS: list(path)  --> entries
+    M-->>R: entries(원격 패널 렌더·프로토콜://사용자@호스트/경로)
+    R->>M: remote:download(sessionId, remotePaths, destDir)
+    M->>RS: get(...) .part 임시 수신 → 완료 시 rename
+    M-->>R: op:progress(200ms)/op:done(요약)  [OperationManager 재사용]
+    Note over M,SRV: 끊김/타임아웃 → remote:session-error(해당 세션만·격리)
+```
+
+### 5-M.3 보안 규칙 (§3.3 연장)
+
+7. **네트워크 화이트리스트(ADR-007 ②)**: 네트워크 import는 `src/main/remote/`에만 ESLint 허용. 그 외 전 경로 금지 유지.
+8. **자격증명(ADR-007 ③·D6)**: 비밀은 safeStorage(DPAPI) 암호화 저장만·평문/로그/응답 DTO 미수록·미저장 시 메모리 폐기.
+9. **원격 응답 불신(ADR-007 ⑥)**: 원격 경로 traversal 방어(도착지 하위 이탈 차단)·심볼릭 미추종·파일명 새니타이즈·호스트 키 TOFU 검증·평문 FTP 비암호화 경고.
+10. **외부 셸 입력(ADR-007 ⑦)**: `dnd:start-drag`·`clipboard:read-files`의 경로는 검증된 로컬 경로만. 임의 실행 표면 미추가(ADR-005 불변).
+
+---
+
 ## 6. 배포 / 인프라 구성
 
 - **타겟**: Windows 10/11 x64. NSIS 인스톨러 + 자동 업데이트 채널(향후). 코드 서명 권장.
@@ -274,8 +432,12 @@ SessionSnapshot {
 | SR2 | 대형 디렉토리 스캔 1.5초 목표 — 네트워크 드라이브/안티바이러스 간섭 | 높음 | 스트리밍+증분 렌더로 "첫 화면"을 빨리, 전체 스캔은 백그라운드. 네트워크 지연 시 패널 단위 로딩/오류 격리 |
 | SR3 | 휴지통/롱패스/링크 등 Windows 특수 케이스의 네이티브 의존성 | 중 | 검증된 라이브러리(`shell.trashItem` 등) 우선, features F장 케이스를 QA 매트릭스화 |
 | SR4 | IPC 직렬화 비용(대량 엔트리 전송) | 중 | 청크 스트리밍 + 가벼운 DTO(필요 필드만), 아이콘은 지연·캐시 |
+| SR5 (§M3) | 네트워크 경계 부분 개방으로 인한 외부 공격면 확대 | 높음 | 네트워크 import를 `src/main/remote/` 단일 디렉토리로 ESLint 격리(ADR-007 ②)·원격 응답 불신 검증(ADR-007 ⑥)·감사 비중 집중 |
+| SR6 (§M3) | 자격증명 평문 누출(로그·세션·오류 메시지) | 높음 | safeStorage(DPAPI) 암호화 저장만·비밀 필드를 DTO/로그/Error에서 구조적으로 배제(ADR-007 ③⑥)·헤드리스 verify로 "응답에 비밀 없음" 불변식 검증 권장 |
+| SR7 (§M3) | SFTP 라이브러리 네이티브 가속(cpu-features) 빌드/서명 영향 | 중 | 순수 JS 모드 기본 번들(가속 optional)·필요 시에만 `@electron/rebuild`(ADR-007 ④) |
+| SR8 (§M2) | CF_HDROP/DROPFILES 바이트 레이아웃 조립 오류 | 중 | `os/shellClipboard.ts`에 격리·방어적 파싱(길이·널종단·UTF-16)·런타임 스모크로 탐색기 왕복 검증 |
 
-가정: 단일 사용자·로컬/매핑 드라이브, OS 권한 그대로 존중, 시스템 아이콘/실행은 OS 위임(PRD 9장).
+가정: 단일 사용자·로컬/매핑 드라이브, OS 권한 그대로 존중, 시스템 아이콘/실행은 OS 위임(PRD 9장). **§M3 한정: 네트워크 연결은 사용자가 명시 입력/저장한 원격 호스트로만(D7).**
 
 ---
 
@@ -284,3 +446,5 @@ SessionSnapshot {
 1. **Worker 실행 모델**: Electron `UtilityProcess`(프로세스 격리·크래시 내성 우수) vs `Worker Threads`(네이티브 모듈·메모리 공유 단순). M1 스파이크 후 확정 — 어느 쪽을 1차 기본값으로 둘지 PM/개발 확인.
 2. **Undo(B7, Ctrl+Z) 영속 범위**: 세션 내 메모리 스택만(재시작 시 소멸) vs 영속화. features B7가 "범위·한계 확정 필요"로 열어둠.
 3. **썸네일 디코딩 위치(S)**: Main Worker vs Renderer OffscreenCanvas — 미리보기/그리드(Should) 착수 시 결정.
+
+**§M(외부 연계) 미해결 질문** — 결정 회피 4건(safeStorage UI 노출·전송 resume/체크섬 범위·원격↔원격 직접 전송·원격 전용 UtilityProcess)은 [ADR-007 "미해결 질문(설계 deferral)"](./adr/ADR-007-remote-protocol-and-network-boundary.md#미해결-질문-설계-deferral) 절을 단일 출처로 둔다(번호·1차 결정·후속 트리거·비차단 여부 정리). 전부 1차 범위 밖·구현 착수 비차단.

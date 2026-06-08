@@ -12,11 +12,16 @@
 import { ipcRenderer } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
 import type {
+  ClipboardFilesReadRes,
   ClipboardFilesReq,
+  ClipboardHasFilesRes,
   ClipboardPasteTargetReq,
   ClipboardReadRes,
+  ClipboardWriteFilesReq,
   DialogConfirmPermanentDeleteReq,
   DialogConfirmRes,
+  DndStartDragReq,
+  DndStartDragRes,
   FsCreateFileReq,
   FsListCancelReq,
   FsListReq,
@@ -38,6 +43,26 @@ import type {
   OpResolveReq,
   OpStartReq,
   OpStartRes,
+  RemoteConnectReq,
+  RemoteConnectRes,
+  RemoteCredDeleteReq,
+  RemoteCredHasReq,
+  RemoteCredSaveReq,
+  RemoteDeleteReq,
+  RemoteDisconnectReq,
+  RemoteDownloadReq,
+  RemoteError,
+  RemoteHostKeyEvt,
+  RemoteListReq,
+  RemoteListRes,
+  RemoteMkdirReq,
+  RemoteProfileDeleteReq,
+  RemoteProfileUpsertReq,
+  RemoteRenameReq,
+  RemoteSessionErrorEvt,
+  RemoteStatReq,
+  RemoteTransferRes,
+  RemoteUploadReq,
   AnalyzeScanStartReq,
   AnalyzeScanStartRes,
   AnalyzeScanCancelReq,
@@ -75,6 +100,7 @@ import type {
   OpSummary,
   PathValidation,
   PreviewData,
+  RemoteProfileDTO,
   SessionSnapshot,
   SettingsSnapshot,
   TrashItemDTO,
@@ -151,7 +177,7 @@ export interface ExplorerApi {
     onDone(cb: (evt: OpDoneEvt) => void): Unsubscribe
   }
 
-  // ── clipboard:* (타입만 노출, impl: P4) ────────────────────────
+  // ── clipboard:* (타입만 노출, impl: P4 / §M M2 MP2) ────────────
   readonly clipboard: {
     copyFiles(req: ClipboardFilesReq): Promise<Result<void>>
     cutFiles(req: ClipboardFilesReq): Promise<Result<void>>
@@ -159,6 +185,37 @@ export interface ExplorerApi {
     // 그 operationId 를 반환한다(op:start 와 동일 shape — OpStartRes).
     pasteTarget(req: ClipboardPasteTargetReq): Promise<Result<OpStartRes>>
     read(): Promise<Result<ClipboardReadRes>>
+    // ── CF_HDROP 양방향 (신규 §M M2 — 기존 메서드와 병존, impl: MP2) ─
+    writeFiles(req: ClipboardWriteFilesReq): Promise<Result<void>>
+    readFiles(): Promise<Result<ClipboardFilesReadRes>>
+    hasFiles(): Promise<Result<ClipboardHasFilesRes>>
+  }
+
+  // ── dnd:* 외부 드래그 (타입만 노출, 신규 §M M1, impl: MP3) ──────
+  readonly dnd: {
+    startDrag(req: DndStartDragReq): Promise<Result<DndStartDragRes>>
+  }
+
+  // ── remote:* FTP/SFTP (타입만 노출, 신규 §M M3, impl: MP4) ──────
+  // 비밀(secret)은 credSave/connect 요청 본문으로만 전달되며 응답에는 수록되지 않는다.
+  readonly remote: {
+    credSave(req: RemoteCredSaveReq): Promise<Result<void>>
+    credHas(req: RemoteCredHasReq): Promise<Result<ClipboardHasFilesRes>>
+    credDelete(req: RemoteCredDeleteReq): Promise<Result<void>>
+    profileList(): Promise<Result<RemoteProfileDTO[]>>
+    profileUpsert(req: RemoteProfileUpsertReq): Promise<Result<RemoteProfileDTO>>
+    profileDelete(req: RemoteProfileDeleteReq): Promise<Result<void>>
+    connect(req: RemoteConnectReq): Promise<Result<RemoteConnectRes, RemoteError>>
+    disconnect(req: RemoteDisconnectReq): Promise<Result<void>>
+    list(req: RemoteListReq): Promise<Result<RemoteListRes, RemoteError>>
+    stat(req: RemoteStatReq): Promise<Result<FileEntryDTO, RemoteError>>
+    mkdir(req: RemoteMkdirReq): Promise<Result<void, RemoteError>>
+    rename(req: RemoteRenameReq): Promise<Result<void, RemoteError>>
+    delete(req: RemoteDeleteReq): Promise<Result<void, RemoteError>>
+    download(req: RemoteDownloadReq): Promise<Result<RemoteTransferRes, RemoteError>>
+    upload(req: RemoteUploadReq): Promise<Result<RemoteTransferRes, RemoteError>>
+    onHostKey(cb: (evt: RemoteHostKeyEvt) => void): Unsubscribe
+    onSessionError(cb: (evt: RemoteSessionErrorEvt) => void): Unsubscribe
   }
 
   // ── dialog:* (타입만 노출, impl: P4) ───────────────────────────
@@ -261,7 +318,34 @@ export const api: ExplorerApi = {
     copyFiles: (req) => invoke(CHANNELS.CLIPBOARD_COPY_FILES, req),
     cutFiles: (req) => invoke(CHANNELS.CLIPBOARD_CUT_FILES, req),
     pasteTarget: (req) => invoke(CHANNELS.CLIPBOARD_PASTE_TARGET, req),
-    read: () => invoke(CHANNELS.CLIPBOARD_READ)
+    read: () => invoke(CHANNELS.CLIPBOARD_READ),
+    writeFiles: (req) => invoke(CHANNELS.CLIPBOARD_WRITE_FILES, req),
+    readFiles: () => invoke(CHANNELS.CLIPBOARD_READ_FILES),
+    hasFiles: () => invoke(CHANNELS.CLIPBOARD_HAS_FILES)
+  },
+
+  dnd: {
+    startDrag: (req) => invoke(CHANNELS.DND_START_DRAG, req)
+  },
+
+  remote: {
+    credSave: (req) => invoke(CHANNELS.REMOTE_CRED_SAVE, req),
+    credHas: (req) => invoke(CHANNELS.REMOTE_CRED_HAS, req),
+    credDelete: (req) => invoke(CHANNELS.REMOTE_CRED_DELETE, req),
+    profileList: () => invoke(CHANNELS.REMOTE_PROFILE_LIST),
+    profileUpsert: (req) => invoke(CHANNELS.REMOTE_PROFILE_UPSERT, req),
+    profileDelete: (req) => invoke(CHANNELS.REMOTE_PROFILE_DELETE, req),
+    connect: (req) => invoke(CHANNELS.REMOTE_CONNECT, req),
+    disconnect: (req) => invoke(CHANNELS.REMOTE_DISCONNECT, req),
+    list: (req) => invoke(CHANNELS.REMOTE_LIST, req),
+    stat: (req) => invoke(CHANNELS.REMOTE_STAT, req),
+    mkdir: (req) => invoke(CHANNELS.REMOTE_MKDIR, req),
+    rename: (req) => invoke(CHANNELS.REMOTE_RENAME, req),
+    delete: (req) => invoke(CHANNELS.REMOTE_DELETE, req),
+    download: (req) => invoke(CHANNELS.REMOTE_DOWNLOAD, req),
+    upload: (req) => invoke(CHANNELS.REMOTE_UPLOAD, req),
+    onHostKey: (cb) => subscribe(CHANNELS.REMOTE_HOST_KEY, cb),
+    onSessionError: (cb) => subscribe(CHANNELS.REMOTE_SESSION_ERROR, cb)
   },
 
   dialog: {

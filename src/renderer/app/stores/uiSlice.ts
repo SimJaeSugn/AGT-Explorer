@@ -96,6 +96,8 @@ export interface UiSlice {
   readonly dashboardOpen: boolean
   /** 휴지통 관리 모달 열림 여부(K장 K2). */
   readonly trashOpen: boolean
+  /** 원격 연결 다이얼로그 열림 여부(§M M3). */
+  readonly remoteDialogOpen: boolean
   /** 프로그램 시작 시 용량 대시보드 자동 표시(설정 영속, I장 §4.4). */
   readonly showDashboardOnStartup: boolean
 
@@ -155,6 +157,10 @@ export interface UiSlice {
   openTrash(): void
   /** 휴지통 모달 닫힘 시 다른 모달 없으면 inputContext='list' 복귀(trashSlice.closeTrash 와 함께). */
   closeTrash(): void
+  /** 원격 연결 다이얼로그 열기(inputContext='dialog'). */
+  openRemoteDialog(): void
+  /** 원격 연결 다이얼로그 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closeRemoteDialog(): void
 
   // P6 미리보기 / 워크스페이스 액션 ────────────────────────────────────────
   /** 미리보기 패널 토글(Ctrl+P). */
@@ -207,6 +213,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   settingsOpen: false,
   dashboardOpen: false,
   trashOpen: false,
+  remoteDialogOpen: false,
   showDashboardOnStartup: true,
   previewOpen: false,
   previewWidth: 320,
@@ -315,7 +322,31 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         !s.renameTarget &&
         !s.settingsOpen &&
         !s.dashboardOpen &&
-        !s.workspaceOpen
+        !s.workspaceOpen &&
+        !s.remoteDialogOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openRemoteDialog() {
+    set((s) => {
+      s.remoteDialogOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeRemoteDialog() {
+    set((s) => {
+      s.remoteDialogOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen
       ) {
         s.inputContext = 'list'
       }
@@ -435,6 +466,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         s.workspaceOpen ||
         s.dashboardOpen ||
         s.trashOpen ||
+        s.remoteDialogOpen ||
         s.renameTarget
       ) {
         return

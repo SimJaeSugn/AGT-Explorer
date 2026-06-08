@@ -17,15 +17,32 @@ import type {
   ListStreamStart,
   PathValidation,
   PreviewData,
+  RemoteProfileDTO,
   SessionSnapshot,
   SettingsSnapshot,
   TrashItemDTO,
   WorkspaceInfo
 } from '@shared/dto'
 import type {
+  ClipboardFilesReadRes,
+  ClipboardHasFilesRes,
   ClipboardReadRes,
   DialogConfirmRes,
   FileOpError,
+  RemoteConnectReq,
+  RemoteConnectRes,
+  RemoteCredSaveReq,
+  RemoteDownloadReq,
+  RemoteError,
+  RemoteHostKeyEvt,
+  RemoteListRes,
+  RemoteProfileUpsertReq,
+  RemoteSecret,
+  RemoteSessionErrorEvt,
+  RemoteTransferRes,
+  RemoteUploadReq,
+  DndStartDragReq,
+  DndStartDragRes,
   FsCreateFileReq,
   FsListReq,
   FsListStartReq,
@@ -232,7 +249,7 @@ export const trashApi = {
   empty: (confirmed: boolean): Promise<Result<void>> => bridge().trash.empty({ confirmed })
 }
 
-// ── clipboard:* 어댑터 (P4: OS 클립보드 파일 연동) ──────────────────────
+// ── clipboard:* 어댑터 (P4: OS 클립보드 파일 연동 / §M M2: CF_HDROP 양방향) ──
 export const clipboardApi = {
   copyFiles: (paths: string[]): Promise<Result<void>> => bridge().clipboard.copyFiles({ paths }),
   cutFiles: (paths: string[]): Promise<Result<void>> => bridge().clipboard.cutFiles({ paths }),
@@ -240,8 +257,96 @@ export const clipboardApi = {
   // registerOperation 하여 진행률/충돌/완료를 op:start 와 동일하게 추적한다.
   pasteTarget: (destDir: string): Promise<Result<OpStartRes>> =>
     bridge().clipboard.pasteTarget({ destDir }),
-  read: (): Promise<Result<ClipboardReadRes>> => bridge().clipboard.read()
+  read: (): Promise<Result<ClipboardReadRes>> => bridge().clipboard.read(),
+
+  // ── §M M2: 시스템 클립보드(CF_HDROP) 양방향 — 타 앱 연계 ──────────────
+  /** clipboard:write-files — 선택 파일을 CF_HDROP+Preferred DropEffect 로 시스템 클립보드에. */
+  writeFiles: (paths: string[], effect: 'copy' | 'cut'): Promise<Result<void>> =>
+    bridge().clipboard.writeFiles({ paths, effect }),
+  /** clipboard:read-files — 시스템 클립보드의 파일 목록·DropEffect(copy/move/none) 읽기. */
+  readFiles: (): Promise<Result<ClipboardFilesReadRes>> => bridge().clipboard.readFiles(),
+  /** clipboard:has-files — 시스템 클립보드에 파일(CF_HDROP)이 있는지(붙여넣기 활성 판정). */
+  hasFiles: (): Promise<Result<ClipboardHasFilesRes>> => bridge().clipboard.hasFiles()
 }
+
+// ── dnd:* 어댑터 (§M M1: 외부(OS/타 앱)로의 파일 드래그 시작) ───────────────
+// paths 는 로컬 절대경로만(원격 항목은 호출 전 필터링·main 도 2중 방어).
+export const dndApi = {
+  /** dnd:start-drag — 검증된 로컬 절대경로 묶음으로 OS 드래그 시작 위임. */
+  startDrag: (req: DndStartDragReq): Promise<Result<DndStartDragRes>> =>
+    bridge().dnd.startDrag(req)
+}
+
+// ── remote:* 어댑터 (§M M3: FTP/SFTP 원격 연결·탐색·전송) ───────────────────
+// 비밀(secret)은 credSave/connect 요청 본문으로만 전달되며 응답에는 수록되지 않는다(ADR-007 ③⑥).
+export const remoteApi = {
+  /** remote:cred:save — 자격증명(비밀) safeStorage 저장(사용자 "저장" 게이트). */
+  credSave: (req: RemoteCredSaveReq): Promise<Result<void>> => bridge().remote.credSave(req),
+  /** remote:cred:has — 프로필에 저장된 비밀 존재 여부. */
+  credHas: (profileId: string): Promise<Result<ClipboardHasFilesRes>> =>
+    bridge().remote.credHas({ profileId }),
+  /** remote:cred:delete — 저장된 자격증명 삭제. */
+  credDelete: (profileId: string): Promise<Result<void>> =>
+    bridge().remote.credDelete({ profileId }),
+  /** remote:profile:list — 저장된 원격 프로필 목록(비밀 제외 메타). */
+  profileList: (): Promise<Result<RemoteProfileDTO[]>> => bridge().remote.profileList(),
+  /** remote:profile:upsert — 프로필 저장/갱신(비밀 미포함). */
+  profileUpsert: (req: RemoteProfileUpsertReq): Promise<Result<RemoteProfileDTO>> =>
+    bridge().remote.profileUpsert(req),
+  /** remote:profile:delete — 프로필 삭제(연동: 자격증명·known_hosts 정리는 main). */
+  profileDelete: (profileId: string): Promise<Result<void>> =>
+    bridge().remote.profileDelete({ profileId }),
+  /** remote:connect — 연결 수립(미저장 1회용 secret·hostKeyDecision 회신 포함). */
+  connect: (req: RemoteConnectReq): Promise<Result<RemoteConnectRes, RemoteError>> =>
+    bridge().remote.connect(req),
+  /** remote:disconnect — 세션 종료. */
+  disconnect: (sessionId: string): Promise<Result<void>> =>
+    bridge().remote.disconnect({ sessionId }),
+  /** remote:list — 원격 디렉토리 목록(entries 는 FileEntryDTO 재사용). */
+  list: (sessionId: string, path: string): Promise<Result<RemoteListRes, RemoteError>> =>
+    bridge().remote.list({ sessionId, path }),
+  /** remote:stat — 원격 단일 항목 메타. */
+  stat: (sessionId: string, path: string): Promise<Result<FileEntryDTO, RemoteError>> =>
+    bridge().remote.stat({ sessionId, path }),
+  /** remote:mkdir — 원격 새 폴더. */
+  mkdir: (sessionId: string, path: string, name: string): Promise<Result<void, RemoteError>> =>
+    bridge().remote.mkdir({ sessionId, path, name }),
+  /** remote:rename — 원격 이름변경. */
+  rename: (sessionId: string, path: string, newName: string): Promise<Result<void, RemoteError>> =>
+    bridge().remote.rename({ sessionId, path, newName }),
+  /** remote:delete — 원격 삭제. */
+  delete: (sessionId: string, path: string): Promise<Result<void, RemoteError>> =>
+    bridge().remote.delete({ sessionId, path }),
+  /** remote:download — 원격→로컬 다운로드(operationId 반환, 진행률은 op:* 재사용). */
+  download: (req: RemoteDownloadReq): Promise<Result<RemoteTransferRes, RemoteError>> =>
+    bridge().remote.download(req),
+  /** remote:upload — 로컬→원격 업로드(operationId 반환, 진행률은 op:* 재사용). */
+  upload: (req: RemoteUploadReq): Promise<Result<RemoteTransferRes, RemoteError>> =>
+    bridge().remote.upload(req)
+}
+
+/**
+ * remote:* 푸시 evt 구독 묶음(호스트키 확인 요청·세션 격리 오류).
+ * App 부팅 시 1회 전역 구독하고, 콜백에서 connectId/sessionId 상관(remoteSlice 브리지).
+ * 반환된 dispose 로 두 구독을 모두 해제한다(누수 방지).
+ */
+export interface RemoteEventHandlers {
+  onHostKey: (evt: RemoteHostKeyEvt) => void
+  onSessionError: (evt: RemoteSessionErrorEvt) => void
+}
+
+export function subscribeRemoteEvents(h: RemoteEventHandlers): Unsubscribe {
+  const api = bridge()
+  const offHostKey = api.remote.onHostKey((evt) => h.onHostKey(evt))
+  const offSessionError = api.remote.onSessionError((evt) => h.onSessionError(evt))
+  return () => {
+    offHostKey()
+    offSessionError()
+  }
+}
+
+/** RemoteSecret 재노출(usecase 가 connect/credSave 요청 본문 타입으로 사용 — 영속 금지). */
+export type { RemoteSecret }
 
 // ── dialog:* 어댑터 (P4: 영구삭제 확인 모달) ────────────────────────────
 export const dialogApi = {

@@ -1,6 +1,8 @@
 # ADR-005 — 프로세스 / 보안 모델
 
-상태: 제안 · 2026-06-06
+상태: 제안 · 2026-06-06 · **부분 개정: 2026-06-08([ADR-007](./ADR-007-remote-protocol-and-network-boundary.md))**
+
+> **[2026-06-08 부분 개정 메모 — 비파괴]** 본 ADR의 **"네트워크는 텔레메트리 옵트인 외 차단(D5)"·"로컬 전용"** 부분은 §M3(FTP/SFTP 원격 접속) 편입으로 **[ADR-007](./ADR-007-remote-protocol-and-network-boundary.md) 결정 ①②에서 부분 개정**됐다(결정 D7). 네트워크 연결은 이제 **(a) 텔레메트리 옵트인 + (b) 사용자가 명시 입력/저장한 원격 호스트**로만 발생하며, 원격 네트워크 코드는 `src/main/remote/` 단일 디렉토리에만 ESLint 화이트리스트로 허용된다(그 외 main 전 경로 네트워크 import 전면 금지 불변). 프로세스 배치(원격=Main 스레드)·방어 심층·contextIsolation/sandbox·쉘 실행 규칙은 본 ADR 그대로 유지된다. 외부 D&D(`startDrag`)·CF_HDROP 클립보드(M1/M2)도 본 ADR "검증된 경로만·실행 표면 미추가" 원칙 안에서 ADR-007 결정 ⑦로 정의된다.
 
 ## 맥락
 파일탐색기는 사용자 디스크 전체에 읽기/쓰기/삭제를 한다. Renderer(웹 컨텍스트)에 FS 권한을 직접 주면 단 하나의 렌더러 취약점이 임의 파일 조작으로 번진다. 동시에 **대용량 I/O가 UI를 멈추면 안 되고**(US-5.2/5.6), **로컬 전용·텔레메트리 옵트인**(PRD 7장·D5)을 지켜야 한다.
@@ -43,7 +45,7 @@ SPK-Worker(roadmap) 결과 **Worker Threads 채택**. 근거:
 - **FS/OS 접근은 Main 전용**. Renderer는 Preload `contextBridge`로 노출된 **메서드 단위 `window.api`**로만 접근.
 - **방어 심층 검증**: Preload 1차(형태) + Main 핸들러 2차(senderFrame 출처·zod 스키마·경로 정규화).
 - **대용량 복사/이동/삭제·대형 스캔은 Worker(Worker Threads)**에서 실행, Main(OperationManager)이 진행률 200ms 스로틀로 중계·취소(SharedArrayBuffer/Atomics) 전달. **휴지통(`shell.trashItem`)·속성창은 Electron/COM 의존이라 Main 스레드 직접 처리**(Worker 네이티브 의존 제거).
-- 엄격 CSP, 원격 콘텐츠 로드 없음, 네트워크는 텔레메트리 옵트인 외 차단(D5).
+- 엄격 CSP, 원격 콘텐츠 로드 없음, 네트워크는 텔레메트리 옵트인 외 차단(D5). **[2026-06-08 부분 개정] §M3(FTP/SFTP)에 한해 "사용자가 명시 입력/저장한 원격 호스트로의 연결"을 추가 허용(D7·ADR-007 결정 ①). 원격 네트워크 import는 `src/main/remote/`에만 ESLint 화이트리스트로 허용(전면 해제 아님·ADR-007 결정 ②).**
 - **쉘 실행 계열(`shell:open`/`open-with`/`show-properties`)** 은 정규화·존재·권한 확인 후 `shell.openPath`/`openExternal`에 **검증된 단일 경로만** 전달한다. 명령행 조립(인자 주입) 금지, `openExternal`은 `http`/`https`/`mailto` 프로토콜 화이트리스트만 허용(임의 경로/스킴 실행 차단). 상세 규칙은 [system-architecture.md §3.3-4](../system-architecture.md).
 
 ## 근거

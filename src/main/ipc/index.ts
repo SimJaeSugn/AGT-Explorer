@@ -10,9 +10,11 @@
  */
 import { registerAnalyzeHandlers } from './analyze.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
+import { registerDndHandlers } from './dnd.handlers'
 import { registerFsHandlers } from './fs.handlers'
 import { registerOpHandlers } from './op.handlers'
 import { registerPreviewHandlers } from './preview.handlers'
+import { registerRemoteHandlers } from './remote.handlers'
 import { registerSessionHandlers } from './session.handlers'
 import { registerShellHandlers } from './shell.handlers'
 import { registerTrashHandlers } from './trash.handlers'
@@ -30,4 +32,17 @@ export function registerIpcHandlers(): void {
   registerAnalyzeHandlers() // I장: analyze:scan:start/cancel (+ progress/done/error 푸시)
   registerWatchHandlers() // J장 J2: fs:watch:start/stop (+ event/error 푸시)
   registerTrashHandlers() // K장 K2: trash:list/restore/empty (휴지통 COM)
+  registerClipboardHdropAndDndRemote()
+}
+
+/**
+ * §M 외부 연계 핸들러 등록(계약만 동결 — MP1).
+ *   - dnd:start-drag (M1, impl: MP3)
+ *   - remote:* (M3, impl: MP4)
+ * clipboard:write-files/read-files/has-files (M2, impl: MP2)는 기존
+ * registerClipboardHandlers() 안에서 기존 4채널과 병존 등록된다(비파괴 확장).
+ */
+function registerClipboardHdropAndDndRemote(): void {
+  registerDndHandlers() // §M M1: dnd:start-drag (impl: MP3)
+  registerRemoteHandlers() // §M M3: remote:* (impl: MP4)
 }

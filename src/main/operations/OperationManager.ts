@@ -55,6 +55,17 @@ interface ActiveOp {
   /** Main 직접 처리(trash)용 취소 플래그. */
   canceled: boolean
   resolveDone: ((summary: OpSummary) => void) | null
+  /** 외부(원격 전송) op 취소 훅 — CN-4. cancel() 가 호출(스트림 destroy 위임). */
+  externalCancel?: () => void
+}
+
+/** 외부(원격) 전송 진행률 입력(registerExternalOperation 의 reportProgress 인자). */
+export interface ExternalProgress {
+  readonly processedBytes: number
+  readonly totalBytes: number
+  readonly processedItems: number
+  readonly totalItems: number
+  readonly currentName: string
 }
 
 export class OperationManager {
@@ -396,6 +407,8 @@ export class OperationManager {
     op.canceled = true
     // Worker: 공유 취소 플래그 set(즉시 감지).
     if (op.cancelView) Atomics.store(op.cancelView, CANCEL_FLAG_INDEX, 1)
+    // 외부(원격 전송) op: 취소 훅 호출(스트림 destroy → 어댑터가 ECANCELED 로 종료).
+    if (op.externalCancel) op.externalCancel()
     return ok(undefined)
   }
 
@@ -430,6 +443,58 @@ export class OperationManager {
 
   private push(wc: WebContents, channel: string, payload: unknown): void {
     if (!wc.isDestroyed()) wc.send(channel, payload)
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // 외부(원격) 전송 등록 — CN-4: 원격 다운로드/업로드를 기존 op:* 스트림에 태운다.
+  //   remoteTransfer 가 operationId 를 발급받아 자기 스트림을 굴리되, 진행률 200ms 스로틀·
+  //   취소(op:cancel)·완료(op:done) 이벤트 규약을 OperationManager 가 재사용 제공한다.
+  //   기존 로컬 op(Worker/trash) 로직은 무변경(비파괴 추가).
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * 원격 전송용 operation 을 등록하고 operationId 를 발급한다(외부 구동 op).
+   * - kind: 'copy'(다운로드)·'move'(업로드 의미상 — 1차는 copy 계열로 통일) 등 OpKind.
+   * - onCancel: op:cancel 수신 시 호출(스트림 destroy·AbortSignal set 은 호출부 책임).
+   * 반환 핸들로 호출부(remoteTransfer)가 진행률 보고·완료 통지를 한다.
+   */
+  registerExternalOperation(
+    kind: OpKind,
+    wc: WebContents,
+    onCancel: () => void
+  ): { operationId: string; reportProgress: (p: ExternalProgress) => void; finishOp: (summary: OpSummary) => void } {
+    const operationId = randomUUID()
+    const op: ActiveOp = {
+      operationId,
+      kind,
+      state: 'running',
+      wc,
+      worker: null,
+      cancelView: null,
+      lastProgress: null,
+      totals: { totalItems: 0, totalBytes: 0 },
+      throttleTimer: null,
+      canceled: false,
+      resolveDone: null
+    }
+    // 외부 취소 훅 보관(cancel() 가 호출).
+    op.externalCancel = onCancel
+    this.ops.set(operationId, op)
+    // 진행률 200ms 스로틀(로컬 op 와 동일 경로 재사용).
+    this.startThrottle(op)
+    return {
+      operationId,
+      reportProgress: (p): void => {
+        op.lastProgress = {
+          processedBytes: p.processedBytes,
+          totalBytes: p.totalBytes,
+          processedItems: p.processedItems,
+          totalItems: p.totalItems,
+          currentName: p.currentName
+        }
+      },
+      finishOp: (summary): void => this.finish(op, summary)
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────

@@ -13,14 +13,17 @@ import { activateSelected } from './open'
 import { visibleEntries } from './selectors'
 import {
   cancelOperation,
-  clipboardCopy,
-  clipboardCut,
-  clipboardPaste,
   createNewFolder,
   requestPermanentDelete,
   startRenameSelected,
   trashSelected
 } from './fileOps'
+// §M M2: 복사/잘라내기/붙여넣기를 시스템 클립보드 채널로 전환(타 앱 연계·CN-1 병존).
+import {
+  copyToSystemClipboard,
+  cutToSystemClipboard,
+  pasteFromSystemClipboard
+} from './clipboardExternal'
 import { toggleThemeMode } from './settings'
 import { performUndo } from './undo'
 
@@ -146,6 +149,11 @@ export function execCommand(commandId: string): boolean {
       s.openTrash()
       return true
 
+    // ── 원격 연결(§M M3) ──────────────────────────────────────────────
+    case 'remote.open':
+      s.openRemoteDialog()
+      return true
+
     // ── 보기 ─────────────────────────────────────────────────────────
     case 'panel.refresh': {
       const p = activePanel()
@@ -181,13 +189,13 @@ export function execCommand(commandId: string): boolean {
 
     // ── 파일 작업(P4 연결) ───────────────────────────────────────────
     case 'file.copy':
-      void clipboardCopy()
+      void copyToSystemClipboard()
       return true
     case 'file.cut':
-      void clipboardCut()
+      void cutToSystemClipboard()
       return true
     case 'file.paste':
-      void clipboardPaste()
+      void pasteFromSystemClipboard()
       return true
     case 'file.rename':
       startRenameSelected()

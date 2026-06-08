@@ -11,5 +11,7 @@
 | [ADR-004](./ADR-004-list-virtualization.md) | 파일목록 가상화 방식 | 윈도잉(고정 행높이 details, grid는 그리드 윈도잉) + 스트리밍 증분 | 제안 |
 | [ADR-005](./ADR-005-process-security-model.md) | 프로세스/보안 모델 | Main/Preload/Renderer 분리 + contextIsolation·sandbox + Worker | 제안 |
 | [ADR-006](./ADR-006-packaging.md) | 패키징 | electron-builder (NSIS, Windows) | 제안 |
+| [ADR-007](./ADR-007-remote-protocol-and-network-boundary.md) | 원격 프로토콜(FTP/SFTP)·네트워크 경계·외부 셸 연계(§M) | 원격=Main 스레드 `RemoteService`(ssh2-sftp-client/basic-ftp), 네트워크 경계 D5→D7 부분 개정·ESLint 화이트리스트(`src/main/remote/`만), 자격증명 safeStorage(DPAPI)·평문 금지, CF_HDROP/startDrag=Electron 내장. **ADR-005 부분 개정** | 제안 |
 
 > 모든 ADR은 PRD/features/user-stories의 요구를 추적해 결정되었다. 추적 매핑은 [traceability.md](../traceability.md) 참조.
+> **ADR-007은 ADR-005(프로세스/보안 모델)의 "네트워크 차단 기본·로컬 전용" 부분을 §M3(FTP/SFTP)에 한해 부분 개정한다**(삭제·대체 아님·비파괴). 상세는 ADR-007 결정 ①②.

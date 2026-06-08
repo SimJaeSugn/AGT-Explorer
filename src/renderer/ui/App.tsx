@@ -11,6 +11,7 @@ import { useRootStore } from '@renderer/app/stores/rootStore'
 import { initOperationsBridge } from '@renderer/app/usecases/operationsBridge'
 import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
+import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -25,6 +26,8 @@ import { SettingsDialog } from '@renderer/ui/settings/SettingsDialog'
 import { WorkspaceDialog } from '@renderer/ui/workspace/WorkspaceDialog'
 import { DashboardModal } from '@renderer/ui/dashboard/DashboardModal'
 import { TrashDialog } from '@renderer/ui/trash/TrashDialog'
+import { RemoteDialog } from '@renderer/ui/remote/RemoteDialog'
+import { HostKeyModal } from '@renderer/ui/remote/HostKeyModal'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
@@ -49,6 +52,8 @@ export function App(): JSX.Element {
     initScanBridge()
     // J2: 좌/우 패널 현재 디렉토리 실시간 감시 브리지(전역 1회 구독).
     initWatchBridge()
+    // §M M3: remote:host-key·remote:session-error 푸시 → remoteSlice 브리지(전역 1회 구독).
+    initRemoteBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독
@@ -109,6 +114,8 @@ export function App(): JSX.Element {
       <WorkspaceDialog />
       <DashboardModal />
       <TrashDialog />
+      <RemoteDialog />
+      <HostKeyModal />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}
       <ProgressDialog />

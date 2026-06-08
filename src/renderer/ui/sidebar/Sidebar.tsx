@@ -84,8 +84,71 @@ export function Sidebar(): JSX.Element | null {
         <TreeNodeView key={root} path={root} depth={1} />
       ))}
 
+      <div style={sectionHeader}>원격</div>
+      <RemoteSection />
+
       <div style={sectionHeader}>도구</div>
       <TrashNode />
+    </div>
+  )
+}
+
+/**
+ * 원격 섹션(§M M3) — 활성 세션 목록(클릭=해당 원격 루트로 이동) + "연결" 진입점.
+ * 연결 다이얼로그는 commandBus 'remote.open' → uiSlice.openRemoteDialog.
+ */
+function RemoteSection(): JSX.Element {
+  const sessions = useRootStore((s) => s.remoteSessions)
+  const list = Object.values(sessions)
+  return (
+    <div aria-label="원격 연결">
+      {list.map((sess) => {
+        const rootUri = `${sess.profile.protocol}://${sess.profile.host}/`
+        return (
+          <div
+            key={sess.sessionId}
+            onClick={() => {
+              const s = useRootStore.getState()
+              const pid = s.activePanelId()
+              if (pid) s.navigate(pid, rootUri, true)
+            }}
+            title={`${sess.profile.protocol}://${sess.profile.username}@${sess.profile.host}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 8px',
+              cursor: 'pointer',
+              fontSize: 12,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span style={{ width: 14 }} />
+            <span>{sess.encrypted ? '🔒' : '⚠'}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {sess.profile.name || sess.profile.host}
+            </span>
+          </div>
+        )
+      })}
+      <div
+        onClick={() => execCommand('remote.open')}
+        title="원격 서버 연결(FTP/SFTP)"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '3px 8px',
+          cursor: 'pointer',
+          color: tokens.color.textMuted
+        }}
+      >
+        <span style={{ width: 14 }} />
+        <span>🌐</span>
+        <span>연결…</span>
+      </div>
     </div>
   )
 }

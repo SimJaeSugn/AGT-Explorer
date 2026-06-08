@@ -30,7 +30,12 @@ import { highlightRange } from '@renderer/domain/rules/filter'
 import { normalizeRect, indicesInRect } from '@renderer/domain/rules/boxSelect'
 import type { SelectionState } from '@renderer/domain/rules/selection'
 import { tokens, gridCellFor } from '@renderer/ui/theme/tokens'
-import { useDragSource, useDropTarget, useDragState } from '@renderer/ui/dnd/useDrag'
+import {
+  useDragSource,
+  useExternalDragSource,
+  useDropTarget,
+  useDragState
+} from '@renderer/ui/dnd/useDrag'
 import { computeWindow } from './windowing'
 
 const OVERSCAN = 6
@@ -677,6 +682,8 @@ function FileRow({
 
   // 드래그 소스(이 행에서 시작) + 폴더면 드롭 타겟(그 폴더 안).
   const dragSrc = useDragSource(panelId, panelPath, () => dragSourcesFor(entry))
+  // 외부(OS/타 앱) 드래그는 native HTML5 dragstart 로 시작(§M M1). 내부 pointer DnD 와 별개.
+  const extDrag = useExternalDragSource(() => dragSourcesFor(entry))
   const folderDrop = useDropTarget({
     panelId,
     destDir: entry.path,
@@ -695,6 +702,8 @@ function FileRow({
         onMouseDown={(e) => onClick(index, e)}
         onContextMenu={(e) => onContext(index, entry, e)}
         onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
+        draggable={renaming ? false : extDrag.draggable}
+        onDragStart={renaming ? undefined : extDrag.onDragStart}
         onPointerEnter={entry.isDir ? folderDrop.onPointerEnter : undefined}
         onPointerLeave={entry.isDir ? folderDrop.onPointerLeave : undefined}
         onDoubleClick={() => onDouble(entry)}
@@ -772,6 +781,8 @@ function FileRow({
       onMouseDown={(e) => onClick(index, e)}
       onContextMenu={(e) => onContext(index, entry, e)}
       onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
+      draggable={renaming ? false : extDrag.draggable}
+      onDragStart={renaming ? undefined : extDrag.onDragStart}
       onPointerEnter={entry.isDir ? folderDrop.onPointerEnter : undefined}
       onPointerLeave={entry.isDir ? folderDrop.onPointerLeave : undefined}
       onDoubleClick={() => onDouble(entry)}

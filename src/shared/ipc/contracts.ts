@@ -14,6 +14,7 @@
  */
 import type { CHANNELS } from './channels'
 import type {
+  ClipboardEffectKind,
   ConflictPolicy,
   ConflictResolution,
   DirListResult,
@@ -27,6 +28,7 @@ import type {
   OpSummary,
   PathValidation,
   PreviewData,
+  RemoteProfileDTO,
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
@@ -48,6 +50,14 @@ export interface FileOpError {
   /** 원본 errno 등 추가 진단(선택). */
   readonly cause?: string
 }
+
+/**
+ * 원격(§M M3) 오류 — **별도 타입이 아니라 FileOpError 그 자체**(ADR-007 결정⑥).
+ * code 유니온만 RemoteErrorCode 로 확장되며(EAUTH·ETIMEDOUT·…) 직렬화 형태는 동일하다.
+ * 비밀 필드 없음(FileOpError 구조 그대로 — 컴파일 타임 보장). remote:connect/list/…
+ * 핸들러는 `Result<T, RemoteError>` 를 반환하나 `Result<T, FileOpError>` 와 호환된다.
+ */
+export type RemoteError = FileOpError
 
 export interface Ok<T> {
   readonly ok: true
@@ -258,6 +268,122 @@ export interface AnalyzeScanCancelReq {
   readonly scanId: string
 }
 
+// ── dnd:* 외부 드래그 (신규 §M M1 — 계약만 동결, impl: MP3) ─────────────
+/** 외부(앱 바깥)로의 파일 드래그 시작 요청. paths 는 로컬 절대경로(핸들러가 guardPath·존재·원격 prefix 검증). */
+export interface DndStartDragReq {
+  readonly paths: string[]
+  /** 드래그 고스트 아이콘 힌트(단일 파일/다중/폴더). 미지정 시 backend 기본. */
+  readonly iconHint?: 'single' | 'multi' | 'folder'
+}
+export interface DndStartDragRes {
+  /** startDrag 위임 성공 여부(wc 파괴·빈 경로 등은 false). */
+  readonly started: boolean
+}
+
+// ── clipboard:* CF_HDROP (신규 §M M2 — 기존 텍스트 폴백 채널과 병존, impl: MP2) ─
+/** 시스템 클립보드에 파일 목록을 CF_HDROP+Preferred DropEffect 로 쓴다. */
+export interface ClipboardWriteFilesReq {
+  readonly paths: string[]
+  readonly effect: 'copy' | 'cut'
+}
+/** clipboard:read-files 결과 — CF_HDROP 파싱 경로 + DropEffect 해석(copy/move/none). */
+export interface ClipboardFilesReadRes {
+  readonly paths: string[]
+  readonly effect: ClipboardEffectKind
+}
+/** clipboard:has-files 결과 — 클립보드에 파일(CF_HDROP)이 있는지. */
+export interface ClipboardHasFilesRes {
+  readonly has: boolean
+}
+
+// ── remote:* FTP/SFTP (신규 §M M3 — 계약만 동결, impl: MP4) ─────────────
+/**
+ * 자격증명 비밀 본문 — **요청 본문 전용**(영속·응답 DTO 에는 절대 없음).
+ * cred:save / connect 요청으로만 main 에 1회 전달되어 즉시 safeStorage 로 가며,
+ * 응답·로그·Error 에는 포함되지 않는다(ADR-007 ③⑥). DTO 레이어(shared/dto)에는
+ * 두지 않고 IPC 요청 계약에만 둔다(구조적 격리).
+ */
+export interface RemoteSecret {
+  readonly kind: 'password' | 'passphrase' | 'privateKey'
+  readonly value: string
+}
+export interface RemoteCredSaveReq {
+  readonly profileId: string
+  readonly secret: RemoteSecret
+}
+export interface RemoteCredHasReq {
+  readonly profileId: string
+}
+export interface RemoteCredDeleteReq {
+  readonly profileId: string
+}
+export interface RemoteProfileUpsertReq {
+  readonly profile: RemoteProfileDTO
+}
+export interface RemoteProfileDeleteReq {
+  readonly profileId: string
+}
+export interface RemoteConnectReq {
+  readonly profile: RemoteProfileDTO
+  /** 미저장 1회용 비밀(저장 안 함). 없으면 핸들러가 credentialStore.load(profileId). */
+  readonly secret?: RemoteSecret
+  /** TOFU 호스트키 회신(remote:host-key 푸시에 대한 사용자 결정). */
+  readonly hostKeyDecision?: 'accept' | 'reject'
+}
+export interface RemoteConnectRes {
+  readonly sessionId: string
+  /** 암호화 연결 여부(평문 FTP=false → 비암호화 경고 신호). */
+  readonly encrypted: boolean
+}
+export interface RemoteDisconnectReq {
+  readonly sessionId: string
+}
+export interface RemoteListReq {
+  readonly sessionId: string
+  /** 원격 절대경로(POSIX). 정규화·traversal 방어는 어댑터가 POSIX 기준으로 수행(MP4). */
+  readonly path: string
+}
+export interface RemoteStatReq {
+  readonly sessionId: string
+  readonly path: string
+}
+export interface RemoteMkdirReq {
+  readonly sessionId: string
+  readonly path: string
+  readonly name: string
+}
+export interface RemoteRenameReq {
+  readonly sessionId: string
+  readonly path: string
+  readonly newName: string
+}
+export interface RemoteDeleteReq {
+  readonly sessionId: string
+  readonly path: string
+}
+/** 원격 목록 결과 — entries 는 기존 FileEntryDTO 재사용(원격 절대경로·attrs.symlink). */
+export interface RemoteListRes {
+  readonly entries: FileEntryDTO[]
+}
+export interface RemoteDownloadReq {
+  readonly sessionId: string
+  readonly remotePaths: string[]
+  /** 로컬 도착 디렉토리(핸들러가 guardPath 로 검증·Zip Slip 차단). */
+  readonly destDir: string
+  readonly conflictPolicy?: ConflictPolicy
+}
+export interface RemoteUploadReq {
+  readonly sessionId: string
+  /** 로컬 소스 경로(핸들러가 guardPath 로 검증). */
+  readonly localPaths: string[]
+  readonly remoteDir: string
+  readonly conflictPolicy?: ConflictPolicy
+}
+/** download/upload 응답 — operationId 만 반환(진행률·충돌·완료·취소는 기존 op:* 스트림 재사용). */
+export interface RemoteTransferRes {
+  readonly operationId: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
@@ -336,6 +462,32 @@ export interface IpcRequestMap {
   [CHANNELS.TRASH_LIST]: { req: void; res: Result<TrashItemDTO[]> }
   [CHANNELS.TRASH_RESTORE]: { req: TrashRestoreReq; res: Result<void> }
   [CHANNELS.TRASH_EMPTY]: { req: TrashEmptyReq; res: Result<void> }
+
+  // dnd:* (신규 §M M1 — 계약만 동결, impl: MP3)
+  [CHANNELS.DND_START_DRAG]: { req: DndStartDragReq; res: Result<DndStartDragRes> }
+
+  // clipboard:* CF_HDROP (신규 §M M2 — 기존 채널과 병존, impl: MP2)
+  [CHANNELS.CLIPBOARD_WRITE_FILES]: { req: ClipboardWriteFilesReq; res: Result<void> }
+  [CHANNELS.CLIPBOARD_READ_FILES]: { req: void; res: Result<ClipboardFilesReadRes> }
+  [CHANNELS.CLIPBOARD_HAS_FILES]: { req: void; res: Result<ClipboardHasFilesRes> }
+
+  // remote:* FTP/SFTP (신규 §M M3 — 계약만 동결, impl: MP4)
+  // cred/profile/disconnect 는 FileOpError, 연결·탐색·전송은 RemoteError(직렬화 동일).
+  [CHANNELS.REMOTE_CRED_SAVE]: { req: RemoteCredSaveReq; res: Result<void> }
+  [CHANNELS.REMOTE_CRED_HAS]: { req: RemoteCredHasReq; res: Result<ClipboardHasFilesRes> }
+  [CHANNELS.REMOTE_CRED_DELETE]: { req: RemoteCredDeleteReq; res: Result<void> }
+  [CHANNELS.REMOTE_PROFILE_LIST]: { req: void; res: Result<RemoteProfileDTO[]> }
+  [CHANNELS.REMOTE_PROFILE_UPSERT]: { req: RemoteProfileUpsertReq; res: Result<RemoteProfileDTO> }
+  [CHANNELS.REMOTE_PROFILE_DELETE]: { req: RemoteProfileDeleteReq; res: Result<void> }
+  [CHANNELS.REMOTE_CONNECT]: { req: RemoteConnectReq; res: Result<RemoteConnectRes, RemoteError> }
+  [CHANNELS.REMOTE_DISCONNECT]: { req: RemoteDisconnectReq; res: Result<void> }
+  [CHANNELS.REMOTE_LIST]: { req: RemoteListReq; res: Result<RemoteListRes, RemoteError> }
+  [CHANNELS.REMOTE_STAT]: { req: RemoteStatReq; res: Result<FileEntryDTO, RemoteError> }
+  [CHANNELS.REMOTE_MKDIR]: { req: RemoteMkdirReq; res: Result<void, RemoteError> }
+  [CHANNELS.REMOTE_RENAME]: { req: RemoteRenameReq; res: Result<void, RemoteError> }
+  [CHANNELS.REMOTE_DELETE]: { req: RemoteDeleteReq; res: Result<void, RemoteError> }
+  [CHANNELS.REMOTE_DOWNLOAD]: { req: RemoteDownloadReq; res: Result<RemoteTransferRes, RemoteError> }
+  [CHANNELS.REMOTE_UPLOAD]: { req: RemoteUploadReq; res: Result<RemoteTransferRes, RemoteError> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -398,6 +550,26 @@ export interface FsWatchErrorEvt {
   readonly error: FileOpError
 }
 
+// ── remote:* 푸시 evt (신규 §M M3, 계약만 동결) ────────────────────────
+/**
+ * TOFU 호스트키 확인 요청(remote:host-key). main 이 연결 중 미신뢰/변경 호스트키를
+ * 만나면 푸시하고, 렌더러는 사용자 결정을 다음 remote:connect 의 hostKeyDecision 으로
+ * 회신한다. 지문(fingerprint)만 노출 — 비밀 없음.
+ */
+export interface RemoteHostKeyEvt {
+  /** 진행 중 연결 상관 ID(connect 호출과 매칭). */
+  readonly connectId: string
+  readonly fingerprint: string
+  readonly algo: string
+  /** unknown=최초 접속(미등록), changed=known_hosts 와 불일치(경고 강화). */
+  readonly status: 'unknown' | 'changed'
+}
+/** 세션 격리 오류(remote:session-error) — 한 세션의 끊김/타임아웃이 다른 패널·Main 을 중단시키지 않음. */
+export interface RemoteSessionErrorEvt {
+  readonly sessionId: string
+  readonly error: RemoteError
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -417,6 +589,10 @@ export interface IpcEventMap {
   // fs:watch:* 푸시 evt (신규 J장 J2, 계약만 동결)
   [CHANNELS.FS_WATCH_EVENT]: FsWatchEvt
   [CHANNELS.FS_WATCH_ERROR]: FsWatchErrorEvt
+
+  // remote:* 푸시 evt (신규 §M M3, 계약만 동결)
+  [CHANNELS.REMOTE_HOST_KEY]: RemoteHostKeyEvt
+  [CHANNELS.REMOTE_SESSION_ERROR]: RemoteSessionErrorEvt
 }
 
 export type EventChannel = keyof IpcEventMap

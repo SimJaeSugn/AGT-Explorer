@@ -4,7 +4,7 @@
 
 ## 하네스: 개발 워크플로 (dev-harness)
 
-**목표:** 기획 → 설계 → 구현을 dev-harness(전역 플러그인)로 진행하고, 문서와 코드를 항상 일치시킨다.
+**목표:** 기획 → 설계 → 구현을 dev-harness(프로젝트 플러그인)로 진행하고, 문서와 코드를 항상 일치시킨다.
 
 **트리거:** 기획/설계/구현 진행 요청 시 dev-harness 스킬(`dev-harness:dev-orchestrator` 기획·설계, `dev-harness:team-dev` 구현)을 사용한다. 단순 질문은 직접 응답 가능.
 
@@ -29,3 +29,5 @@
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-06-07 | 문서 동기화 게이트 추가 (doc-synchronizer 에이전트 + doc-sync 스킬 + CLAUDE.md 게이트) | `.claude/agents/doc-synchronizer.md`, `.claude/skills/doc-sync/`, `CLAUDE.md` | 개발 진행 중 기획·개발 문서를 코드와 항상 동기화하라는 요청 |
+| 2026-06-08 | dev-harness 표기를 "전역 플러그인" → "프로젝트 플러그인"으로 갱신 | `CLAUDE.md` | dev-harness 플러그인을 project 스코프로 설치 |
+| 2026-06-08 | doc-sync 게이트 실행: §M(에픽12 M1·M2·M3 외부연계·원격) 구현 완료·통합 QA PASS → 상태 표기 🔜→✅ 동기화(실 동작 런타임 스모크 🟡 정직 구분·verify 누계 ~1015) | `docs/roadmap.md §0.5·§3-M·§4`, `docs/PRD.md §M·§6`, `docs/features.md §M`, `docs/user-stories.md 에픽12`, `docs/flows.md F14~F16`, `docs/architecture/traceability.md §1-M` | §M 구현 완료·QA PASS 후 문서-코드 상태 동기화 |

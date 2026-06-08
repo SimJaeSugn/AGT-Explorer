@@ -20,6 +20,7 @@ import {
   type ListStreamHandlers
 } from '@renderer/infra/api'
 import { isMyPc, parentOf } from '@renderer/domain/paths'
+import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import type { SliceCreator } from './types'
 
@@ -129,6 +130,14 @@ export interface PanelsSlice {
 
   /** 워처발 갱신 스크롤 복원 플래그 1회성 소거(FileListView 소비 직후 호출). */
   clearPendingScrollRestore(panelId: string): void
+
+  // 원격 탐색(§M M3) — usecases/remote 가 remote:list 결과를 주입 ────────────
+  /** 원격 디렉토리 로딩 시작(status=loading, 스트림 없음). */
+  _remoteLoading(panelId: string, path: string): void
+  /** 원격 디렉토리 목록 반영(status=ready/empty). path 가 현재와 다르면 폐기. */
+  _setRemoteEntries(panelId: string, path: string, entries: Panel['directory']['entries']): void
+  /** 원격 디렉토리 오류 반영(status=error/denied). code/message 표시. */
+  _setRemoteError(panelId: string, path: string, code: string, message: string): void
 
   // 스트림 이벤트 진입(infra 브리지가 호출) ──────────────────────────────
   _onChunk(panelId: string, streamId: string, entries: Panel['directory']['entries']): void
@@ -290,6 +299,11 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
       // 내 PC(드라이브 목록)는 _onDone 경로를 타지 않으므로 보존 스냅샷을 남기지 않는다(누수 방지).
       preserveSnapshots.delete(panelId)
       void loadMyPc(panelId)
+    } else if (isRemotePath(path)) {
+      // 원격 경로(sftp://·ftp(s)://): 로컬 스트림 대신 remote:list 로 탐색(§M M3).
+      // 보존 스냅샷은 _onDone 경로를 타지 않으므로 남기지 않는다(누수 방지).
+      preserveSnapshots.delete(panelId)
+      void import('@renderer/app/usecases/remote').then((m) => m.listRemoteDir(panelId, path))
     } else {
       void startStream(panelId, path, preserve)
     }
@@ -464,6 +478,52 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
         p.view = { ...state.view }
         p.nav = { back: [...state.nav.back], forward: [...state.nav.forward] }
         p.scrollTop = state.scrollTop
+      })
+    },
+
+    _remoteLoading(panelId, path) {
+      set((s) => {
+        const p = s.panels[panelId]
+        if (!p || p.path !== path) return
+        p.directory = {
+          status: 'loading',
+          entries: [],
+          streamId: null,
+          total: 0,
+          truncated: false,
+          error: null
+        }
+      })
+    },
+
+    _setRemoteEntries(panelId, path, entries) {
+      set((s) => {
+        const p = s.panels[panelId]
+        // 이동 중 경로가 또 바뀌었으면 이 응답은 폐기.
+        if (!p || p.path !== path) return
+        p.directory = {
+          status: entries.length === 0 ? 'empty' : 'ready',
+          entries: [...entries],
+          streamId: null,
+          total: entries.length,
+          truncated: false,
+          error: null
+        }
+      })
+    },
+
+    _setRemoteError(panelId, path, code, message) {
+      set((s) => {
+        const p = s.panels[panelId]
+        if (!p || p.path !== path) return
+        p.directory = {
+          status: code === 'EACCES' || code === 'EPERM' ? 'denied' : 'error',
+          entries: [],
+          streamId: null,
+          total: 0,
+          truncated: false,
+          error: { code, message }
+        }
       })
     },
 

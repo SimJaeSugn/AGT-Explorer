@@ -123,6 +123,17 @@ export interface ClosedTabRecord {
   readonly activePanelIndex: number
 }
 
+/**
+ * 원격 자격증명 비밀 입력(§M M3) — **UI→usecase 전달 전용**(영속·store 보관 금지).
+ * shared/ipc 의 RemoteSecret 과 구조 동일(직렬화 호환)이나, ui 가 shared/ipc 를 import 할
+ * 수 없어(.eslintrc) domain 에 ui-importable 한 입력 타입으로 둔다. 컴포넌트 로컬 state →
+ * usecase → infra(connect/credSave 요청 본문)로만 흐르고 어디에도 영구 보관되지 않는다.
+ */
+export interface RemoteSecretInput {
+  readonly kind: 'password' | 'passphrase' | 'privateKey'
+  readonly value: string
+}
+
 /** 사이드바 트리 노드(드라이브→폴더 lazy 확장). */
 export interface TreeNode {
   readonly path: string

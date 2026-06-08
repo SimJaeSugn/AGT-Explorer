@@ -319,6 +319,51 @@ graph LR
 
 ---
 
+## 11. §M 외부 연계 — 원격 FS 추상화 · 클립보드/드래그 모듈 경계 (2026-06-08 추가)
+
+> 비파괴 추가. 보안·프로세스 결정은 [ADR-007](./adr/ADR-007-remote-protocol-and-network-boundary.md). 채널·데이터 흐름은 [system-architecture §5-M](./system-architecture.md). 상태: **🔜 미착수(설계 단계)**.
+
+### 11.1 원격 파일시스템 — 로컬 FS와의 통합/분리 전략
+
+**결정: 별도 경로 네임스페이스(`sftp://`·`ftp://`·`ftps://`) + 공통 도메인 인터페이스(추상화는 공유, 구현은 분리).**
+
+| 옵션 | 장점 | 단점 | 판정 |
+|---|---|---|---|
+| **별도 네임스페이스 + 공통 인터페이스(채택)** | 패널은 경로 prefix로 로컬/원격을 구분(UI/탐색 코드 재사용·멀티 디렉토리 차별점 원격 확장)·세션·자격증명·전송 의미차를 어댑터 뒤로 격리 | 라우팅 계층 1개 필요 | **채택** |
+| 로컬 FS와 완전 동일 인터페이스(투명 통합) | 호출부 무분기 | 세션·인증·연결끊김·진행률·취소 의미가 로컬과 달라 누수 발생·오류 격리 모델 충돌 | 비채택 |
+| 완전 분리(원격 전용 UI) | 단순 | 멀티 디렉토리 차별점(로컬↔원격 나란히)을 못 살림·UI 중복 | 비채택 |
+
+- **도메인 추가**: `Panel`에 `location: LocalLocation | RemoteLocation`을 둔다. `RemoteLocation = { kind:'remote'; sessionId; protocol; host; user; path }`. 기존 로컬 패널은 `{ kind:'local'; path }`. 기존 `Panel.path`는 로컬 호환 유지(원격은 표기용 `프로토콜://사용자@호스트/경로` 파생).
+- **라우팅**: `usecases/navigation`이 `location.kind`로 분기 — 로컬은 `fs:list:*`, 원격은 `remote:list`. 정렬/필터/선택/가상 스크롤은 **동일 `DirectoryView`·`FileEntry` 모델 재사용**(원격 entries도 `FileEntryDTO`로 정규화). → UI(`FileListView`·`PanelHeader`·`SearchBar`)는 로컬/원격을 거의 구분하지 않는다.
+- **전송 라우팅**: 패널 간 D&D/붙여넣기 시 출발·도착 `location.kind` 조합으로 분기 — 로컬↔로컬=`op:start`, 로컬→원격=`remote:upload`, 원격→로컬=`remote:download`, 원격↔원격=1차 범위 밖(후속). 이 분기는 `domain/rules/transferRoute.ts`(순수 함수)로 격리해 D&D·클립보드·키보드가 동일 규칙 공유.
+- **오류 격리**: 원격 `DirectoryView.status`에 `'disconnected'|'timeout'` 상태 추가. 한 원격 패널 오류가 다른 패널·로컬을 막지 않음(F장·US-12.5).
+
+### 11.2 계층 배치 (비파괴 — 기존 레이어에 모듈 추가)
+
+| 계층 | 신규 모듈 | 책임 |
+|---|---|---|
+| 도메인 | `domain/rules/transferRoute.ts` | 출발·도착 location 조합 → 전송 종류(copy/move/upload/download) 판정(순수) |
+| 도메인 | `domain/entities`(확장) | `RemoteLocation`·`RemoteProfile`(비밀 제외)·`RemoteError` 타입 |
+| 애플리케이션 | `app/usecases/remote.ts` | 연결/해제·프로필 CRUD·원격 탐색·업/다운로드 트리거(infra 경유) |
+| 애플리케이션 | `app/usecases/clipboardExternal.ts` | CF_HDROP 쓰기/읽기·붙여넣기 라우팅(내부/외부 우선순위 규칙·ADR-007 ⑦) |
+| 애플리케이션 | `app/usecases/externalDrag.ts` | 외부 드래그 감지·`dnd:start-drag` 위임(내부 A3와 분기) |
+| 애플리케이션 | `app/stores/remoteSlice.ts` | 세션·프로필 목록·연결 상태·호스트키 경고 UI 상태 |
+| 인프라 | `infra/api`(확장) | `remoteApi`·`clipboardApi`·`dndApi` 래퍼(window.api) |
+| UI | `ui/remote/` | 연결 다이얼로그·사이드바 "원격" 섹션·원격 패널 배지·호스트키/비암호화 경고 |
+| UI | `ui/dnd`(확장) | 외부 드래그 시작 핸들러(도착지 외부 판정 → externalDrag) |
+
+> **계층 규칙 불변**: 네트워크·소켓은 렌더러에 절대 없다. `usecases/remote.ts`는 `remote:*` IPC만 호출(infra 경유). 도메인은 여전히 순수(`transferRoute`는 IO 모름).
+
+### 11.3 변화 격리(§9 표 확장)
+
+| 바뀔 가능성 큰 부분 | 격리 경계 |
+|---|---|
+| 원격 프로토콜 추가(WebDAV/S3 등 C) | Main `RemoteService` 어댑터 + `RemoteLocation.protocol` 확장. 상위 무변경 |
+| CF_HDROP 외 클립보드 포맷 | `os/shellClipboard.ts` 어댑터 한 곳 |
+| 자격증명 백엔드 교체(safeStorage→keyring) | `os/credentials.ts` 인터페이스 뒤 |
+
+---
+
 ## 10. 미해결 질문
 
 1. **Renderer 필터 Web Worker 오프로드 도입 시점**: MVP 메모이즈+가시영역 우선 필터(§6.3 폴백 1·2)로 200ms 충족되는지 **M1 성능 스파이크("1만 개 목록 입력 후 200ms 내 가시 결과" 측정)** 후 결정. 미달 시에만 §6.3 폴백 3(Web Worker) 도입.

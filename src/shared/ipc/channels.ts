@@ -102,7 +102,43 @@ export const CHANNELS = {
   FS_WATCH_START: 'fs:watch:start', // invoke → Result<{ watchId }> (단일 디렉토리 감시 시작)
   FS_WATCH_EVENT: 'fs:watch:event', // 푸시 evt (디바운스·병합된 변경 알림)
   FS_WATCH_STOP: 'fs:watch:stop', // invoke → Result<void> (경로 이동·언마운트 시 중지)
-  FS_WATCH_ERROR: 'fs:watch:error' // 푸시 evt (권한·네트워크·미지원 드라이브 감시 실패 격리)
+  FS_WATCH_ERROR: 'fs:watch:error', // 푸시 evt (권한·네트워크·미지원 드라이브 감시 실패 격리)
+
+  // ── dnd:* 외부 드래그 (M1, 신규 §M) ─ 계약만 동결, impl: MP3 ───────────
+  // webContents.startDrag 위임(로컬 검증 경로만 외부로 노출). 원격 경로 거부.
+  DND_START_DRAG: 'dnd:start-drag', // invoke → Result<{ started }>
+
+  // ── clipboard:* CF_HDROP 양방향 (M2, 신규 §M) ─ 계약만 동결, impl: MP2 ─
+  // 기존 clipboard:copy-files/cut-files/paste-target/read 채널과 **비파괴 병존**한다
+  // (CN-1: 1차는 신규 3채널 추가만, 기존 채널·fileClipboard.ts 보존). 렌더러 호출부
+  // 전환은 MP2/MP5. 전송 진행률은 신규 채널 없이 기존 op:* 스트림 재사용.
+  CLIPBOARD_WRITE_FILES: 'clipboard:write-files', // invoke → Result<void>
+  CLIPBOARD_READ_FILES: 'clipboard:read-files', // invoke → Result<ClipboardFilesReadRes>
+  CLIPBOARD_HAS_FILES: 'clipboard:has-files', // invoke → Result<{ has }>
+
+  // ── remote:* FTP/SFTP (M3, 신규 §M) ─ 계약만 동결, impl: MP4 ───────────
+  // 자격증명(cred:*)·프로필(profile:*)·세션(connect/disconnect)·탐색(list/stat/
+  // mkdir/rename/delete)·전송(download/upload). 전송 진행률·충돌·완료·취소는 신규
+  // 채널 없이 기존 op:* 스트림 재사용(download/upload 는 operationId 만 반환).
+  // 비밀(password/passphrase/privateKey)은 영속·전송 DTO·응답·로그·Error 에서
+  // 구조적 배제 — cred:save/connect 요청 본문으로만 main 에 1회 전달(ADR-007 ③⑥).
+  REMOTE_CRED_SAVE: 'remote:cred:save', // invoke → Result<void> (safeStorage 저장)
+  REMOTE_CRED_HAS: 'remote:cred:has', // invoke → Result<{ has }>
+  REMOTE_CRED_DELETE: 'remote:cred:delete', // invoke → Result<void>
+  REMOTE_PROFILE_LIST: 'remote:profile:list', // invoke → Result<RemoteProfileDTO[]>
+  REMOTE_PROFILE_UPSERT: 'remote:profile:upsert', // invoke → Result<RemoteProfileDTO>
+  REMOTE_PROFILE_DELETE: 'remote:profile:delete', // invoke → Result<void>
+  REMOTE_CONNECT: 'remote:connect', // invoke → Result<RemoteConnectRes, RemoteError>
+  REMOTE_DISCONNECT: 'remote:disconnect', // invoke → Result<void>
+  REMOTE_HOST_KEY: 'remote:host-key', // 푸시 evt (TOFU 호스트키 확인 요청)
+  REMOTE_SESSION_ERROR: 'remote:session-error', // 푸시 evt (세션 격리 오류)
+  REMOTE_LIST: 'remote:list', // invoke → Result<{ entries }, RemoteError>
+  REMOTE_STAT: 'remote:stat', // invoke → Result<FileEntryDTO, RemoteError>
+  REMOTE_MKDIR: 'remote:mkdir', // invoke → Result<void, RemoteError>
+  REMOTE_RENAME: 'remote:rename', // invoke → Result<void, RemoteError>
+  REMOTE_DELETE: 'remote:delete', // invoke → Result<void, RemoteError>
+  REMOTE_DOWNLOAD: 'remote:download', // invoke → Result<{ operationId }, RemoteError>
+  REMOTE_UPLOAD: 'remote:upload' // invoke → Result<{ operationId }, RemoteError>
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -124,7 +160,10 @@ export const EVENT_CHANNELS = [
   CHANNELS.ANALYZE_SCAN_ERROR,
   // fs:watch:* 푸시 evt (신규 J장 J2)
   CHANNELS.FS_WATCH_EVENT,
-  CHANNELS.FS_WATCH_ERROR
+  CHANNELS.FS_WATCH_ERROR,
+  // remote:* 푸시 evt (신규 §M M3 — TOFU 호스트키 확인·세션 격리 오류)
+  CHANNELS.REMOTE_HOST_KEY,
+  CHANNELS.REMOTE_SESSION_ERROR
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

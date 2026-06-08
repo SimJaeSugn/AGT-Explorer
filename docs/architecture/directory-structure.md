@@ -145,3 +145,77 @@ explorer/
 - 공통 import는 `shared/**`(타입 전용)만 허용.
 
 > 이 규칙들은 "의존 방향 규칙"을 빌드 타임에 검증해, 시간이 지나도 아키텍처가 침식되지 않게 한다.
+
+### 5-M. §M 네트워크 화이트리스트 규칙 (ADR-007 ② · 2026-06-08 추가)
+
+기존 "main 네트워크 import 전면 금지(D5)"를 **전면 해제하지 않고**, 단일 디렉토리만 예외로 둔다:
+
+- **기존 차단 유지(8개)**: 현재 `.eslintrc.cjs` main override가 이미 차단 중인 `node:http`/`http`·`node:https`/`https`·`net`/`node:net`·`dgram`/`node:dgram`은 **그대로 유지**한다.
+- **신규 차단 추가**: 현재 `.eslintrc.cjs`는 **`node:tls`도, 원격 라이브러리(`ssh2`·`ssh2-sftp-client`·`basic-ftp`)도 차단하지 않는다.** 구현 시 이들을 main `no-restricted-imports`에 **신규 차단 대상으로 추가**해야 한다(이는 "유지"가 아니라 "추가" 작업임). `basic-ftp`의 FTPS가 `node:tls`를 쓰므로 `node:tls` 차단이 화이트리스트 모델의 핵심이다.
+- `.eslintrc.cjs` `overrides`로 **`src/main/remote/**` 에 한해 위 전체(기존 8개 + 신규 `node:tls`·원격 라이브러리) import를 allow**한다(그 외 main 전 경로 전면 금지 불변).
+- `src/main/remote/` 밖 모듈은 원격 기능을 `RemoteService` 인터페이스로만 호출(네트워크 표면이 한 디렉토리 경계 뒤로 캡슐화).
+- 렌더러·도메인·shared의 네트워크 import 전면 금지는 불변 — 원격은 `remote:*` IPC로만.
+
+> **구현 체크**: `.eslintrc.cjs` main override `no-restricted-imports`에 추가할 신규 차단 = `node:tls`, `ssh2`, `ssh2-sftp-client`, `basic-ftp`. 전체 차단은 `overrides`의 `src/main/remote/**`에서만 해제.
+
+---
+
+## 6. §M 외부 연계 신규 모듈 배치 (2026-06-08 비파괴 추가)
+
+> 보안·프로세스 결정은 [ADR-007](./adr/ADR-007-remote-protocol-and-network-boundary.md). 상태: **🔜 미착수(설계 단계)**. 아래는 §2 폴더 트리에 **추가**되는 위치다(기존 트리 무변경).
+
+```text
+src/
+├─ main/
+│  ├─ remote/                     # ▶ 신규 — 네트워크 특권 디렉토리(ESLint 예외·ADR-007 ②)
+│  │  ├─ RemoteService.ts         #   원격 추상 인터페이스(list/stat/get/put/mkdir/rename/delete)
+│  │  ├─ SftpAdapter.ts           #   ssh2-sftp-client 구현(SFTP·호스트키 hostVerifier·키 인증)
+│  │  ├─ FtpAdapter.ts            #   basic-ftp 구현(FTP/FTPS·TLS·비암호화 경고 신호)
+│  │  ├─ RemoteSessionManager.ts  #   sessionId별 연결 수명·격리·끊김/타임아웃 처리
+│  │  └─ remoteTransfer.ts        #   업/다운로드 스트림·.part 임시명·OperationManager 연동·취소
+│  ├─ ipc/
+│  │  ├─ dnd.handlers.ts          # ▶ 신규 — dnd:start-drag(sender·경로검증·로컬 한정)
+│  │  ├─ clipboard.handlers.ts    #   (기존 확장) clipboard:write-files/read-files/has-files(CF_HDROP)
+│  │  └─ remote.handlers.ts       # ▶ 신규 — remote:*(sender·zod·세션검증·비밀 미수록)
+│  ├─ os/
+│  │  ├─ dragdrop.ts              # ▶ 신규 — webContents.startDrag 래퍼(Main 전용)
+│  │  ├─ shellClipboard.ts        # ▶ 신규 — CF_HDROP·Preferred DropEffect 바이트 조립/파싱
+│  │  └─ credentials.ts           # ▶ 신규 — safeStorage(DPAPI) 비밀 암호화 저장·복호화(평문 금지)
+│  └─ persistence/
+│     ├─ RemoteProfileStore.ts    # ▶ 신규 — remote/profiles.json(비밀 제외 메타)·known_hosts.json(지문)
+│     └─ (credentials.enc)        #   safeStorage 암호문(평문 아님·os/credentials.ts 관리)
+│
+├─ renderer/
+│  ├─ domain/
+│  │  ├─ entities/                #   (확장) RemoteLocation·RemoteProfile·RemoteError 타입
+│  │  └─ rules/
+│  │     └─ transferRoute.ts      # ▶ 신규 — 출발/도착 location → copy/move/upload/download 판정(순수)
+│  ├─ app/
+│  │  ├─ usecases/
+│  │  │  ├─ remote.ts             # ▶ 신규 — 연결/프로필/탐색/전송 유스케이스
+│  │  │  ├─ clipboardExternal.ts  # ▶ 신규 — CF_HDROP 쓰기/읽기·내부/외부 우선순위
+│  │  │  └─ externalDrag.ts       # ▶ 신규 — 외부 드래그 감지·dnd:start-drag 위임
+│  │  └─ stores/
+│  │     └─ remoteSlice.ts        # ▶ 신규 — 세션·프로필·호스트키 경고 상태
+│  ├─ infra/api/                  #   (확장) remoteApi·clipboardApi·dndApi 래퍼
+│  └─ ui/
+│     ├─ remote/                  # ▶ 신규 — 연결 다이얼로그·사이드바 "원격" 섹션·원격 배지·경고
+│     └─ dnd/                     #   (확장) 외부 드래그 시작 핸들러
+│
+└─ shared/
+   ├─ ipc/
+   │  ├─ channels.ts              #   (확장) DND_*·CLIPBOARD_*(파일)·REMOTE_* 채널 상수
+   │  └─ contracts.ts             #   (확장) 위 채널 요청/응답·이벤트 타입
+   └─ dto/                        #   (확장) RemoteProfileDTO·RemoteError·ClipboardFilesDTO 등
+```
+
+### 각 위치 책임 한 줄 요약(신규)
+
+- `src/main/remote/*` — **유일한 네트워크 특권 디렉토리**. 원격 어댑터·세션·전송. ESLint 예외(ADR-007 ②).
+- `src/main/os/credentials.ts` — 비밀을 safeStorage(DPAPI)로만 암호화 보관(평문 금지·D6).
+- `src/main/os/shellClipboard.ts` — CF_HDROP/Preferred DropEffect OS 클립보드 포맷 어댑터(신규 의존성 0).
+- `src/main/os/dragdrop.ts` — `webContents.startDrag` Main 전용 래퍼(검증된 로컬 경로만).
+- `renderer/domain/rules/transferRoute.ts` — 로컬/원격 전송 종류 판정 순수 함수(D&D·클립보드·키보드 공유).
+- `renderer/ui/remote/*` — 원격 연결·탐색 UI(로컬 패널 UX 재사용·시각 구분 배지).
+
+> **신규 npm 의존성**: `ssh2-sftp-client`(Apache-2.0)·`basic-ftp`(MIT)만 추가(`src/main/remote/`에서만 import). 자격증명·CF_HDROP·외부 드래그는 Electron 내장(신규 의존성 0).

@@ -3,6 +3,9 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow } from './windows/mainWindow'
 import { registerIpcHandlers } from './ipc'
 import { initPersistence, sessionStore } from './persistence'
+import { initRemoteProfileStore } from './persistence/RemoteProfileStore'
+import { initCredentialStore } from './os/credentials'
+import { initRemoteSessionManager, remoteSessionManager } from './remote'
 import { watchService } from './fs/WatchService'
 import { driveTypeService } from './os/driveType'
 
@@ -28,6 +31,12 @@ if (!gotTheLock) {
   app.on('before-quit', (e) => {
     // 종료 직전 모든 FS 워처 핸들 해제(좀비 핸들 0 — J2). 멱등.
     watchService.stopAll()
+    // 원격 세션 전부 정리(소켓 누수 0). 미초기화면 무시.
+    try {
+      void remoteSessionManager().disconnectAll()
+    } catch {
+      /* persistence/remote 미초기화 → 스킵 */
+    }
     if (quitFlushed) return
     try {
       if (!sessionStore().hasPending()) return
@@ -48,7 +57,15 @@ if (!gotTheLock) {
     electronApp.setAppUserModelId('com.agtfinder.app')
 
     // 영속 store 초기화(userData) — IPC 핸들러 등록 전에 끝낸다(SA §5.2).
-    await initPersistence(app.getPath('userData'))
+    const userData = app.getPath('userData')
+    await initPersistence(userData)
+
+    // §M M3 원격: 자격증명(safeStorage)·프로필/known_hosts store·세션 매니저 초기화.
+    //   credentialStore 는 electron safeStorage(DPAPI)를 주입한다. 세션 매니저는 known_hosts
+    //   를 RemoteProfileStore 로 주입받고, 어댑터(SFTP/FTP)는 사용 시점에 지연 로드된다.
+    initCredentialStore(userData)
+    const profiles = initRemoteProfileStore(userData)
+    initRemoteSessionManager(profiles)
 
     // 엄격 CSP — 로컬 번들만 허용, 원격/인라인 스크립트 차단 (ADR-005)
     // dev 에서는 Vite HMR(웹소켓/인라인) 을 위해 약간 완화한다.

@@ -11,7 +11,7 @@
 import { useEffect } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { execCommand } from '@renderer/app/usecases/commandBus'
-import { syncClipboardState } from '@renderer/app/usecases/fileOps'
+import { syncSystemClipboardState } from '@renderer/app/usecases/clipboardExternal'
 import { tokens } from '@renderer/ui/theme/tokens'
 import { ICON_BAR_ITEMS, iconBarItemTitle, type IconBarItem } from './iconBarItems'
 
@@ -86,9 +86,9 @@ const separatorStyle: React.CSSProperties = {
 export function IconBar(): JSX.Element {
   // H-4b: 마운트 1회 초기화 + window focus 재동기(외부 앱 클립보드 변경 반영).
   useEffect(() => {
-    void syncClipboardState()
+    void syncSystemClipboardState()
     const onFocus = (): void => {
-      void syncClipboardState()
+      void syncSystemClipboardState()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)

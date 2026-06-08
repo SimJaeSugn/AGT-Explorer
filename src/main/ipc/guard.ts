@@ -182,3 +182,91 @@ export const zFsWatchStopReq = z.object({ watchId: z.string().min(1) })
 // empty: confirmed 가 literal true 가 아니면 핸들러가 EINVAL 거부(전체 비우기 게이트).
 export const zTrashRestoreReq = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) })
 export const zTrashEmptyReq = z.object({ confirmed: z.boolean() })
+
+// ── §M M1: dnd:* (외부 드래그 — 로컬 경로만, 핸들러가 원격 prefix·존재 재검증) ──
+// paths 는 zPath(min1) 배열. guardPath(정규화·상위이탈)·존재·원격 prefix 거부는 핸들러(MP3).
+export const zDndStartDragReq = z.object({
+  paths: z.array(zPath).min(1),
+  iconHint: z.enum(['single', 'multi', 'folder']).optional()
+})
+
+// ── §M M2: clipboard:* CF_HDROP (write 만 인자, read/has 는 인자 없음 → sender 검증만) ──
+export const zClipboardWriteFilesReq = z.object({
+  paths: z.array(zPath).min(1),
+  effect: z.enum(['copy', 'cut'])
+})
+
+// ── §M M3: remote:* (FTP/SFTP) ───────────────────────────────────────────
+// 비밀(secret.value)은 zod 가 형태만 검증(min1·상한)하고 절대 로그/Error 에 싣지 않는다
+// (parseArgs 의 EINVAL 메시지는 issue.path 만 노출 — value 미수록). 핸들러가 즉시 safeStorage.
+export const zRemoteProtocol = z.enum(['ftp', 'ftps', 'sftp'])
+export const zRemoteAuthMethod = z.enum(['password', 'privateKey'])
+
+// 비밀 배제(strict): 미상의 키(예: password/passphrase/privateKey)를 거부해
+// 영속·전송 DTO 에 비밀이 섞여 들어오는 경로를 입구에서 차단한다(ADR-007 ③).
+export const zRemoteProfileDTO = z
+  .object({
+    id: z.string().min(1).max(255),
+    name: z.string().min(1).max(120),
+    protocol: zRemoteProtocol,
+    host: z.string().min(1).max(255),
+    port: z.number().int().min(1).max(65535),
+    username: z.string().max(255),
+    authMethod: zRemoteAuthMethod
+  })
+  .strict()
+
+// 비밀 본문(요청 전용). privateKey 본문 여유 상한(100KB). 형태만 검증.
+export const zRemoteSecret = z.object({
+  kind: z.enum(['password', 'passphrase', 'privateKey']),
+  value: z.string().min(1).max(100_000)
+})
+
+export const zRemoteCredSaveReq = z.object({
+  profileId: z.string().min(1).max(255),
+  secret: zRemoteSecret
+})
+export const zRemoteCredHasReq = z.object({ profileId: z.string().min(1).max(255) })
+export const zRemoteCredDeleteReq = z.object({ profileId: z.string().min(1).max(255) })
+
+export const zRemoteProfileUpsertReq = z.object({ profile: zRemoteProfileDTO })
+export const zRemoteProfileDeleteReq = z.object({ profileId: z.string().min(1).max(255) })
+
+export const zRemoteConnectReq = z.object({
+  profile: zRemoteProfileDTO,
+  secret: zRemoteSecret.optional(),
+  hostKeyDecision: z.enum(['accept', 'reject']).optional()
+})
+export const zRemoteDisconnectReq = z.object({ sessionId: z.string().min(1) })
+
+// 원격 path 는 POSIX 절대경로 — **로컬 guardPath(win32) 미적용**. zod 는 형태(min1)만 검증하고,
+// 원격 경로 정규화·traversal 방어는 RemoteService/어댑터가 POSIX 기준으로 별도 수행한다(MP4 §보안).
+export const zRemoteListReq = z.object({ sessionId: z.string().min(1), path: zPath })
+export const zRemoteStatReq = z.object({ sessionId: z.string().min(1), path: zPath })
+export const zRemoteMkdirReq = z.object({
+  sessionId: z.string().min(1),
+  path: zPath,
+  name: z.string().min(1)
+})
+export const zRemoteRenameReq = z.object({
+  sessionId: z.string().min(1),
+  path: zPath,
+  newName: z.string().min(1)
+})
+export const zRemoteDeleteReq = z.object({ sessionId: z.string().min(1), path: zPath })
+
+const zConflictPolicy = z.enum(['overwrite', 'skip', 'rename', 'merge'])
+// download: remotePaths 는 POSIX(형태만), destDir 는 **로컬** → 핸들러가 guardPath(MP4).
+export const zRemoteDownloadReq = z.object({
+  sessionId: z.string().min(1),
+  remotePaths: z.array(zPath).min(1),
+  destDir: zPath,
+  conflictPolicy: zConflictPolicy.optional()
+})
+// upload: localPaths 는 **로컬** → 핸들러가 guardPath(MP4). remoteDir 는 POSIX(형태만).
+export const zRemoteUploadReq = z.object({
+  sessionId: z.string().min(1),
+  localPaths: z.array(zPath).min(1),
+  remoteDir: zPath,
+  conflictPolicy: zConflictPolicy.optional()
+})
