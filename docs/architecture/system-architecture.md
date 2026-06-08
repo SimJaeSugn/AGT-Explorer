@@ -415,6 +415,87 @@ sequenceDiagram
 
 ---
 
+## 5-N. §N 즐겨찾기 UX — 경로 워터마크 · 드래그 정렬 (2026-06-08 추가)
+
+> 비파괴 추가. 상태: **🔜 미착수(설계 단계)**. **신규 IPC 채널 0 · 신규 npm 의존성 0 · 신규 ADR 0**(작은 UX — 아래 §5-N.4 근거). N1·N2는 **렌더러 상태·도메인 순수 규칙·`SidebarSnapshot` 세션 영속의 비파괴 확장**으로 충분하며, Main FS/OS 접근이 필요 없다. 즐겨찾기·세션 데이터 흐름은 기존 SA §5(세션 영속)·SW §2(도메인 모델)를 그대로 따른다. Renderer 내부 모듈 경계는 [software-architecture §12](./software-architecture.md) 참조.
+
+### 5-N.0 신규 채널이 필요 없는 이유 (프로세스 배치)
+
+| 기능 | 진입 | 실행 위치 | 신규 채널 | 근거 |
+|---|---|---|---|---|
+| **N1 워터마크** | 패널 폴더 진입/이동(렌더러) | **Renderer 전용**(패널 경로 vs 즐겨찾기 목록 정확 일치 판정 → 배경 텍스트 렌더) | 0 | 패널 경로(`panelsSlice`)·즐겨찾기(`sidebarSlice.favorites/favoriteLabels`)는 모두 렌더러 상태. FS/OS 조회 불요 |
+| **N2 드래그 정렬** | 사이드바 즐겨찾기 항목 드래그/키보드(렌더러) | **Renderer 전용**(`favorites` 배열 재배열) + 기존 `session:save`(디바운스 영속) | 0 | 순서는 기존 `SidebarSnapshot.favorites: string[]` **배열 순서 자체**가 단일 출처. 별도 채널·별도 order 필드 불요(아래 §5-N.2) |
+
+> 즐겨찾기 데이터는 이미 렌더러(`sidebarSlice`)에 상주하고 세션은 기존 `session:load/save`로 영속된다(SA §5). N1·N2 어디에도 **Main 측 신규 핸들러·신규 채널이 없다**. P1 채널 동결 이후 신규 채널 추가 선례(`preview:read`·`fs:watch:*` 등)가 있으나, **§N은 그 선례를 쓸 필요조차 없다**(채널 0).
+
+### 5-N.1 N1 — 즐겨찾기 경로 워터마크 (US-13.1·F17)
+
+**판정·텍스트 소스는 도메인 순수 규칙(`domain/rules/favoriteWatermark.ts`)에 격리**하고, 렌더는 패널 배경 레이어(UI)에서만 한다.
+
+- **일치 판정(순수)**: 현재 패널 경로를 `normalizeDisplay`(기존 `domain/paths`)로 정규화한 뒤 즐겨찾기 목록(각 항목도 동일 정규화)과 **정확 일치(===)** 만 매치. 부분/하위 경로는 1차 비매치(F17 "과표시 방지"·features §N1). "내 PC"(`''`)·원격 경로(`locationKindOf!=='local'`, 기존 `remoteLocation` 규칙)는 비매치(즐겨찾기 추가 대상이 아님·기존 `addFavorite`가 `''` 무시).
+- **다중 일치 규칙(결정론)**: 같은 경로가 즐겨찾기에 둘 이상 존재할 수 있는 경우(`addFavorite`이 중복을 막지만 `hydrateSidebar`/외부 스냅샷 경로로 유입 가능 — 방어적), `resolveFavoriteWatermark`는 `favorites` 배열의 **첫 일치 인덱스 1개만** 반환하고 나머지는 무시한다(겹쳐 깔지 않음 — features §N1 "다중 일치 시 1개만" 충족). 표시 텍스트는 그 첫 일치 항목의 별칭/basename.
+- **텍스트 소스(순수)**: 매치 시 `favoriteLabels[path]`(J7 별칭)가 있고 비어있지 않으면 별칭, 없으면 `baseName(path)`(기존 `domain/paths`) — **J7과 동일한 폴백 규칙 재사용**(Sidebar `FavoriteRow.display`와 일치). 별칭 변경 시 워터마크도 자동 반영(같은 상태 구독).
+- **렌더 위치·접근성**: 패널 배경 레이어(파일 목록 **뒤** z-index). `position:absolute`로 패널 본문 영역을 덮되 `pointer-events:none`(클릭·박스선택·D&D 무간섭)·`aria-hidden="true"`(스크린리더·접근성 트리 제외)·`user-select:none`. **절대배치 기준 컨테이너 전제**: 현재 `ui/panel/Panel.tsx` 외곽 div는 `display:flex; flexDirection:column`만 있고 `position`이 없으므로, 워터마크 absolute가 패널 본문에 정확히 갇히도록 **Panel(또는 본문 영역) 컨테이너에 `position:relative`를 추가**한다(없으면 가장 가까운 positioned 조상/viewport 기준으로 어긋남). 워터마크는 그 안에서 `inset:0`(또는 중앙/구석) 절대배치, `FileListView`는 같은 컨테이너 내 더 높은 z-index. 파일 목록·아이콘·텍스트가 항상 워터마크 **위**에 그려져 본문 가독성·WCAG 대비에 영향 0(F17·features §N1 수용기준). 빈 폴더 안내 텍스트와는 배치를 분리(워터마크는 패널 한쪽/중앙 큰 글자, 빈 폴더 안내는 목록 영역 — 비중첩).
+- **테마별 반투명도**: 4테마(라이트/다크/시스템/블루라이트) 각각 워터마크 불투명도 토큰을 `ui/theme`에 추가(예: `--c-watermark-opacity`). 시스템은 resolved(light/dark) 따름. 토큰값은 본문 위 비중첩이라 WCAG 대비 게이트 대상 아님(배경 장식)이나, 너무 진하지 않게(저대비) 설정.
+- **긴 이름**: 패널 폭 초과 시 `text-overflow:ellipsis` 또는 `font-size` 축소(가로 넘침 없음·F17).
+- **패널 격리**: 2/4분할 시 패널마다 자기 경로로 독립 판정·렌더(Panel 컴포넌트 단위 — 기존 패널 독립성 SW §2.2 그대로).
+- **토글**: 1차 기본값 = **항상 표시**(별도 설정 토글 없음 — 작은 UX·과설계 회피). 후속 설정 토글은 `uiSlice` 1필드로 확장 가능하게만 열어둠(미해결 질문).
+
+### 5-N.2 N2 — 즐겨찾기 드래그 정렬 (US-13.2·F18)
+
+**순서 데이터 형태 결정: 기존 `SidebarSnapshot.favorites: string[]` 배열 순서를 단일 출처로 재사용**(별도 순서 배열·인덱스 필드 추가 안 함).
+
+- **근거**: `favorites`는 이미 배열이고 Sidebar가 그 순서대로 렌더하며(`favorites.map`), `session.ts`가 `[...s.favorites]`로 순서 보존 직렬화, `coerceSidebar`가 `asStrArray`로 순서 보존 복원한다(코드 확인). **배열을 재배열하면 표시·영속·복원이 전부 자동 충족** — 별도 필드는 중복·정합 리스크만 추가(과설계). `favoriteLabels`(맵)는 경로 키 기반이라 순서와 무관(영향 0).
+- **재배열 액션(상태)**: `sidebarSlice.reorderFavorite(from: number, to: number)` 신규 — `favorites` 배열에서 항목을 빼 대상 인덱스에 삽입(Immer 적용 슬라이스). 영속은 기존 디바운스 `session:save`가 자동 처리(스키마 버전 미상향 — 구조 불변).
+- **드래그 구현 방식 결정: 사이드바 전용 경량 구현**(기존 파일 D&D `useDrag`/`dragState` **미재사용**). 근거: 파일 D&D는 "파일 경로 묶음 → 드롭 폴더 → 복사/이동 의도(`resolveDragIntent`)·`performDrop`" 전용 모델로, 사이드바 "항목 인덱스 재정렬"과 의미가 전혀 다르다(드롭 대상=폴더 아님·전송 아님). 억지 재사용은 누수. 대신 `ui/sidebar/useFavoriteReorder.ts`(포인터 기반 경량 훅) 또는 HTML5 draggable로 즐겨찾기 행에만 적용.
+- **시각 피드백**: 드래그 중 삽입 위치 인디케이터(행 사이 선)·드래그 항목 강조(반투명/그림자). 기존 `dragState` 패턴(외부 pub/sub + `useSyncExternalStore`)을 사이드바 전용 경량 스토어로 모방(파일 dragState와 별개 인스턴스).
+- **섹션 격리**: 즐겨찾기 섹션 내에서만 재정렬. 타 섹션(트리/드라이브/휴지통/최근/원격)으로의 드롭은 무효·원위치 복귀(드롭 핸들러가 즐겨찾기 컨테이너 경계 안에서만 인덱스 계산). 즐겨찾기 0~1개면 무동작·드래그 취소(Esc)는 순서 미변경.
+- **0~1개 경계(섹션 조건부 렌더 정합)**: 실제 `Sidebar.tsx`는 `favorites.length>0`일 때만 즐겨찾기 섹션을 렌더하므로 **0개=섹션 미렌더(드래그 대상 자체 없음 — 자연 충족)**, **1개=섹션은 보이나 유효 드롭 위치가 자기 자리뿐 → 드래그 시작은 허용하되 원위치 복귀**. 키보드 이동도 동일(유일 항목은 위/아래 이동 무효).
+- **키보드 대체수단(접근성)**: 즐겨찾기 항목 포커스(`tabindex`로 행 포커스 가능) 후 **`Alt+Shift+↑` / `Alt+Shift+↓`** 로 위/아래 한 칸 이동(= `reorderFavorite` 호출). **충돌 0 근거(코드 정합)**: 이 조합은 전역 `KeyBindingRegistry`(`domain/keybindings`)에 **미배정**이다(기존 Ctrl/Alt 조합 전수 확인 — `Alt+←/→/↑`·`Alt+↓` 등과 겹치지 않음). 따라서 `KeyboardDispatcher`의 `window` capture 단계가 이 조합을 어떤 commandId로도 매핑하지 못해 가로채지 않고, 버블 단계의 Sidebar 로컬 `onKeyDown` 핸들러가 정상 동작한다. **즉 "컨텍스트 분리"가 아니라 키 조합 자체가 미사용이라 충돌 0** — `KeyContext` 확장이나 `setInputContext` 전환이 불필요(`KeyContext`에 `'sidebar'`가 없어도 안전). ARIA: 즐겨찾기 리스트 `role="listbox"` 유사·항목 `aria-roledescription="정렬 가능한 즐겨찾기"`·`aria-posinset/aria-setsize`로 현재 위치/총 개수 안내·드래그 중 `aria-grabbed` 상태 표시. 키 처리는 Sidebar 컴포넌트 로컬(전역 레지스트리 등록 불요 — 미배정 조합이라 capture 가로채임 없음).
+  > **PRD §8 갱신 필요 메모**: PRD §8 단축키 표에 즐겨찾기 키보드 재정렬 항목이 있으면 `Alt+Shift+↑/↓`로 일관 정정 필요(기획 문서이므로 doc-sync/기획 영역에서 처리 — 본 설계 문서가 직접 수정하지 않음).
+- **불변식**: 순서만 변경. J7 별칭·경로·즐겨찾기 추가/제거 동작 불변(별칭 항목은 위치만 이동·별칭 유지).
+
+### 5-N.3 데이터 흐름
+
+#### F17 — N1 즐겨찾기 워터마크
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant P as Panel(렌더러)
+    participant ST as panelsSlice/sidebarSlice
+    participant D as domain/rules/favoriteWatermark
+    U->>P: 패널 폴더 진입/이동(navigate)
+    P->>ST: 현재 경로·favorites·favoriteLabels 구독(셀렉터)
+    P->>D: resolveWatermark(path, favorites, favoriteLabels)
+    D-->>P: { match, text } (정확 일치 시 별칭/basename, 아니면 미표시)
+    P->>P: 배경 레이어 렌더(목록 뒤 z-index·pointer-events:none·aria-hidden)
+    Note over P,D: 표시 전용 — FS/IPC 0·즐겨찾기 데이터 불변
+```
+
+#### F18 — N2 즐겨찾기 드래그 정렬
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant SB as Sidebar(즐겨찾기 행)
+    participant RS as useFavoriteReorder(경량 드래그 상태)
+    participant SL as sidebarSlice.reorderFavorite
+    participant SES as session:save(디바운스)
+    U->>SB: 즐겨찾기 항목 드래그(또는 포커스+Alt+Shift+↑/↓)
+    SB->>RS: 드래그 시작·삽입 위치 추적(섹션 경계 안)
+    RS->>SB: 삽입 인디케이터·항목 강조
+    U->>SB: 드롭(또는 키 입력)
+    SB->>SL: reorderFavorite(from, to)
+    SL->>SL: favorites 배열 재배열(Immer)
+    SL-->>SES: 상태 변경 → 기존 디바운스 자동 저장(순서 영속)
+    Note over SB,SES: 타 섹션 드롭=무효(원위치)·신규 채널 0
+```
+
+### 5-N.4 신규 ADR 불필요 판단
+
+§N은 **신규 ADR을 만들지 않는다**. 근거: ① 보안 경계·프로세스 모델·네트워크·외부 의존성 변화 없음(ADR-005/007 불변), ② 신규 IPC 채널·신규 npm 의존성 0, ③ 기존 결정(C4 즐겨찾기·J7 별칭·ADR-002 Zustand·SA §5 세션 영속)을 **승계**하는 작은 UX 확장이라 새 트레이드오프 결정이 없음. 순서 데이터 형태(배열 재사용 vs 별도 필드)·드래그 방식(경량 vs `useDrag` 재사용)은 본 문서 §5-N.2·SW §12에 근거와 함께 기록했고 ADR 급(되돌리기 비용 큰 구조 결정)이 아니다.
+
+---
+
 ## 6. 배포 / 인프라 구성
 
 - **타겟**: Windows 10/11 x64. NSIS 인스톨러 + 자동 업데이트 채널(향후). 코드 서명 권장.
@@ -448,3 +529,8 @@ sequenceDiagram
 3. **썸네일 디코딩 위치(S)**: Main Worker vs Renderer OffscreenCanvas — 미리보기/그리드(Should) 착수 시 결정.
 
 **§M(외부 연계) 미해결 질문** — 결정 회피 4건(safeStorage UI 노출·전송 resume/체크섬 범위·원격↔원격 직접 전송·원격 전용 UtilityProcess)은 [ADR-007 "미해결 질문(설계 deferral)"](./adr/ADR-007-remote-protocol-and-network-boundary.md#미해결-질문-설계-deferral) 절을 단일 출처로 둔다(번호·1차 결정·후속 트리거·비차단 여부 정리). 전부 1차 범위 밖·구현 착수 비차단.
+
+**§N(즐겨찾기 UX) 미해결 질문** — 전부 시각/배치 디테일이라 구현 착수 비차단(1차 합리적 기본값 본 문서 §5-N에 명시):
+4. **N1 워터마크 배치·반투명도 토큰**: 중앙 vs 한쪽 구석, 폰트 크기, 4테마별 불투명도 값. 1차 기본값=항상 표시·저대비 장식(WCAG 게이트 비대상). flows §5 시각 질문과 동일 — UI 디자인 단계 확정.
+5. **N1 토글 제공 여부**: 1차 기본값 = 항상 표시(설정 토글 없음). 후속 `uiSlice` 1필드 확장으로 열어둠.
+6. **N2 키 바인딩**: **확정 — `Alt+Shift+↑/↓`**(전역 `KeyBindingRegistry` 미배정 조합·`KeyboardDispatcher` capture 가로채임 0·`KeyContext` 확장 불요). 과거 1차안 `Alt+↑/↓`는 `domain/keybindings`에 `alt+arrowup→nav.up`(context `'list'`)이 전역 등록돼 있어 사이드바 포커스 중에도 capture 단계 전역 디스패처가 `nav.up`을 가로채는 문제가 있어 폐기(검증 보고 review-N [높음-1]·옵션① 채택). **PRD §8 단축키 메모는 `Alt+Shift+↑/↓`로 갱신 필요(기획 영역·doc-sync 처리).**

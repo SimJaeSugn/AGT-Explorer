@@ -364,6 +364,59 @@ graph LR
 
 ---
 
+## 12. §N 즐겨찾기 UX — 워터마크 판정 규칙 · 즐겨찾기 정렬 모듈 경계 (2026-06-08 추가)
+
+> 비파괴 추가. 채널·데이터 흐름은 [system-architecture §5-N](./system-architecture.md). 상태: **🔜 미착수(설계 단계)**. **신규 IPC 채널 0 · 신규 의존성 0 · 신규 ADR 0**. 모두 **Renderer 내부**(도메인 순수 규칙·`sidebarSlice`·UI)에서 완결되며 계층 규칙(§3.1 의존 방향) 불변.
+
+### 12.1 N1 — 워터마크 판정·텍스트 소스 (도메인 순수 규칙)
+
+**결정: 일치 판정과 표시 텍스트 결정을 `domain/rules/favoriteWatermark.ts` 순수 함수로 격리.** UI(Panel)는 그 결과를 배경 레이어로 그릴 뿐.
+
+```text
+// domain/rules/favoriteWatermark.ts (설계 시그니처 — 순수·부수효과 없음)
+resolveFavoriteWatermark(
+  panelPath: string,
+  favorites: readonly string[],
+  favoriteLabels: Readonly<Record<string, string>>
+): { match: true; text: string } | { match: false }
+  # panelPath·favorites 항목을 normalizeDisplay(domain/paths)로 정규화해 정확 일치(===)만 매치.
+  # "내 PC"('')·원격 경로(locationKindOf!=='local')는 비매치. 부분/하위경로 비매치(1차).
+  # 다중 일치 시: favorites 배열의 첫 일치 인덱스 1개만 반환·나머지 무시(겹쳐 깔지 않음·결정론).
+  # 매치 시 text = favoriteLabels[firstMatch] ?? baseName(firstMatch) (J7과 동일 폴백·빈 별칭은 basename).
+```
+
+- **격리 이유**: 판정·텍스트 규칙을 도메인에 두면 ① React/IPC 무관 단위 테스트 용이, ② Sidebar `FavoriteRow.display`(별칭/basename 폴백)와 **동일 규칙 1곳 공유**(드리프트 방지), ③ 향후 부분 일치·토글 정책 변경 시 한 곳만 수정. 도메인은 기존 `domain/paths`(normalizeDisplay·baseName·isMyPc)·`domain/rules/remoteLocation`(locationKindOf)만 의존(순수 유지).
+- **UI 배치**: `ui/panel/`에 배경 워터마크 레이어 추가(`Panel.tsx`가 `FileListView` 뒤에 `position:absolute` 형제 레이어를 두거나 별도 `FavoriteWatermark.tsx`). **마운트 전제**: `Panel.tsx` 외곽 div는 현재 `display:flex; flexDirection:column`만 있고 `position`이 없으므로, absolute 워터마크 기준을 잡기 위해 **Panel(또는 본문 영역) 컨테이너에 `position:relative` 추가** 필요(워터마크 `inset:0`, `FileListView` 더 높은 z-index). `pointer-events:none`·`aria-hidden`로 상호작용·접근성 영향 0.
+- **셀렉터 구독 격리**: 워터마크는 자기 패널 `path` + `favorites`/`favoriteLabels`만 최소 구독(SW §5.2 리렌더 격리). `favorites` 변경이 전 패널 워터마크를 리렌더할 수 있으나 `sidebarSlice` 갱신은 저빈도(SW §5.2)라 실질 비용 무시 가능 — 텍스트 계산은 `resolveFavoriteWatermark` 결과를 파생 메모이즈.
+- **상태 추가 없음**: N1은 파생 표시이므로 신규 슬라이스 필드 불요(기존 `panels[id].path`·`favorites`·`favoriteLabels`로 계산). 토글 후속 시에만 `uiSlice` 1필드.
+
+### 12.2 N2 — 즐겨찾기 순서 데이터 · 재배열 액션 · 드래그 모듈
+
+**결정: 순서는 기존 `favorites: string[]` 배열 순서 재사용**(별도 order 배열·인덱스 필드 0). 재배열은 `sidebarSlice` 액션, 드래그는 사이드바 전용 경량 모듈.
+
+| 계층 | 모듈 | 책임 |
+|---|---|---|
+| 애플리케이션 | `app/stores/sidebarSlice.ts`(확장) | `reorderFavorite(from, to)` — `favorites` 배열 재배열(Immer 슬라이스). 기존 add/remove/label 액션 불변 |
+| 애플리케이션 | `app/usecases/session.ts`(불변) | 변경 없음 — `[...s.favorites]` 직렬화가 순서를 그대로 영속(기존 코드). `coerceSidebar`(main defaults)도 순서 보존(불변) |
+| UI | `ui/sidebar/useFavoriteReorder.ts`(신규) | 사이드바 즐겨찾기 전용 경량 드래그 훅 + 외부 pub/sub 상태(파일 `dragState`와 별개). 삽입 위치 계산·섹션 경계 가드 |
+| UI | `ui/sidebar/Sidebar.tsx`(확장) | 즐겨찾기 리스트에 드래그 핸들/드롭 인디케이터·`Alt+Shift+↑/↓` 키 핸들러(로컬 `onKeyDown`)·항목 `tabindex` 포커스·정렬 ARIA(`posinset/setsize`·`aria-grabbed`). 타 섹션(트리/최근/원격/휴지통) 무영향 |
+
+- **드래그 방식 결정 근거(경량 전용 vs `useDrag` 재사용)**: 기존 `ui/dnd/useDrag.ts`+`dragState.ts`는 **파일 경로 묶음 → 드롭 폴더 → `resolveDragIntent`(복사/이동)·`performDrop`(op:start)** 전용 모델이다(SW §8). 사이드바 즐겨찾기 재정렬은 "동일 리스트 내 인덱스 이동"으로 드롭 대상이 폴더도, 전송도 아니다 — 의미가 달라 재사용 시 분기·누수가 커진다. 따라서 **사이드바 전용 경량 구현**을 택한다(파일 D&D 패턴은 *형태만* 모방: 외부 pub/sub + `useSyncExternalStore`).
+- **순서 데이터 결정 근거(배열 재사용 vs 별도 필드)**: `favorites`가 이미 배열이고 렌더·직렬화·복원이 전부 순서 보존이므로 **배열 재배열로 표시·영속·복원 자동 충족**. 별도 order 필드는 `favorites`/`favoriteLabels`와의 정합 부담만 추가(과설계). 스키마 버전 미상향(구조 불변·하위호환).
+- **키보드 대체수단·충돌 0 근거(코드 정합)**: 키는 **`Alt+Shift+↑/↓`**(전역 `KeyBindingRegistry` 미배정 조합). `KeyboardDispatcher`가 `window` capture에서 이 조합을 어떤 commandId로도 매핑하지 못해 가로채지 않으므로, 버블 단계 Sidebar 로컬 `onKeyDown`이 정상 동작한다. **컨텍스트 분리가 아니라 키 조합 자체가 미사용이라 충돌 0** — `KeyContext`에 `'sidebar'` 추가·`setInputContext` 전환 불요. (1차안 `Alt+↑/↓`는 `domain/keybindings`의 `alt+arrowup→nav.up`(context `'list'`)이 capture에서 가로채 폐기 — review-N [높음-1].)
+- **섹션 격리**: 드롭/키 이동 모두 즐겨찾기 컨테이너 인덱스 범위 안에서만 계산. 타 섹션으로 끌면 무효(원위치). **0~1개 경계**: `Sidebar.tsx`는 `favorites.length>0`일 때만 섹션 렌더 → 0개=섹션 미렌더(자연 무동작), 1개=드래그 시작 허용하되 유효 드롭 위치 없음→원위치(키 이동도 무효).
+
+### 12.3 변화 격리(§9·§11.3 표 확장)
+
+| 바뀔 가능성 큰 부분 | 격리 경계 |
+|---|---|
+| 워터마크 일치 정책(정확→부분/하위 일치 C) | `domain/rules/favoriteWatermark.ts` 한 함수 |
+| 워터마크 표시 토글(설정 C) | `uiSlice` 1필드 + `Panel` 조건 렌더 |
+| 즐겨찾기 정렬 UX(드래그 핸들·인디케이터 변경) | `ui/sidebar/useFavoriteReorder.ts` + `Sidebar` |
+| 즐겨찾기 순서 의미 확장(그룹/폴더 C) | `sidebarSlice` + `SidebarSnapshot`(그때 스키마 +1) |
+
+---
+
 ## 10. 미해결 질문
 
 1. **Renderer 필터 Web Worker 오프로드 도입 시점**: MVP 메모이즈+가시영역 우선 필터(§6.3 폴백 1·2)로 200ms 충족되는지 **M1 성능 스파이크("1만 개 목록 입력 후 200ms 내 가시 결과" 측정)** 후 결정. 미달 시에만 §6.3 폴백 3(Web Worker) 도입.

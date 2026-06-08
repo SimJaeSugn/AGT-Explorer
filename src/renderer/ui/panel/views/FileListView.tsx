@@ -497,7 +497,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: tokens.color.bg,
+          // N1: 배경 투명(워터마크 노출·F17 비중첩). 패널 배경색은 Panel 외곽이 제공.
+          background: 'transparent',
           color: tokens.color.textMuted,
           fontSize: 13,
           boxShadow: panelDropHighlight ? `inset 0 0 0 2px ${tokens.color.accent}` : undefined
@@ -574,7 +575,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         overflowX: 'hidden',
         // outline 은 전역 a11y CSS(:focus-visible)가 키보드 포커스에만 표시.
         // 인라인 outline:'none' 을 두면 CSS 를 이겨 키보드 포커스가 안 보이므로 제거.
-        background: tokens.color.bg,
+        // N1: 배경 투명(워터마크 노출). 패널 배경색은 Panel 외곽이 동일 tokens.color.bg 로 제공.
+        background: 'transparent',
         boxShadow: panelDropHighlight ? `inset 0 0 0 2px ${tokens.color.accent}` : undefined
       }}
     >

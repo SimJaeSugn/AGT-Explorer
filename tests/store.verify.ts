@@ -485,5 +485,57 @@ if (sid) {
   s().closeTrash()
 }
 
+// ── N2: reorderFavorite(즐겨찾기 배열 재배열·범위가드·순서영속 단일출처) ───────
+{
+  // 초기화: 알려진 즐겨찾기 4개 주입(순서 = 배열 자체).
+  s().hydrateSidebar({
+    favorites: ['C:\\a', 'C:\\b', 'C:\\c', 'C:\\d'],
+    favoriteLabels: { 'C:\\b': '비별칭' },
+    recent: [],
+    width: 240,
+    collapsed: false
+  })
+  ok('N2 즐겨찾기 4개 초기', s().favorites.join(',') === 'C:\\a,C:\\b,C:\\c,C:\\d')
+
+  // 앞→뒤 이동(0 → 2): a 를 c 자리로. [b,c,a,d].
+  s().reorderFavorite(0, 2)
+  ok('N2 reorder 0→2', s().favorites.join(',') === 'C:\\b,C:\\c,C:\\a,C:\\d')
+
+  // 뒤→앞 이동(3 → 0): d 를 맨 앞으로. [d,b,c,a].
+  s().reorderFavorite(3, 0)
+  ok('N2 reorder 3→0', s().favorites.join(',') === 'C:\\d,C:\\b,C:\\c,C:\\a')
+
+  // 별칭은 경로 키라 순서와 무관하게 보존(불변식).
+  ok('N2 별칭 보존(순서 무관)', s().favoriteLabels['C:\\b'] === '비별칭')
+
+  // 동일 인덱스·범위밖은 무동작(즐겨찾기 외 데이터 불변).
+  const before = s().favorites.join(',')
+  s().reorderFavorite(1, 1)
+  s().reorderFavorite(-1, 2)
+  s().reorderFavorite(2, 99)
+  ok('N2 무동작 케이스(동일/범위밖)', s().favorites.join(',') === before)
+
+  // 인접 스왑(1 → 2): [d,c,b,a].
+  s().reorderFavorite(1, 2)
+  ok('N2 인접 스왑 1→2', s().favorites.join(',') === 'C:\\d,C:\\c,C:\\b,C:\\a')
+
+  // 1개 경계: 단일 항목은 어떤 이동도 무동작.
+  s().hydrateSidebar({ favorites: ['C:\\only'], recent: [], width: 240, collapsed: false })
+  s().reorderFavorite(0, 0)
+  ok('N2 1개 경계 무동작', s().favorites.length === 1 && s().favorites[0] === 'C:\\only')
+}
+
+// ── N2: 순서 영속 단일출처(buildSessionSnapshot 가 favorites 순서 그대로 직렬화) ──
+{
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  s().hydrateSidebar({ favorites: ['C:\\x', 'C:\\y', 'C:\\z'], recent: [], width: 240, collapsed: false })
+  s().reorderFavorite(2, 0) // [z,x,y]
+  const snap = buildSessionSnapshot()
+  ok(
+    'N2 스냅샷 순서 보존(영속 단일출처)',
+    snap.sidebar.favorites.join(',') === 'C:\\z,C:\\x,C:\\y'
+  )
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

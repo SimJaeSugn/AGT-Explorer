@@ -8,7 +8,7 @@
 >
 > **[2026-06-07 구현 상태]** **M(Must) 표기 기능은 전부 구현 완료(MVP).** Should는 P6에서 5종 구현 완료 ✅ — 4분할(D2: `grid-4` 2x2), 미리보기 패널(D3: `preview:read`·`Ctrl+P`), 명시적 워크스페이스 저장/복원(E·`workspace:*`·WorkspaceDialog), 텔레메트리 옵트인(기본 꺼짐·외부 전송 전무·네트워크 정적 가드), **연결 프로그램으로 열기(B6 `shell:open-with` — `os/shell.ts#openWith`·OpenAs_RunDLL·컨텍스트 메뉴 항목)**.
 > 또한 **컨텍스트 메뉴(우클릭) 인프라가 구현 완료** ✅(`ui/contextmenu/`·열기·연결프로그램·복사/잘라내기/이름바꾸기·삭제(휴지통)/영구삭제·속성→`shell:show-properties`·빈영역 붙여넣기/새폴더/새로고침) — 직전까지 P4 산출물로만 표기됐던 컨텍스트 메뉴가 실제로 누락돼 있던 드리프트가 해소됨(상세 [roadmap.md §0.5](./roadmap.md)).
-> **되돌리기(B7·K1 `Ctrl+Z` 다단계 undo)·휴지통 관리 화면(B5·K2)은 §K로, 그리드 보기 이미지 썸네일 자체 생성(B1·feat-L1 §L)은 §L로 구현 완료 ✅**(아래 §K·§L). **§K·§L 완료 시점(2026-06-07) 기준으로 사용자 기능 Should/C/W 잔여(🔜)는 0이었다** — 보기 5종 J3 ✅ + 이미지 내용 썸네일 L1 ✅. **2026-06-08 §M(외부 연계) 신규 3기능(M1·M2 Should·M3 Could, US-12.1~12.5)이 기획 편입(🔜)됐다가 같은 날 MP0~MP5로 구현 완료·통합 QA PASS(✅)됨 → 현재 사용자 기능 잔여(🔜) = 0.** 그 외 남은 것은 P7 릴리스 실측·코드서명 등 릴리스 안정화 잔여(🟡)와 §M 실 동작 런타임 스모크(🟡)뿐이다. 상세 현황은 [roadmap.md §0.5·§3-M](./roadmap.md).
+> **되돌리기(B7·K1 `Ctrl+Z` 다단계 undo)·휴지통 관리 화면(B5·K2)은 §K로, 그리드 보기 이미지 썸네일 자체 생성(B1·feat-L1 §L)은 §L로 구현 완료 ✅**(아래 §K·§L). **§K·§L 완료 시점(2026-06-07) 기준으로 사용자 기능 Should/C/W 잔여(🔜)는 0이었다** — 보기 5종 J3 ✅ + 이미지 내용 썸네일 L1 ✅. **2026-06-08 §M(외부 연계) 신규 3기능(M1·M2 Should·M3 Could, US-12.1~12.5)이 기획 편입(🔜)됐다가 같은 날 MP0~MP5로 구현 완료·통합 QA PASS(✅)됨 → **§M 완료 시점(2026-06-08) 기준 사용자 기능 잔여(🔜)는 0이었다.** 같은 날 §N(즐겨찾기 UX 향상) 신규 2건(N1·N2 Should, US-13.1~13.2)도 기획 편입(🔜)됐다가 **같은 날 구현 완료·통합 QA PASS(✅)됨 → §N 완료 시점(2026-06-08) 기준 사용자 기능 잔여(🔜)는 0이다.** 그 외 남은 것은 P7 릴리스 실측·코드서명 등 릴리스 안정화 잔여(🟡)와 §M·§N 실 동작 런타임 스모크(🟡)이다. 상세 현황은 [roadmap.md §0.5·§3-M](./roadmap.md).
 > **G장(패키징/릴리스/개발 도구)** 은 로드맵 외로 진행됐던 추가물(앱 아이콘·원클릭 빌드·가상 스크롤 결함 수정)을 **사후 정식 편입**한 영역으로, 모두 ✅ 구현 완료.
 > **[2026-06-07 P7 릴리스 안정화 — 헤드리스분 ✅ / 런타임 잔여 🟡]** 접근성(포커스 트랩·모달 6종 ARIA/Esc·행 ARIA·`:focus-visible`·Shift+F10)·WCAG AA 대비(4팔레트 전수)·성능 측정 불변식(`verify:perf`)·F장 QA 매트릭스(`verify:fmatrix`)·npm audit 점검(릴리스 차단 아님)·sourcemap 분리·코드서명 설정(준비완료)은 헤드리스로 **✅ 충족**. **성능 실측 숫자·실제 코드서명(.pfx 인증서)·NSIS 설치/실행/제거 실측·F장 실케이스(실 네트워크/symlink/ACL)·실 스크린리더는 런타임 잔여 🟡 — P7 전체는 아직 🟡.** 상세 [roadmap.md §0.5·§3 P7](./roadmap.md).
 > **H장(UX/레이아웃 확장, Should)** 신규 6기능 모두 ✅ 구현 완료 — 상단 전역 아이콘바(H1: `ui/toolbar/IconBar.tsx`·`iconBarItems.ts`, 4그룹 20버튼·activeWhen·`aria-pressed`·툴팁 단축키), 사이드바 온오프 토글(H2: `Ctrl+B`→`sidebar.toggle`→`toggleSidebar`), 분할 패널 크기조절(H3: `ui/layout/SplitDivider.tsx`·`splitMath.ts`·`tabsSlice.setSplitRatio`·`splitRatios` 세션 영속), **우클릭 "터미널 열기"(H4: 신규 채널 `shell:open-terminal`·`os/shell.ts#openTerminal` wt.exe→PowerShell 폴백·`contextMenu.ts`·ADR-005), 디렉토리 경로 직접 입력(H5: `PanelToolbar.tsx` 단일클릭 편집·`validateAndNavigate` 재사용), 파일 유형별 OS 아이콘(H6: 예약 채널 `shell:icon` 정식 구현·`os/icon.ts`·`iconCache.ts`·`OSIcon`·확장자 캐시 LRU512·iconRef 지연)**. US-7.2/7.3 마우스 드래그·H4 네이티브 `wt.exe`·H6 `app.getFileIcon`의 실제 네이티브 실행은 런타임 의존이라 런타임 스모크 권장(코드 정합 충족). 상세 [roadmap.md §0.5](./roadmap.md).
@@ -18,6 +18,7 @@
 > **[2026-06-07 편입·구현 완료 ✅ — K장(되돌리기·휴지통 관리·유형별 비중, Should) 신규 3기능]** roadmap §0.5 "P6 미구현 잔여 🔜"로 남아 있던 **Should 잔여 3건**을 정식 편입·구현·QA PASS(team-dev). feat-K1 되돌리기(✅ `Ctrl+Z` 다단계 undo 스택 — `undoSlice.ts`(cap 50·판별유니온)·`undo.ts`(역연산 rename↔rename·create→휴지통·move→역move·copy→사본휴지통·trash→`trashApi.restore`·**영구삭제 미push**·충돌 선검증)·`commandBus`의 `notYet`→`performUndo`; 기존 P6 잔여 "되돌리기"의 정식 구현)·feat-K2 휴지통 관리 화면(✅ 복원/비우기 — **신규 채널 `trash:*` 3종**·`os/recycleBin.ts`(PowerShell Shell COM·`$Recycle.Bin` 화이트리스트·Move-Item 폴백)·`trash.handlers.ts`(sender·zod·화이트리스트·`confirmed` 게이트)·`ui/trash/TrashDialog.tsx`; 기존 P6 잔여 "휴지통 관리 화면"의 정식 구현)·feat-K3 파일 유형별 비중 인사이트(✅ `categorize.ts`·`scanEngine.ts` byCategory 1패스·`ScanResult.byCategory`·`CategoryBar.tsx`; **I1의 "(가능하면) 유형별 비중" 선택항을 정식 구현**). US-10.1~10.3. **모두 ✅ 구현 완료**(typecheck/lint 0·`verify:recyclebin` 37·`verify:store` 99·`verify:scan` 39·QA PASS). **정직 한계: copy-undo는 보수적(사본 경로 충돌 시 미생성·중단)·영구삭제 되돌릴 수 없음(토스트)·휴지통 COM 및 undo 역연산 실제 네이티브 동작은 런타임 스모크 권장.** 상세 §K·[roadmap.md §0.5](./roadmap.md).
 > **[2026-06-08 편입·구현 완료·QA PASS ✅ — M장(외부 연계, US-12.1~12.5) 신규 3기능]** 2026-06-08 사용자 요청으로 기획 편입(🔜)됐다가 같은 날 ADR-007 설계·MP0~MP5 구현·통합 QA PASS → 상태 🔜→✅ 동기화. **M1 외부 D&D 복사(Should ✅ — 신규 채널 `dnd:start-drag`·`os/dragdrop.ts`·`usecases/externalDrag.ts`·`transferRoute.ts`·`verify:dnd` 29)·M2 클립보드 CF_HDROP 외부 연계(Should ✅ — 신규 채널 `clipboard:write/read/has-files`·`os/shellClipboard.ts`·`usecases/clipboardExternal.ts`·`verify:clipboard-hdrop` 33)·M3 FTP/SFTP 원격(Could ✅ — 신규 채널 `remote:*`·`remote/{RemoteService,SftpAdapter,FtpAdapter,RemoteSessionManager,remoteTransfer}.ts`·`os/credentials.ts`(safeStorage/DPAPI)·`RemoteProfileStore.ts`·`ui/remote/*`·신규 의존성 `ssh2-sftp-client`/`basic-ftp`[M3만·`src/main/remote/` 한정]·`verify:credentials` 17·`verify:remote` 23·`verify:remote-trust` 35·`verify:remote-route` 47·`verify:eslint-remote` 29).** 보안 필수 수용기준 충족: 자격증명 평문 0·호스트키 TOFU·traversal/Zip Slip 차단·.part 원자 rename·평문 FTP 경고·네트워크 import remote/ 한정. **정직 한계(은폐 금지·✅ 위장 아님): verify는 헤드리스 불변식만 증명. 실 외부 앱 드롭·드래그 고스트(M1)·탐색기 양방향 복사/이동(Move) 실 왕복(M2)·실 SFTP/FTP/FTPS 핸드셰이크·호스트키 모달·실 DPAPI 암복호·실 전송 진행률/취소/충돌·.part rename·실 타임아웃/끊김 세션격리·평문 FTP 경고(M3)는 런타임 스모크 권장 🟡.** 상세 §M·[roadmap.md §0.5·§3-M](./roadmap.md).
 > 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수.
+> **[2026-06-08 편입·구현 완료·QA PASS ✅] N장(즐겨찾기 UX 향상, 신규 2기능)** 사용자 요청으로 정식 편입(🔜) → 같은 날 설계·구현·통합 QA PASS(상태 🔜→✅ 동기화). **N1 즐겨찾기 경로 워터마크(Should ✅ — `domain/rules/favoriteWatermark.ts`·`FavoriteWatermark.tsx`·`Panel.tsx`·`ui/theme/palette.ts`/`tokens.ts` 4테마 토큰·`verify:domain` 49·`verify:contrast` 실패 0)·N2 즐겨찾기 드래그 정렬(Should ✅ — `useFavoriteReorder.ts`·`sidebarSlice.reorderFavorite`·`Sidebar.tsx`·키보드 대체수단 `Alt+Shift+↑/↓`·`verify:store` 107·`verify:persistence` 94)**, US-13.1·US-13.2. **N1·N2는 기존 즐겨찾기/북마크(C4, Must)·즐겨찾기 별칭(J7·US-9.7, Should)의 비파괴 확장** — N1은 J7 별칭(`SidebarSnapshot.favoriteLabels`)을 워터마크 텍스트 소스로 재사용(없으면 경로 basename), N2는 `SidebarSnapshot.favorites` 배열 순서를 추가 영속한다. **렌더러 전용·신규 IPC 채널 0·신규 npm 의존성 0·신규 ADR 0.** 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-08 §N)"](./PRD.md#6-범위와-우선순위-moscow). 신규 전역 단축키 불요(N1=자동 표시·N2=마우스 드래그 + 키보드 대체수단 `Alt+Shift+↑/↓`·전역 미배정·충돌 0). **정직 한계(은폐 금지·✅ 위장 아님): verify는 헤드리스 순수 로직·불변식만 증명. 실 GUI 동작(워터마크 렌더·드래그/키보드 정렬·테마별 반투명도·재시작 순서 유지·한국어 IME `Alt+Shift` 점유 가능성)은 런타임 스모크 권장 🟡.** 상세 §N·user-stories 에픽13·flows F17~F18.
 > **[2026-06-08 편입·구현 완료·QA PASS ✅] M장(외부 연계, 신규 3기능)** 사용자 요청으로 정식 편입 → 같은 날 MP0~MP5 구현·통합 QA PASS(상태 🔜→✅). **M1 외부 프로그램으로 D&D 복사(Should)·M2 클립보드 외부 연계(CF_HDROP 양방향, Should)·M3 FTP/SFTP 원격 접속(Could)**, US-12.1~12.5. M1·M2는 기존 A3(패널 간 D&D)·B4(복사/붙여넣기)의 **외부 확장**, M3는 **PRD §6 Won't "FTP/SSH 등 원격 프로토콜 브라우징"을 사용자 결정으로 정정·편입**(은폐 금지·PRD 결정 D6)하며 "로컬 전용·외부 네트워크 전송 없음(D5)" 보안 원칙을 **부분 개정**(D7 — 사용자가 명시 입력한 원격 호스트로만 연결 허용·그 외 임의 외부 송신 금지(텔레메트리 포함·D5 옵트인 원칙 유지)). **자격증명은 OS 자격증명 보관소(safeStorage/DPAPI)에만 저장·평문 저장 금지**. 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-08 신규 3건 — §M 외부 연계)"](./PRD.md#6-범위와-우선순위-moscow). **모두 ✅ 구현 완료(실 동작은 런타임 스모크 권장 🟡).** 상세 §M.
 
 ---
@@ -140,7 +141,7 @@
 
 ### C4. 즐겨찾기 / 북마크 (M)
 - 폴더를 즐겨찾기에 추가/제거(드래그 또는 메뉴). 사이드바 상단 고정.
-- 순서 변경, 이름 별칭 지정(S).
+- 순서 변경, 이름 별칭 지정(S). *(이름 별칭=J7(§J7)에서 정식 구현 완료 ✅. **순서 변경=N2(§N2)에서 드래그 정렬로 구현 완료 ✅**(드래그 + 키보드 `Alt+Shift+↑/↓`·실 동작 런타임 스모크 🟡). 현재 패널이 즐겨찾기 경로일 때의 배경 워터마크 시각 피드백은 **N1(§N1) 구현 완료 ✅**.)
 
 ### C5. 최근 위치 (M)
 - 최근 방문 폴더 N개 기록(개수 설정 가능). 사이드바/드롭다운에서 접근.
@@ -774,7 +775,7 @@
 > J3(보기 5종)의 **아이콘 그리드 보기**를 확장해, 이미지 파일을 OS 형식 아이콘 대신 **실제 이미지 내용의 축소 썸네일**로 보여 주는 영역이다.
 > J3에서 "이미지 썸네일 자체 생성은 본 J3 범위 밖(추후)"으로 명시 보류했던 **마지막 잔여**(roadmap §0.5 "P6 잔여 그리드/썸네일"·"잔여 🔜 그리드 썸네일 이미지 자체 생성")를 **feat-L1로 정식 편입**한다.
 > 2026-06-07 사용자 요청으로 정식 편입·**구현 완료 ✅**(team-dev·QA PASS). 우선순위 **S(Should)** — 핵심 가치(다중 디렉토리 작업)와 독립적인 **부가 UX** 개선이며, J3 아이콘 그리드(Should)의 시각 표현을 향상시킨다.
-> **이것은 §K·§L 완료 시점(2026-06-07)까지 개발 잔여의 사실상 마지막 사용자 기능 항목이었고, 구현 완료되어 당시 사용자 기능 잔여(🔜)가 0이 됐다**(P7 릴리스 실측·코드서명 등 릴리스 안정화 잔여는 별개로 🟡). **2026-06-08 §M(M1/M2/M3·US-12.x)이 신규 편입(🔜)됐다가 같은 날 구현 완료·QA PASS(✅)됨 → 현재 사용자 기능 잔여(🔜) = 0(실 동작은 런타임 스모크 권장 🟡).** 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(L1은 보기 동작이라 신규 단축키 불요).
+> **이것은 §K·§L 완료 시점(2026-06-07)까지 개발 잔여의 사실상 마지막 사용자 기능 항목이었고, 구현 완료되어 당시 사용자 기능 잔여(🔜)가 0이 됐다**(P7 릴리스 실측·코드서명 등 릴리스 안정화 잔여는 별개로 🟡). **2026-06-08 §M(M1/M2/M3·US-12.x)이 신규 편입(🔜)됐다가 같은 날 구현 완료·QA PASS(✅)됨.** 같은 날 §N(N1·N2 Should·US-13.x)도 기획 편입(🔜)됐다가 **같은 날 구현 완료·QA PASS(✅)됨 → §N 완료 시점(2026-06-08) 기준 사용자 기능 잔여(🔜)는 0이다**(§M·§N 실 동작은 런타임 스모크 권장 🟡). 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(L1은 보기 동작이라 신규 단축키 불요).
 > 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-07 상태] feat-L1 ✅ 구현 완료** — 신규 채널 `preview:thumbnail`·`os/thumbnail.ts`(nativeImage 비율보존 resize·30MB 상한·LRU 256·세마포어 4)·`thumbnailCache.ts`·`domain/image.ts`·`FileListView ThumbnailIcon`. 신규 의존성 0(Electron 내장 nativeImage). 검증 `verify:thumbnail` 33. **nativeImage 실 디코드·GUI 그리드 렌더는 런타임 스모크 권장(코드 정합 충족).**
 
 ### L1. 그리드 보기 이미지 썸네일 자체 생성 (S) ✅ 구현 완료
@@ -943,3 +944,76 @@
 - [x] 네트워크 연결은 **사용자가 명시적으로 입력/저장한 원격 호스트로만** 발생하며, 그 외 임의 외부 송신이 없다(D7·네트워크 import `src/main/remote/` ESLint 화이트리스트·`verify:eslint-remote`)
 - [x] 평문 FTP 사용 시 **비암호화 경고**가 표시되고, 비밀이 로그/세션/설정/오류 메시지에 평문 노출되지 않는다(`FtpAdapter` encrypted=false→경고 토스트·SAFE_MESSAGES만 전파) — 🟡 실 평문 FTP 경고 표시 스모크 권장
 - [x] 원격(M3) 항목은 외부 D&D(M1)·클립보드 외부 연계(M2)의 직접 대상이 아니다(원격↔로컬 전송은 M3 업/다운로드로 수행)
+
+---
+
+## N. 즐겨찾기 UX 향상 (경로 워터마크 · 드래그 정렬)
+
+> 기존 **즐겨찾기/북마크(C4, Must)** 와 **즐겨찾기 별칭(J7·US-9.7, Should)** 을 **비파괴로 확장**하는 영역이다. 새로운 파일시스템 동작을 추가하는 것이 아니라, 즐겨찾기의 **시각 피드백(N1)** 과 **순서 정렬(N2)** 을 더해 즐겨찾기 UX 완성도를 높인다.
+> 2026-06-08 사용자 요청으로 정식 편입. 우선순위는 둘 다 **S(Should)** — 핵심 가치(다중 디렉토리 작업)와 독립적이나 즐겨찾기 사용성을 높이는 개선이다(우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-08 §N)"](./PRD.md#6-범위와-우선순위-moscow)).
+> **기존 정합**: N1은 J7 별칭(`SidebarSnapshot.favoriteLabels`)을 표시 텍스트 소스로 **재사용**(없으면 경로 basename 폴백 — J7과 동일 규칙), N2는 `SidebarSnapshot`에 즐겨찾기 **순서**를 추가 영속한다(기존 즐겨찾기 추가/제거·J7 별칭 동작 불변). 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다.
+> 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-08 상태] N1·N2 모두 ✅ 구현 완료·통합 QA PASS**([qa-integration-N](./reviews/qa-integration-N.md): 블로커·높음 0·핵심 verify 302/0·contrast 실패 0·typecheck/lint/build 0·렌더러 전용·신규 채널 0). 경과(🔜→✅): 같은 날 기획 편입(🔜 미착수) → 설계(키 `Alt+Shift+↑/↓` 확정) → 구현 → QA PASS → doc-sync 🔜→✅. **실 GUI 동작은 런타임 스모크 권장 🟡**(아래 각 항목 "※ 실렌더 🟡" 표기).
+
+### N1. 즐겨찾기 경로 워터마크 (S) ✅ 구현 완료 (실 GUI 렌더 런타임 스모크 🟡)
+**목적**: 현재 패널이 보고 있는 폴더가 **즐겨찾기에 등록된 곳**일 때, 패널 파일 목록 뒤 배경에 그 즐겨찾기 이름을 크고 반투명하게 깔아 "여긴 즐겨찾기한 곳"임을 한눈에 인지시킨다. 폴더를 오가며 맥락(여기가 어디인지·즐겨찾기인지)을 빠르게 파악하게 돕는다. (US-13.1)
+
+> C4(즐겨찾기)·J7(별칭, US-9.7)의 **시각 향상 확장**이다. 표시 텍스트는 J7 별칭을 우선 재사용해 별칭 변경과 자동으로 일관된다(별칭 바꾸면 워터마크도 그 이름으로 표시).
+
+**표시 텍스트 소스 (J7 재사용)**
+| 우선순위 | 소스 | 규칙 |
+|---|---|---|
+| 1순위 | **J7 즐겨찾기 별칭(`favoriteLabels[path]`)** | 해당 즐겨찾기에 별칭이 지정돼 있으면 별칭을 표시(J7과 동일 데이터 — 별칭 변경 시 워터마크도 따라 변경) |
+| 2순위(폴백) | **경로 basename** | 별칭이 없으면(빈값 포함) 경로의 마지막 구간(폴더명)을 표시(J7 basename 폴백 규칙과 동일) |
+
+**일치 조건 (1차 — 정직 표기)**
+| 항목 | 동작 규칙 |
+|---|---|
+| 정확 일치만 | 현재 패널 경로가 **즐겨찾기 경로와 정확히 일치**할 때만 워터마크를 표시한다. **부분 일치·하위 경로(즐겨찾기의 자식 폴더)는 1차에서 표시하지 않는다**(과표시로 오인 방지·정직). 경로 비교는 OS 정규화(대소문자·후행 슬래시·구분자) 기준으로 한다 |
+| 다중 일치 | 같은 경로가 즐겨찾기에 둘 이상 등록되는 경우는 즐겨찾기 데이터 구조상 통상 없으나, 있으면 첫 항목(또는 별칭 있는 항목)을 1개만 표시(겹쳐 깔지 않음) |
+| 비즐겨찾기 | 현재 경로가 즐겨찾기가 아니면 워터마크를 표시하지 않는다(빈 배경) |
+
+**시각·배치 규칙**
+| 항목 | 동작 규칙 |
+|---|---|
+| 위치(z-index) | 워터마크는 패널 파일 목록·아이콘·텍스트의 **뒤 배경**에 깔린다(목록 z-index 아래). **본문 텍스트·아이콘과 겹쳐 가독성을 해치지 않게** 한다(목록 위에 덮이지 않음) |
+| 배치 | 패널 영역 **중앙 또는 한쪽 구석**에 크게(설계에서 중앙/구석 기본값 확정). 목록 스크롤과 무관하게 배경에 고정(스크롤 시 함께 흐르지 않게 — 배경 고정 권장) |
+| 반투명·대비 | 크고 **반투명**하게 표시하되, **본문 텍스트의 WCAG 대비에 영향을 주지 않도록**(워터마크가 본문 글자 뒤로만 깔리고 본문 위에 안 깔림) 한다. **테마별 반투명도**(라이트/다크/시스템/블루라이트)를 달리해 각 배경에서 과하지도 안 보이지도 않게 조정(설계·구현에서 토큰화) |
+| 긴 이름 | 별칭/폴더명이 길면 패널 폭에 맞춰 **말줄임 또는 축소**(레이아웃 깨짐·가로 넘침 없음). 폰트 크기는 패널 폭에 비례 조정 가능(설계 결정) |
+| 빈 폴더 | 빈 폴더("이 폴더가 비어 있습니다" 안내)여도 즐겨찾기면 워터마크는 표시(빈 안내 텍스트와 겹치지 않게 배치) |
+| 토글 | 1차는 **항상 표시 가능**(토글 없이 출시 가능). 표시 on/off 토글 제공 여부·진입점은 설계/구현 단계에서 결정(필요 시 설정 항목) |
+| 격리 | 워터마크는 **활성/비활성 패널 각각** 자기 경로 기준으로 독립 판정·표시(2분할/4분할에서 패널마다 다른 워터마크 가능) |
+
+**수용 기준** (✅ 구현 완료 — 코드 정합·verify 충족 / 실렌더 육안은 🟡)
+- [x] 현재 패널 경로가 즐겨찾기 경로와 **정확히 일치**할 때만 패널 배경에 워터마크가 표시되고, 일치하지 않으면(부분/하위 경로 포함) 표시되지 않는다 — `favoriteWatermark.ts` normalizeDisplay `===` 매치·하위경로 비매치(`verify:domain`)
+- [x] 워터마크 텍스트는 **J7 별칭(`favoriteLabels`)을 우선** 사용하고, 별칭이 없으면 경로 basename으로 폴백한다(별칭 변경 시 워터마크도 따라 변경됨) — `favoriteLabels[fav]` trim 폴백 `baseName(fav)`(FavoriteRow.display 동일 규칙·verify)
+- [x] 워터마크는 파일 목록·아이콘·텍스트의 **뒤 배경**에 반투명하게 깔리며, 본문 텍스트·아이콘과 겹쳐 가독성을 해치지 않는다(본문 WCAG 대비 영향 없음) — `FavoriteWatermark.tsx` zIndex:0·FileListView zIndex:1·`pointer-events:none`·`aria-hidden`·`verify:contrast` 실패 0. ※ 실렌더 육안 🟡
+- [x] 라이트/다크/시스템/블루라이트 4테마 각각에서 워터마크 반투명도가 과하거나 안 보이지 않게 조정되어 본문 가독성을 유지한다 — `palette.ts` LIGHT(.06)/DARK(.08)/BLUELIGHT(.07) `--c-watermark-opacity`·시스템=resolved 승계. ※ 실 반투명도 적정성 육안 🟡(`9vw` 폰트 2/4분할 과대 여부 [낮음-2])
+- [x] 별칭/폴더명이 길어도 패널 폭에 맞춰 말줄임/축소되어 레이아웃이 깨지거나 가로로 넘치지 않는다 — `whiteSpace:nowrap`+`textOverflow:ellipsis`+`maxWidth:100%`. ※ 실렌더 🟡
+- [x] 빈 폴더에서도 즐겨찾기면 워터마크가 표시되며, 빈 폴더 안내 텍스트와 겹치지 않게 배치된다 — 빈영역 div `background:transparent`로 워터마크 노출·안내문과 동일 레이어 미겹침. ※ 실렌더 🟡
+- [x] 2분할/4분할에서 각 패널이 자기 경로 기준으로 독립적으로 워터마크를 판정·표시한다(패널 격리) — `panelId`별 `panels[panelId].path` 구독·독립 판정
+- [x] 기존 즐겨찾기(C4)·별칭(J7) 동작과 충돌·회귀가 없다(표시 전용 — 즐겨찾기 데이터·경로·이동 동작 불변) — 박스선택(J1)·D&D·접근성 트리 무간섭(qa-integration-N 회귀 0)
+
+### N2. 즐겨찾기 드래그 정렬 (S) ✅ 구현 완료 (실 드래그·키보드 런타임 스모크 🟡)
+**목적**: 사이드바 즐겨찾기 섹션의 항목을 **드래그로 원하는 순서로 재배열**하고 그 순서를 영속시켜, 자주 쓰는 즐겨찾기를 위로 올려두는 등 사용자가 즐겨찾기 목록을 자기 작업 흐름에 맞게 정리하게 한다. (US-13.2)
+
+> C4(즐겨찾기) "**순서 변경**(S)"으로 이미 Should로 예고된 항목의 정식 편입이다. 순서는 `SidebarSnapshot`에 추가 영속한다(J7 별칭과 동격의 즐겨찾기 메타 확장·기존 데이터 비파괴).
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 드래그 정렬 | 사이드바 즐겨찾기 항목을 **마우스로 잡아(드래그) 위/아래로 끌어** 순서를 바꾼다. 놓으면(드롭) 새 순서로 확정 |
+| 시각 피드백 | 드래그 중 **삽입 위치 인디케이터**(항목 사이에 드롭 위치 선/하이라이트)와 **드래그 중인 항목 강조**(반투명/들림 효과)를 표시해 어디에 놓일지 명확히 한다 |
+| 영속 | 변경된 즐겨찾기 순서를 **세션/사이드바 스냅샷(`SidebarSnapshot`)에 영속**한다 → 재시작 후에도 유지(기존 즐겨찾기 데이터에 순서 메타 추가·비파괴). 순서 데이터 형태(명시적 순서 배열 또는 정렬 인덱스)는 설계 단계 확정 |
+| 섹션 격리 | **즐겨찾기 섹션 내에서만** 재정렬된다. 다른 사이드바 섹션(트리·드라이브·휴지통·최근)과는 **격리** — 즐겨찾기 항목을 타 섹션으로 끌어도 이동/추가되지 않고(섹션 경계 밖 드롭=무효·원위치 복귀), 타 섹션 항목이 즐겨찾기 순서에 끼어들지 않는다 |
+| 키보드 대체 | 마우스를 쓸 수 없는 사용자를 위해 **키보드로 순서를 옮기는 대체 수단**을 제공한다(접근성). 즐겨찾기 항목 포커스 후 **`Alt+Shift+↑/↓`로 위·아래 한 칸 이동**(확정·구현 — 사이드바 즐겨찾기 포커스 한정·전역 미배정·충돌 0, [PRD 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)). 스크린리더용 ARIA(role=option·`aria-posinset/setsize`·`aria-grabbed`·`roledescription`) 안내 제공 |
+| 별칭 정합 | 정렬은 **순서만** 바꾼다 — J7 별칭·경로·즐겨찾기 추가/제거 동작은 불변(별칭이 있는 항목은 별칭 그대로 표시되며 위치만 이동) |
+| 예외 | 즐겨찾기 0~1개면 정렬 동작이 의미 없으므로 무동작(에러 아님). 드래그 중 ESC/취소 또는 유효하지 않은 위치 드롭 시 순서 미변경(원상 복귀) |
+
+**수용 기준** (✅ 구현 완료 — 코드 정합·verify 충족 / 실 드래그·키보드 육안은 🟡)
+- [x] 사이드바 즐겨찾기 항목을 드래그&드롭으로 위/아래로 끌어 순서를 변경할 수 있다 — `useFavoriteReorder.ts`+`resolveDropTarget`·`reorderFavorite(from,to)` splice(`verify:domain`/`verify:store`). ※ 실 마우스 드래그 🟡
+- [x] 드래그 중 삽입 위치 인디케이터와 드래그 항목 강조 등 시각 피드백이 표시된다 — `DropLine`(accent 2px)·드래그 항목 `opacity:0.4`. ※ 실렌더 🟡
+- [x] 변경된 즐겨찾기 순서가 `SidebarSnapshot`(세션/사이드바 스냅샷)에 영속되어 재시작 후에도 유지된다 — `session.ts` `[...s.favorites]`·`SESSION_SCHEMA_VERSION`·`coerceSidebar` 무변경(`verify:store` 영속·`verify:persistence` 94). ※ 재시작 후 유지 육안 🟡
+- [x] 재정렬은 즐겨찾기 섹션 내에서만 일어나고, 트리·드라이브·휴지통·최근 등 다른 섹션과 격리된다(타 섹션으로 드롭하면 이동·추가되지 않고 원위치로 복귀) — 드래그 상태는 FavoritesSection 행에서만 set·`reorderActive` 게이트·섹션 내 인덱스 계산
+- [x] 마우스 없이 **키보드로 즐겨찾기 순서를 이동**할 수 있는 대체 수단이 제공된다(접근성 — `Alt+Shift+↑/↓`·포커스 추종 rAF·ARIA 안내) — row tabIndex=0·`altKey&&shiftKey&&!ctrl&&!meta` 가드·role=option·aria-posinset/setsize/grabbed. ※ 실 스크린리더·포커스 육안 🟡
+- [x] 정렬은 순서만 바꾸며 J7 별칭·경로·즐겨찾기 추가/제거 동작에 영향을 주지 않는다(별칭 항목은 별칭 유지·위치만 이동) — 순서만 splice·라벨 맵 경로키라 순서 무관(`verify:store` "별칭 보존")
+- [x] 즐겨찾기가 0~1개이거나 드래그를 취소/유효하지 않은 위치에 놓으면 순서가 변경되지 않는다(무동작·원상 복귀, 에러 없음) — 0개=섹션 미렌더·1개 무동작·`reorderFavorite` 범위가드·`onDragEnd`→`endFavoriteReorder`·무효 드롭 `resolveDropTarget` null(verify)
+- [x] 기존 즐겨찾기(C4) 추가/제거·클릭 이동·J7 별칭 인라인 편집 동작과 충돌·회귀가 없다 — `sidebarSlice` 기존 액션 무변경(reorderFavorite만 신규)·FavoriteRow display·setFavoriteLabel 무변경(qa-integration-N 회귀 0)

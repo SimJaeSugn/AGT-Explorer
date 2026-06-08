@@ -12,6 +12,13 @@ import { useRootStore } from '@renderer/app/stores/rootStore'
 import { execCommand } from '@renderer/app/usecases/commandBus'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
+import {
+  beginFavoriteReorder,
+  endFavoriteReorder,
+  resolveDropTarget,
+  setFavoriteInsertIndex,
+  useFavoriteReorder
+} from '@renderer/ui/sidebar/useFavoriteReorder'
 
 const sectionHeader: React.CSSProperties = {
   padding: '6px 8px 2px',
@@ -50,14 +57,7 @@ export function Sidebar(): JSX.Element | null {
       }}
       aria-label="사이드바"
     >
-      {favorites.length > 0 && (
-        <div aria-label="즐겨찾기">
-          <div style={sectionHeader}>★ 즐겨찾기</div>
-          {favorites.map((p) => (
-            <FavoriteRow key={p} path={p} />
-          ))}
-        </div>
-      )}
+      {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
 
       {recent.length > 0 && (
         <div aria-label="최근">
@@ -187,10 +187,57 @@ const clearBtnStyle: React.CSSProperties = {
 }
 
 /**
- * 즐겨찾기 항목 1개(클릭=이동, ✎/더블클릭=별칭 편집, ✕=제거, J8).
+ * 즐겨찾기 섹션(N2·US-13.2·F18) — 드래그 정렬·키보드 대체수단·정렬 ARIA.
+ *
+ * - 순서 = favorites 배열 자체(별도 order 필드 0). 재배열은 reorderFavorite.
+ * - 드래그: HTML5 draggable + 경량 외부 스토어(useFavoriteReorder)로 삽입 위치 추적.
+ *   섹션 컨테이너 안에서만 인덱스 계산 → 타 섹션(트리/최근/원격/휴지통) 무영향.
+ * - 키보드: 항목 포커스(tabindex) 후 Alt+Shift+↑/↓ 로 위/아래 한 칸 이동
+ *   (전역 KeyBindingRegistry 미배정 조합 → Sidebar 로컬 onKeyDown 정상 동작).
+ * - ARIA: role="listbox" 유사·항목 aria-posinset/setsize·드래그 중 aria-grabbed.
+ * - 0~1개 경계: 0개=섹션 미렌더(호출부 가드), 1개=드래그 시작 허용하되 원위치.
+ */
+function FavoritesSection({ favorites }: { favorites: string[] }): JSX.Element {
+  const reorder = useFavoriteReorder()
+  return (
+    <div aria-label="즐겨찾기">
+      <div style={sectionHeader}>★ 즐겨찾기</div>
+      <div role="listbox" aria-label="즐겨찾기 목록" aria-orientation="vertical">
+        {favorites.map((p, i) => (
+          <FavoriteRow
+            key={p}
+            path={p}
+            index={i}
+            total={favorites.length}
+            reorderActive={reorder.active}
+            reorderFrom={reorder.fromIndex}
+            insertIndex={reorder.insertIndex}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 즐겨찾기 항목 1개(클릭=이동, ✎/더블클릭=별칭 편집, ✕=제거, J8 + N2 정렬).
  * 표시 라벨 = 별칭(favoriteLabel) 우선, 없으면 basename. tooltip 은 fullPath 유지.
  */
-function FavoriteRow({ path }: { path: string }): JSX.Element {
+function FavoriteRow({
+  path,
+  index,
+  total,
+  reorderActive,
+  reorderFrom,
+  insertIndex
+}: {
+  path: string
+  index: number
+  total: number
+  reorderActive: boolean
+  reorderFrom: number
+  insertIndex: number
+}): JSX.Element {
   const navigateActive = useNavigateActive()
   const removeFavorite = useRootStore((s) => s.removeFavorite)
   const label = useRootStore((s) => s.favoriteLabels[path])
@@ -199,6 +246,7 @@ function FavoriteRow({ path }: { path: string }): JSX.Element {
   const selected = activePath === path
   const [editing, setEditing] = useState(false)
   const display = label && label.trim() !== '' ? label : baseName(path)
+  const rowRef = useRef<HTMLDivElement | null>(null)
 
   if (editing) {
     return (
@@ -213,18 +261,90 @@ function FavoriteRow({ path }: { path: string }): JSX.Element {
     )
   }
 
+  // 키보드 한 칸 이동(Alt+Shift+↑/↓). 미배정 조합이라 전역 디스패처가 가로채지 않음.
+  function onKeyDown(e: React.KeyboardEvent): void {
+    if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    const to = e.key === 'ArrowUp' ? index - 1 : index + 1
+    if (to < 0 || to >= total) return // 유일 항목·경계는 무동작.
+    e.preventDefault()
+    e.stopPropagation()
+    useRootStore.getState().reorderFavorite(index, to)
+    // 포커스 추종: 다음 틱에 이동한 항목 위치로 포커스 복원.
+    requestAnimationFrame(() => rowRef.current?.focus())
+  }
+
+  // 드래그 중 삽입 인디케이터: 이 행 위(insertIndex===index)·맨 끝(insertIndex===total).
+  const showLineBefore = reorderActive && insertIndex === index && reorderFrom !== index
+  const showLineAfter = reorderActive && index === total - 1 && insertIndex === total && reorderFrom !== index
+  const isDragging = reorderActive && reorderFrom === index
+
   return (
-    <PinnedRow
-      icon="📂"
-      label={display}
-      fullPath={path}
-      selected={selected}
-      onClick={() => navigateActive(path)}
-      onDoubleClick={() => setEditing(true)}
-      onRename={() => setEditing(true)}
-      renameLabel="이름변경(별칭)"
-      onRemove={() => removeFavorite(path)}
-      removeLabel="즐겨찾기 제거"
+    <div
+      ref={rowRef}
+      role="option"
+      aria-selected={selected}
+      aria-posinset={index + 1}
+      aria-setsize={total}
+      aria-grabbed={isDragging}
+      aria-roledescription="정렬 가능한 즐겨찾기"
+      tabIndex={0}
+      draggable
+      onKeyDown={onKeyDown}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        // 일부 브라우저는 데이터가 있어야 드래그 시작 — 더미 텍스트.
+        e.dataTransfer.setData('text/plain', String(index))
+        beginFavoriteReorder(index)
+      }}
+      onDragOver={(e) => {
+        if (!reorderActive) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        // 행 상/하 절반으로 앞/뒤 삽입 위치 결정.
+        const rect = e.currentTarget.getBoundingClientRect()
+        const after = e.clientY - rect.top > rect.height / 2
+        setFavoriteInsertIndex(after ? index + 1 : index)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        const to = resolveDropTarget(reorderFrom, insertIndex, total)
+        if (to !== null) useRootStore.getState().reorderFavorite(reorderFrom, to)
+        endFavoriteReorder()
+      }}
+      onDragEnd={() => endFavoriteReorder()}
+      style={{ position: 'relative', opacity: isDragging ? 0.4 : 1 }}
+    >
+      {showLineBefore && <DropLine />}
+      <PinnedRow
+        icon="📂"
+        label={display}
+        fullPath={path}
+        selected={selected}
+        onClick={() => navigateActive(path)}
+        onDoubleClick={() => setEditing(true)}
+        onRename={() => setEditing(true)}
+        renameLabel="이름변경(별칭)"
+        onRemove={() => removeFavorite(path)}
+        removeLabel="즐겨찾기 제거"
+      />
+      {showLineAfter && <DropLine />}
+    </div>
+  )
+}
+
+/** 드래그 중 삽입 위치 인디케이터(행 사이 선, N2). */
+function DropLine(): JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        height: 2,
+        margin: '0 6px',
+        background: tokens.color.accent,
+        borderRadius: 1,
+        pointerEvents: 'none'
+      }}
     />
   )
 }

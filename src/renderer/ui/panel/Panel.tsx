@@ -8,6 +8,7 @@ import { useRootStore } from '@renderer/app/stores/rootStore'
 import { PanelToolbar } from '@renderer/ui/toolbar/PanelToolbar'
 import { FileListView } from '@renderer/ui/panel/views/FileListView'
 import { SearchBar } from '@renderer/ui/panel/SearchBar'
+import { FavoriteWatermark } from '@renderer/ui/panel/FavoriteWatermark'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 interface Props {
@@ -39,7 +40,17 @@ export function Panel({ panelId, tabId, active }: Props): JSX.Element {
     >
       <PanelToolbar panelId={panelId} active={active} />
       {searchOpen && <SearchBar panelId={panelId} />}
-      <FileListView panelId={panelId} active={active} />
+      {/*
+        본문 영역(목록) 컨테이너 — N1 워터마크 절대배치 기준(position:relative).
+        워터마크는 z-index 0(목록 뒤), FileListView 는 같은 컨테이너 내 더 높은
+        z-index(position:relative + z-index 1)로 항상 워터마크 위에 그려진다.
+      */}
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <FavoriteWatermark panelId={panelId} />
+        <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <FileListView panelId={panelId} active={active} />
+        </div>
+      </div>
     </div>
   )
 }

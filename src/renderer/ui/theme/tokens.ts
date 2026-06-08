@@ -26,8 +26,12 @@ export const tokens = {
     folder: 'var(--c-folder)',
     file: 'var(--c-file)',
     /** 검색어 하이라이트 배경(P5). */
-    highlight: 'var(--c-highlight)'
+    highlight: 'var(--c-highlight)',
+    /** N1 즐겨찾기 워터마크 글자색(테마별·저대비 장식). */
+    watermark: 'var(--c-watermark-color)'
   },
+  /** N1 즐겨찾기 워터마크 반투명도(4테마별 토큰·본문 위 비중첩 장식). */
+  watermarkOpacity: 'var(--c-watermark-opacity)',
   rowHeight: 26,
   /**
    * 아이콘 그리드 셀 크기(J4 보기 5종). 보기별 셀 폭·높이·아이콘 픽셀.

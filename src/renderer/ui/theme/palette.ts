@@ -27,7 +27,11 @@ export const LIGHT_PALETTE: Palette = {
   '--c-danger': '#d1242f',
   '--c-folder': '#dcb24a',
   '--c-file': '#8a94a6',
-  '--c-highlight': '#fff1a8'
+  '--c-highlight': '#fff1a8',
+  // N1 즐겨찾기 워터마크 반투명도(본문 위 비중첩 장식·저대비). 라이트는 약간 더 진하게.
+  '--c-watermark-opacity': '0.06',
+  // 워터마크 글자색(텍스트 토큰 재사용·opacity 로 저대비 조절).
+  '--c-watermark-color': '#1f2328'
 }
 
 /**
@@ -50,7 +54,10 @@ export const BLUELIGHT_PALETTE: Palette = {
   '--c-danger': '#B23A2E',
   '--c-folder': '#C79A3A',
   '--c-file': '#8A7B55',
-  '--c-highlight': '#F2D98A'
+  '--c-highlight': '#F2D98A',
+  // N1 워터마크: 따뜻한 크림 배경에 갈색 톤 저대비 장식.
+  '--c-watermark-opacity': '0.07',
+  '--c-watermark-color': '#3A3326'
 }
 
 export const DARK_PALETTE: Palette = {
@@ -69,7 +76,10 @@ export const DARK_PALETTE: Palette = {
   '--c-danger': '#e85d5d',
   '--c-folder': '#e3c06a',
   '--c-file': '#7f8794',
-  '--c-highlight': '#6b5d1f'
+  '--c-highlight': '#6b5d1f',
+  // N1 워터마크: 어두운 배경에 밝은 글자·약간 더 높은 불투명도로 가시성 균형.
+  '--c-watermark-opacity': '0.08',
+  '--c-watermark-color': '#e6e8eb'
 }
 
 /**

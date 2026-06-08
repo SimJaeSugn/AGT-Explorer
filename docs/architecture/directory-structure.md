@@ -219,3 +219,40 @@ src/
 - `renderer/ui/remote/*` — 원격 연결·탐색 UI(로컬 패널 UX 재사용·시각 구분 배지).
 
 > **신규 npm 의존성**: `ssh2-sftp-client`(Apache-2.0)·`basic-ftp`(MIT)만 추가(`src/main/remote/`에서만 import). 자격증명·CF_HDROP·외부 드래그는 Electron 내장(신규 의존성 0).
+
+---
+
+## 7. §N 즐겨찾기 UX 신규/수정 모듈 배치 (2026-06-08 비파괴 추가)
+
+> 모듈 경계는 [software-architecture §12](./software-architecture.md). 채널·흐름은 [system-architecture §5-N](./system-architecture.md). 상태: **🔜 미착수(설계 단계)**. **신규 IPC 채널 0 · 신규 npm 의존성 0 · 신규 ADR 0 · Main 측 신규 파일 0**(전부 Renderer 내부). 아래는 §2 폴더 트리에 **추가/수정**되는 위치다(기존 트리 무변경·`src/main/**`·`src/preload/**`·`src/shared/**` 무변경).
+
+```text
+src/renderer/
+├─ domain/
+│  └─ rules/
+│     └─ favoriteWatermark.ts     # ▶ 신규(N1) — 패널 경로 vs 즐겨찾기 정확 일치 판정 + 표시 텍스트(별칭/basename) 순수 함수
+├─ app/
+│  └─ stores/
+│     └─ sidebarSlice.ts          #   (확장·N2) reorderFavorite(from,to) 추가 — favorites 배열 재배열(Immer). 기존 액션 불변
+└─ ui/
+   ├─ panel/
+   │  ├─ Panel.tsx                #   (확장·N1) FileListView 뒤 배경 워터마크 레이어 마운트(또는 아래 FavoriteWatermark 합성)
+   │  └─ FavoriteWatermark.tsx    # ▶ 신규(N1·선택) — 배경 워터마크 레이어(absolute·pointer-events:none·aria-hidden·테마 반투명·말줄임)
+   ├─ sidebar/
+   │  ├─ Sidebar.tsx              #   (확장·N2) 즐겨찾기 행 드래그 핸들·드롭 인디케이터·Alt+Shift+↑/↓ 키 핸들러(로컬·미배정 조합)·정렬 ARIA
+   │  └─ useFavoriteReorder.ts    # ▶ 신규(N2) — 사이드바 즐겨찾기 전용 경량 드래그 훅 + 외부 pub/sub 상태(파일 dragState와 별개)
+   └─ theme/
+      └─ palette.ts / tokens.ts   #   (확장·N1) 4테마(라이트/다크/시스템·resolved/블루라이트)별 워터마크 반투명도 토큰 1종 추가
+```
+
+### 각 위치 책임 한 줄 요약(신규/수정)
+
+- `renderer/domain/rules/favoriteWatermark.ts` — N1 판정·텍스트 소스 순수 함수(`normalizeDisplay`·`baseName`·`locationKindOf` 재사용). FS/IO 모름.
+- `renderer/app/stores/sidebarSlice.ts`(확장) — N2 `reorderFavorite` 액션 1개 추가. 순서=`favorites` 배열 자체(별도 필드 0).
+- `renderer/ui/panel/Panel.tsx`·`FavoriteWatermark.tsx` — N1 배경 레이어(목록 뒤 z-index·비상호작용·접근성 제외).
+- `renderer/ui/sidebar/Sidebar.tsx`·`useFavoriteReorder.ts` — N2 드래그/키보드 재정렬 UI(섹션 격리·타 섹션 무영향).
+- `renderer/ui/theme/*`(확장) — N1 테마별 워터마크 반투명도 토큰(본문 위 비중첩 장식).
+
+> **세션 영속**: N2 순서는 기존 `app/usecases/session.ts`(`[...s.favorites]` 직렬화)·`src/main/persistence/defaults.ts coerceSidebar`(`asStrArray` 순서 보존)가 **변경 없이** 처리한다 — `SidebarSnapshot` 구조·스키마 버전 불변(N2 신규 영속 파일·필드 0).
+>
+> **ESLint 경계 불변**: 신규 모듈 전부 `domain`(순수)·`app/stores`·`ui` 규칙을 따른다 — `favoriteWatermark.ts`는 react/infra/shared-ipc import 금지(도메인 순수), `ui/sidebar/*`는 `app` 경유. §5의 network 화이트리스트와 무관(네트워크 import 0).

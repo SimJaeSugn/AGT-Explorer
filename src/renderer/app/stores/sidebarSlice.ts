@@ -42,6 +42,12 @@ export interface SidebarSlice {
   removeFavorite(path: string): void
   /** 즐겨찾기 토글(있으면 제거, 없으면 추가). */
   toggleFavorite(path: string): void
+  /**
+   * 즐겨찾기 순서 재배열(N2·US-13.2). favorites 배열에서 from 인덱스 항목을 빼
+   * to 인덱스에 삽입한다. 순서가 곧 단일 출처이므로 영속/복원은 기존 세션 경로가
+   * 자동 처리(스키마 불변). 범위밖·동일 인덱스는 무동작(0~1개 경계 자연 충족).
+   */
+  reorderFavorite(from: number, to: number): void
   /** 경로가 즐겨찾기인지. */
   isFavorite(path: string): boolean
   /** 즐겨찾기 별칭 설정(빈 문자열이면 별칭 제거 → basename 표시, J8). */
@@ -174,6 +180,17 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
       if (path === '') return
       if (get().favorites.includes(path)) get().removeFavorite(path)
       else get().addFavorite(path)
+    },
+
+    reorderFavorite(from, to) {
+      set((s) => {
+        const n = s.favorites.length
+        // 범위 가드(0~1개·동일 인덱스 무동작 — 즐겨찾기 외 데이터 불변).
+        if (from < 0 || from >= n || to < 0 || to >= n || from === to) return
+        const [moved] = s.favorites.splice(from, 1)
+        if (moved === undefined) return
+        s.favorites.splice(to, 0, moved)
+      })
     },
 
     isFavorite(path) {
