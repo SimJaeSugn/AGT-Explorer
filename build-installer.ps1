@@ -3,20 +3,22 @@
     Explorer 설치 파일(NSIS 인스톨러)을 한 번에 빌드한다.
 
 .DESCRIPTION
-    의존성 점검 → 타입체크 + electron-vite 빌드 → electron-builder 패키징을
+    의존성 동기화 → 타입체크 + electron-vite 빌드 → electron-builder 패키징을
     순서대로 실행하고, 생성된 인스톨러(.exe) 경로를 출력한다.
+    매 실행마다 `npm install`로 node_modules를 package.json과 동기화하므로
+    (이미 일치하면 빠르게 통과) 의존성 누락으로 빌드가 깨지지 않는다.
     내부적으로 `npm run package`(= prebuild clean → typecheck → build → electron-builder)를
     호출하므로 별도의 사전 정리는 필요 없다.
 
 .PARAMETER Install
-    node_modules 존재 여부와 무관하게 `npm install`을 강제로 다시 실행한다.
+    package-lock.json 기준으로 `npm ci`(깨끗한 재설치)를 강제 실행한다.
 
 .PARAMETER OpenFolder
     빌드 성공 후 산출물(dist) 폴더를 탐색기로 연다.
 
 .EXAMPLE
     .\build-installer.ps1
-    기본 빌드. node_modules가 없으면 자동으로 설치한 뒤 패키징한다.
+    기본 빌드. npm install로 의존성을 동기화한 뒤 패키징한다.
 
 .EXAMPLE
     .\build-installer.ps1 -Install -OpenFolder
@@ -61,7 +63,11 @@ if ($nodeVer -match '^v(\d+)\.') {
     }
 }
 
-# 3) 의존성 설치(없거나 -Install 지정 시).
+# 3) 의존성 설치/동기화.
+#    -Install 지정 또는 node_modules 부재 → 깨끗한 설치(npm ci, 실패 시 install 폴백).
+#    그 외에는 항상 npm install 로 node_modules 를 package.json 과 동기화한다.
+#    (이미 일치하면 사실상 no-op. package.json 에 의존성이 추가됐는데
+#     설치하지 않아 빌드가 깨지는 상황을 자동으로 막는다.)
 if ($Install -or -not (Test-Path (Join-Path $root 'node_modules'))) {
     if (Test-Path (Join-Path $root 'package-lock.json')) {
         Write-Step "의존성 설치: npm ci"
@@ -79,7 +85,9 @@ if ($Install -or -not (Test-Path (Join-Path $root 'node_modules'))) {
     }
 }
 else {
-    Write-Step "의존성: node_modules 존재 — 설치 건너뜀 (-Install 로 강제 재설치 가능)"
+    Write-Step "의존성 동기화: npm install (package.json 기준, 이미 일치하면 빠르게 통과)"
+    & $npmCmd install
+    if ($LASTEXITCODE -ne 0) { Fail "의존성 동기화 실패(npm install)." }
 }
 
 # 4) 빌드 + 패키징(한 번에). package = prebuild clean → typecheck → electron-vite build → electron-builder.
