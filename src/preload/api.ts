@@ -69,6 +69,22 @@ import type {
   ScanProgressEvt,
   ScanDoneEvt,
   ScanErrorEvt,
+  HashCompareStartReq,
+  HashDupStartReq,
+  HashVerifyStartReq,
+  HashCancelReq,
+  HashJobStartRes,
+  HashProgressEvt,
+  HashCompareDoneEvt,
+  HashDupDoneEvt,
+  HashVerifyDoneEvt,
+  HashErrorEvt,
+  QueueListRes,
+  QueuePauseReq,
+  QueueResumeReq,
+  QueueRetryReq,
+  QueueSetConcurrencyReq,
+  QueueStateEvt,
   TrashRestoreReq,
   TrashEmptyReq,
   PreviewReadReq,
@@ -269,6 +285,31 @@ export interface ExplorerApi {
     restore(req: TrashRestoreReq): Promise<Result<void>>
     empty(req: TrashEmptyReq): Promise<Result<void>>
   }
+
+  // ── hash:* 공용 해시·비교 엔진 (신규 M7, 핸들러 impl: W1) ───────
+  readonly hash: {
+    compareStart(req: HashCompareStartReq): Promise<Result<HashJobStartRes>>
+    dupStart(req: HashDupStartReq): Promise<Result<HashJobStartRes>>
+    verifyStart(req: HashVerifyStartReq): Promise<Result<HashJobStartRes>>
+    cancel(req: HashCancelReq): Promise<Result<void>>
+    onCompareProgress(cb: (evt: HashProgressEvt) => void): Unsubscribe
+    onCompareDone(cb: (evt: HashCompareDoneEvt) => void): Unsubscribe
+    onDupProgress(cb: (evt: HashProgressEvt) => void): Unsubscribe
+    onDupDone(cb: (evt: HashDupDoneEvt) => void): Unsubscribe
+    onVerifyProgress(cb: (evt: HashProgressEvt) => void): Unsubscribe
+    onVerifyDone(cb: (evt: HashVerifyDoneEvt) => void): Unsubscribe
+    onError(cb: (evt: HashErrorEvt) => void): Unsubscribe
+  }
+
+  // ── queue:* 전송 큐 (타입만 노출, 큐 핸들러 impl: W2) ───────────
+  readonly queue: {
+    list(): Promise<Result<QueueListRes>>
+    pause(req: QueuePauseReq): Promise<Result<void>>
+    resume(req: QueueResumeReq): Promise<Result<void>>
+    retry(req: QueueRetryReq): Promise<Result<void>>
+    setConcurrency(req: QueueSetConcurrencyReq): Promise<Result<void>>
+    onState(cb: (evt: QueueStateEvt) => void): Unsubscribe
+  }
 }
 
 export const api: ExplorerApi = {
@@ -389,6 +430,29 @@ export const api: ExplorerApi = {
     list: () => invoke(CHANNELS.TRASH_LIST),
     restore: (req) => invoke(CHANNELS.TRASH_RESTORE, req),
     empty: (req) => invoke(CHANNELS.TRASH_EMPTY, req)
+  },
+
+  hash: {
+    compareStart: (req) => invoke(CHANNELS.HASH_COMPARE_START, req),
+    dupStart: (req) => invoke(CHANNELS.HASH_DUP_START, req),
+    verifyStart: (req) => invoke(CHANNELS.HASH_VERIFY_START, req),
+    cancel: (req) => invoke(CHANNELS.HASH_CANCEL, req),
+    onCompareProgress: (cb) => subscribe(CHANNELS.HASH_COMPARE_PROGRESS, cb),
+    onCompareDone: (cb) => subscribe(CHANNELS.HASH_COMPARE_DONE, cb),
+    onDupProgress: (cb) => subscribe(CHANNELS.HASH_DUP_PROGRESS, cb),
+    onDupDone: (cb) => subscribe(CHANNELS.HASH_DUP_DONE, cb),
+    onVerifyProgress: (cb) => subscribe(CHANNELS.HASH_VERIFY_PROGRESS, cb),
+    onVerifyDone: (cb) => subscribe(CHANNELS.HASH_VERIFY_DONE, cb),
+    onError: (cb) => subscribe(CHANNELS.HASH_ERROR, cb)
+  },
+
+  queue: {
+    list: () => invoke(CHANNELS.QUEUE_LIST),
+    pause: (req) => invoke(CHANNELS.QUEUE_PAUSE, req),
+    resume: (req) => invoke(CHANNELS.QUEUE_RESUME, req),
+    retry: (req) => invoke(CHANNELS.QUEUE_RETRY, req),
+    setConcurrency: (req) => invoke(CHANNELS.QUEUE_SET_CONCURRENCY, req),
+    onState: (cb) => subscribe(CHANNELS.QUEUE_STATE, cb)
   }
 }
 

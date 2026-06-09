@@ -26,6 +26,9 @@ import {
 } from './clipboardExternal'
 import { toggleThemeMode } from './settings'
 import { performUndo } from './undo'
+import { openBatchRename } from './batchRename'
+import { startCompare } from './compare'
+import { startDedup } from './dedup'
 
 /** 현재 활성 패널 id 헬퍼. */
 function activePanel(): string | undefined {
@@ -154,6 +157,21 @@ export function execCommand(commandId: string): boolean {
       s.openRemoteDialog()
       return true
 
+    // ── 폴더 비교(§P1) ────────────────────────────────────────────────
+    case 'compare.toggle':
+      startCompare()
+      return true
+
+    // ── 중복 파일 찾기(§R2) ────────────────────────────────────────────
+    case 'dedup.open':
+      void startDedup()
+      return true
+
+    // ── 전송 큐 매니저(§R3) ────────────────────────────────────────────
+    case 'queue.open':
+      s.openQueuePanel()
+      return true
+
     // ── 보기 ─────────────────────────────────────────────────────────
     case 'panel.refresh': {
       const p = activePanel()
@@ -199,6 +217,9 @@ export function execCommand(commandId: string): boolean {
       return true
     case 'file.rename':
       startRenameSelected()
+      return true
+    case 'file.batchRename':
+      openBatchRename()
       return true
     case 'file.newFolder':
       void createNewFolder()

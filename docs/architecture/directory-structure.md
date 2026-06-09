@@ -256,3 +256,86 @@ src/renderer/
 > **세션 영속**: N2 순서는 기존 `app/usecases/session.ts`(`[...s.favorites]` 직렬화)·`src/main/persistence/defaults.ts coerceSidebar`(`asStrArray` 순서 보존)가 **변경 없이** 처리한다 — `SidebarSnapshot` 구조·스키마 버전 불변(N2 신규 영속 파일·필드 0).
 >
 > **ESLint 경계 불변**: 신규 모듈 전부 `domain`(순수)·`app/stores`·`ui` 규칙을 따른다 — `favoriteWatermark.ts`는 react/infra/shared-ipc import 금지(도메인 순수), `ui/sidebar/*`는 `app` 경유. §5의 network 화이트리스트와 무관(네트워크 import 0).
+
+---
+
+## 8. §P~§U 파워 기능 14종 신규 모듈 배치 (2026-06-09 비파괴 추가)
+
+> 모듈 경계는 [software-architecture §13·§14](./software-architecture.md). 채널·흐름은 [system-architecture §5-PU](./system-architecture.md). ADR: [008~012](./adr/ADR-000-index.md). 상태: **🔜 미착수(설계 단계)**. 아래는 §2 폴더 트리에 **추가/확장**되는 위치다(기존 트리 무변경). **네트워크 import 0**(압축·grep·해시 전부 로컬) — §5/§5-M network 화이트리스트(`src/main/remote/`)와 무관, ESLint 경계 불변.
+
+```text
+src/
+├─ main/
+│  ├─ archive/                    # ▶ 신규(Q1·ADR-008) — zip 어댑터(로컬·네트워크 import 없음)
+│  │  ├─ ArchiveService.ts        #   archive:// 추상(open/list/extract/add) — RemoteService 패턴 차용(인터페이스는 별개)
+│  │  ├─ ZipReader.ts             #   yauzl 스트리밍 읽기(엔트리 열거·추출 스트림)
+│  │  ├─ ZipWriter.ts             #   yazl 재작성식 추가(원자 rename)
+│  │  └─ ArchiveSessionManager.ts #   열린 zip sessionId 수명·임시물 정리
+│  ├─ hash/                       # ▶ 신규(P1해시·R2·R4·ADR-009) — 공용 해시·비교(로컬)
+│  │  ├─ hashEngine.ts            #   환경 비의존 스트리밍 해시(algo 파라미터·HashHooks) — scanEngine 패턴
+│  │  ├─ compareEngine.ts         #   P1 폴더 비교(메타 4상태 + 해시 옵션)
+│  │  ├─ dupEngine.ts             #   R2 크기 그룹핑→해시 그룹 확정
+│  │  └─ HashManager.ts           #   jobId·취소 플래그·200ms 스로틀·세션 격리(ScanManager 형태)
+│  ├─ search/                     # ▶ 신규(S1·ADR-010) — grep 엔진(로컬)
+│  │  ├─ grepEngine.ts            #   환경 비의존 스트리밍 라인 스캔·정규식
+│  │  ├─ binaryDetect.ts          #   바이너리 휴리스틱(확장자 + NUL/비텍스트 샘플)
+│  │  └─ GrepManager.ts           #   jobId·취소·200ms·증분 결과 푸시
+│  ├─ operations/
+│  │  └─ OperationManager.ts      #   (확장·R3·ADR-011) 내부 TransferQueue 스케줄러·일시정지·재시도. op:* 채널·의미 불변
+│  ├─ workers/                    #   (확장) 추출/추가·hash·grep 워커(각 엔진 import·SharedArrayBuffer 취소+일시정지)
+│  ├─ ipc/
+│  │  ├─ archive.handlers.ts      # ▶ 신규 — archive:*(sender·zod·경로검증·로컬 한정·Zip Slip)
+│  │  ├─ hash.handlers.ts         # ▶ 신규 — hash:*(compare/dup/verify·jobId·취소)
+│  │  ├─ search.handlers.ts       # ▶ 신규 — search:content:*(jobId·취소·증분)
+│  │  └─ queue.handlers.ts        # ▶ 신규 — queue:*(list/state/pause/resume/retry/concurrency)
+│  └─ persistence/
+│     └─ defaults.ts              #   (확장·T1) coerceTagsByPath ※coerceFilterPresets(T3)는 2026-06-09 폐기·제거·스키마 2→1 환원
+│
+├─ renderer/
+│  ├─ domain/
+│  │  ├─ entities/                #   (확장·Q1·U3) ArchiveLocation·Tab.color/locked 타입
+│  │  └─ rules/
+│  │     ├─ archiveSafePath.ts    # ▶ 신규(Q1) — Zip Slip 경계 검증(순수·헤드리스 verify 대상)
+│  │     ├─ transferRoute.ts      #   (확장·Q1) archive↔local 전송 종류 추가
+│  │     ├─ compare.ts            # ▶ 신규(P1) — 4상태 분류·짝지음 순수 규칙
+│  │     ├─ (filterComposition.ts) # ✗ 폐기(2026-06-09)·T3와 함께 코드 제거 — T1 합성은 구현 시 재설계
+│  │     ├─ tags.ts               # ▶ 신규(T1) — 색 팔레트·경로 키 정규화
+│  │     ├─ batchRename.ts        # ▶ 신규(R1) — 규칙→이름매핑·충돌검사(순수)
+│  │     └─ paletteMatch.ts       # ▶ 신규(S2) — 명령/위치 매칭 점수(순수)
+│  ├─ domain/keybindings/index.ts #   (확장·S2/U1) Ctrl+Shift+P→palette.open·Space→quicklook.toggle
+│  ├─ app/
+│  │  ├─ usecases/                #   (확장) archive·compare·dedup·checksum·contentSearch·queue·folderSize 트리거 브리지
+│  │  └─ stores/                  #   (확장/신규) compareSlice·dedupSlice·searchSlice·operationsSlice(큐)·panelsSlice(filter·tag·archive location) ※presetsSlice(T3)는 2026-06-09 폐기·제거
+│  ├─ infra/api/                  #   (확장) archiveApi·hashApi·searchApi·queueApi 래퍼
+│  └─ ui/
+│     ├─ compare/                 # ▶ 신규(P1) — diff 뷰·동기 스크롤·미러 미리보기
+│     ├─ dedup/                   # ▶ 신규(R2) — 중복 그룹 패널
+│     ├─ rename/                  # ▶ 신규(R1) — BatchRenameDialog
+│     ├─ queue/                   # ▶ 신규(R3) — 전송 큐 패널(StatusBar 인디케이터 연동)
+│     ├─ search/                  #   (확장·S1) "내용 검색" 모드·결과 목록·점프
+│     ├─ palette/                 # ▶ 신규(S2) — CommandPalette 오버레이
+│     ├─ tags/                    # ▶ 신규(T1) — 태그 부여·표시·필터
+│     ├─ (preset/)                # ✗ 폐기(2026-06-09)·T3 프리셋 저장/적용/관리 코드 제거
+│     ├─ quicklook/               # ▶ 신규(U1) — Space 퀵룩 오버레이(preview 재사용)
+│     ├─ toolbar/                 #   (확장·U2) Breadcrumb 형제 폴더 드롭다운
+│     └─ panel/views/FileListView #   (확장·T2) details 폴더 행 용량 인라인
+│
+└─ shared/
+   ├─ ipc/
+   │  ├─ channels.ts              #   (확장) ARCHIVE_*·HASH_*·SEARCH_CONTENT_*·QUEUE_* 채널 상수(+EVENT_CHANNELS 푸시 추가)
+   │  └─ contracts.ts             #   (확장) 위 채널 요청/응답·이벤트 타입
+   └─ dto/                        #   (확장) CompareResultDTO·DupGroupDTO·GrepMatchDTO·QueueItemDTO·TagColor·SessionSnapshot(tagsByPath) ※FilterPreset·filterPresets(T3)는 2026-06-09 폐기·제거
+```
+
+### 각 위치 책임 한 줄 요약(신규)
+
+- `src/main/archive/*` — zip 어댑터(로컬·yauzl/yazl·Zip Slip은 추출 워커 + `archiveSafePath.ts` 양쪽 검증).
+- `src/main/hash/*` — 공용 해시·비교·중복 엔진(P1 해시 옵션·R2·R4 공유·Worker·scanEngine 패턴).
+- `src/main/search/*` — grep 스트리밍 스캔·바이너리 제외(외부 ripgrep 없음·로컬 워커).
+- `OperationManager`(확장) — 전송 큐 스케줄러(op:* 비파괴·operationId 재사용).
+- `renderer/domain/rules/{archiveSafePath,compare,tags,batchRename,paletteMatch}.ts` — 순수 규칙(헤드리스 verify 대상·react/infra/shared-ipc import 금지). ※`filterComposition.ts`(T3)는 2026-06-09 폐기·코드 제거됨.
+- `persistence/defaults.ts`(확장) — T1/T3 메타 안전 복원(신규 채널 0·세션 영속 재사용).
+
+> **신규 npm 의존성**: `yauzl`(MIT)·`yazl`(MIT)만 추가(`src/main/archive/`에서만 import·네이티브 빌드 0). 해시(Node 내장 SHA-256)·grep(Node 내장 스트림)·큐·태그/프리셋·R1/S2/T2/U1/U2/U3은 **신규 의존성 0**. 외부 7z 바이너리·ripgrep 바이너리는 **비채택**(ADR-005 실행 표면 불변·ADR-008/010).
+>
+> **ESLint 경계**: archive/hash/search는 `src/main/` 일반 규칙(네트워크/TLS/원격 라이브러리 import 금지 — §5·§5-M 화이트리스트는 `src/main/remote/`만). 도메인 순수 규칙 6종은 §5 도메인 import 규칙 준수(react/zustand/infra/shared-ipc 금지).

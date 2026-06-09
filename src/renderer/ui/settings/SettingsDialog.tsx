@@ -19,7 +19,8 @@ import {
   changeShowHidden,
   changeStartLocation,
   changeTelemetryOptIn,
-  changeTheme
+  changeTheme,
+  changeVerifyOnCopy
 } from '@renderer/app/usecases/settings'
 import { listShortcutGroups, prettyChord } from '@renderer/ui/keyboard/shortcuts'
 import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
@@ -44,6 +45,7 @@ export function SettingsDialog(): JSX.Element | null {
   const startLocation = useRootStore((s) => s.startLocation)
   const recentLimit = useRootStore((s) => s.recentLimit)
   const showDashboardOnStartup = useRootStore((s) => s.showDashboardOnStartup)
+  const verifyOnCopy = useRootStore((s) => s.verifyOnCopy)
   const telemetryOptIn = useRootStore((s) => s.telemetryOptIn)
   const close = useRootStore((s) => s.closeSettings)
   const openWorkspace = useRootStore((s) => s.openWorkspace)
@@ -172,6 +174,20 @@ export function SettingsDialog(): JSX.Element | null {
           />
           <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
             프로그램 시작 시 용량 대시보드를 자동으로 엽니다(기본 켜짐).
+          </span>
+        </label>
+
+        {/* 복사 후 체크섬 검증(§R4) */}
+        <label style={labelStyle}>
+          <span style={fieldLabel}>복사 후 체크섬 검증</span>
+          <input
+            type="checkbox"
+            checked={verifyOnCopy}
+            onChange={(e) => void changeVerifyOnCopy(e.target.checked)}
+            aria-label="복사 후 체크섬 검증"
+          />
+          <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
+            켜면 복사 완료 후 원본과 사본의 해시(SHA-256)를 비교해 무결성을 검증합니다(기본 꺼짐).
           </span>
         </label>
 

@@ -133,7 +133,8 @@ export const zSettingsSetReq = z.object({
       showHidden: z.boolean().optional(),
       showExtensions: z.boolean().optional(),
       recentLimit: z.number().int().optional(),
-      showDashboardOnStartup: z.boolean().optional()
+      showDashboardOnStartup: z.boolean().optional(),
+      verifyOnCopy: z.boolean().optional()
     })
     .strict()
 })
@@ -269,4 +270,34 @@ export const zRemoteUploadReq = z.object({
   localPaths: z.array(zPath).min(1),
   remoteDir: zPath,
   conflictPolicy: zConflictPolicy.optional()
+})
+
+// ── M7: hash:* (공용 해시·비교 엔진 — ADR-009) ────────────────────────────
+// 경로(leftDir/rightDir/roots[]/pairs[].src/.dst)는 형태(min1)만 1차 검증하고,
+// 핸들러가 각각 guardPath 정규화·상위이탈 차단·stat 종류 검증·원격 prefix 거부(로컬 한정).
+const zHashAlgo = z.enum(['sha256'])
+export const zHashCompareStartReq = z.object({
+  leftDir: zPath,
+  rightDir: zPath,
+  useHash: z.boolean(),
+  recursive: z.boolean(),
+  algo: zHashAlgo.optional()
+})
+export const zHashDupStartReq = z.object({
+  roots: z.array(zPath).min(1),
+  minSize: z.number().int().nonnegative().optional(),
+  algo: zHashAlgo.optional()
+})
+export const zHashVerifyStartReq = z.object({
+  pairs: z.array(z.object({ src: zPath, dst: zPath })).min(1).max(100_000),
+  algo: zHashAlgo.optional()
+})
+export const zHashCancelReq = z.object({ jobId: z.string().min(1) })
+
+// ── M7: queue:* (전송 큐 — ADR-011, 큐 핸들러 impl: W2) ───────────────────
+// W0 에서 zod 스키마만 동결한다(큐 핸들러는 W2 에서 이 스키마를 재사용). pause/resume/
+// retry 는 operationId 동형이므로 단일 스키마를 공유한다.
+export const zQueueOperationReq = z.object({ operationId: z.string().min(1) })
+export const zQueueSetConcurrencyReq = z.object({
+  maxConcurrent: z.number().int().min(1).max(16)
 })

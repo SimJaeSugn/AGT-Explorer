@@ -16,12 +16,15 @@ import { useRef } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { Panel } from '@renderer/ui/panel/Panel'
 import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
+import { CompareView } from '@renderer/ui/compare/CompareView'
 import { SPLIT_DEFAULT } from '@renderer/domain/entities'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 export function LayoutHost(): JSX.Element {
   const tab = useRootStore((s) => s.tabs[s.activeTabId])
   const setSplitRatio = useRootStore((s) => s.setSplitRatio)
+  // §P1: 폴더 비교 모드(2분할 좌/우)면 CompareView 로 전환(기존 FileListView 비파괴).
+  const compareActive = useRootStore((s) => s.compareActive)
   // 분할 비율 측정 기준: 실제 분할 컨테이너(2분할=flex, 4분할=grid) ref.
   // SplitDivider 의 DOM 부모가 컨테이너가 아니므로 명시적으로 ref 를 넘긴다.
   const splitContainerRef = useRef<HTMLDivElement>(null)
@@ -38,6 +41,12 @@ export function LayoutHost(): JSX.Element {
   const ratios = tab.splitRatios ?? SPLIT_DEFAULT
   const col = ratios.col
   const row = ratios.row
+
+  // ── 폴더 비교 모드(§P1): 2분할 좌/우를 CompareView 로 전환(diff 4상태·동기 스크롤). ──
+  // 비교는 2분할에서만 진입(usecases/compare.startCompare 가 가드). 그 외 레이아웃은 무시.
+  if (compareActive && (tab.layout === 'split-2-h' || tab.layout === 'split-2-v')) {
+    return <CompareView />
+  }
 
   // ── 4분할(grid-4): CSS grid 2x2, row-major 배치 + 독립 2 divider ──────
   if (tab.layout === 'grid-4') {

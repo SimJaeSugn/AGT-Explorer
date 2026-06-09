@@ -13,6 +13,7 @@ import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc } from '@renderer/domain/paths'
 import { execCommand } from './commandBus'
 import { openTerminalAt, openWithEntry, showPropertiesFor } from './open'
+import { comparePanelsOf } from './compare'
 import { visibleEntries } from './selectors'
 
 /** 메뉴 항목 1개. separator 면 구분선만 그린다. */
@@ -87,6 +88,11 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
       empty.push({ id: 'terminal', label: '터미널 열기', run: () => void openTerminalAt(panelPath) })
       empty.push({ id: 'sep-terminal', separator: true })
     }
+    // §P1: "다른 패널과 비교"(좌우 2분할일 때만). 두 패널 폴더를 메타 4상태로 diff.
+    if (comparePanelsOf() !== null) {
+      empty.push({ id: 'compare', label: '다른 패널과 비교', run: cmd('compare.toggle') })
+      empty.push({ id: 'sep-compare', separator: true })
+    }
     empty.push({ id: 'refresh', label: '새로고침', run: cmd('panel.refresh') })
     return empty
   }
@@ -106,6 +112,12 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
         label: '터미널 열기',
         run: () => void openTerminalAt(single.path)
       })
+    }
+    // §R2: 단일 폴더 선택 시 "중복 찾기"(활성 패널 폴더 범위로 hash:dup 탐지).
+    // 현재 usecase 는 활성 패널 폴더를 범위로 쓰므로, 선택 폴더로 진입 후 찾는 흐름은
+    // 1차로 활성 패널 폴더 기준(메뉴는 진입점만 제공·계획서 §4.1 "현재 패널 폴더").
+    if (single.isDir) {
+      items.push({ id: 'dedup', label: '중복 찾기', run: cmd('dedup.open') })
     }
     if (!single.isDir) {
       items.push({
@@ -130,6 +142,10 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
       label: pinnedNow ? '상단 고정 해제' : '상단 고정',
       run: () => store.getState().togglePin(dirPath, single.path)
     })
+  }
+  // §R1: 다중 선택(2+) 시 "고급 이름변경…"(단일은 위 인라인 F2). Ctrl+Shift+R 과 동일 경로.
+  if (multi) {
+    items.push({ id: 'batchRename', label: '고급 이름변경…', run: cmd('file.batchRename') })
   }
 
   // ── 삭제 그룹 ─────────────────────────────────────────────────────────

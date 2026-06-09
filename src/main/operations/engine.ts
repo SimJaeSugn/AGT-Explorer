@@ -50,6 +50,13 @@ export interface EngineHooks {
   }): Promise<ConflictResolution>
   /** 협조적 취소 폴링. true 면 안전 지점에서 중단. */
   shouldCancel(): boolean
+  /**
+   * 협조적 일시정지(M7 W2 · ADR-011, 옵셔널·비파괴). 파일 경계에서 await 한다.
+   * 일시정지 중이면 재개(또는 취소)까지 resolve 를 미룬다. 미정의면 즉시 통과
+   * (기존 단발 경로 동치). 거대 단일 파일은 그 파일을 마친 뒤 다음 경계에서 멈춤
+   * (파일 경계 일시정지 — 청크 멈춤은 후속 UQ-R2).
+   */
+  awaitResume?(): Promise<void>
 }
 
 export interface EngineResult {
@@ -308,6 +315,8 @@ export async function runMove(
   const counters: Counters = { bytes: 0, items: 0 }
 
   for (const src of sources) {
+    // 파일 경계 일시정지(M7): 다음 항목 시작 전 재개까지 대기(취소면 await 후 즉시 중단).
+    if (hooks.awaitResume) await hooks.awaitResume()
     if (hooks.shouldCancel()) {
       result.canceled = true
       break
@@ -353,6 +362,8 @@ async function runCopyOrMove(
   hooks.onTotals(totals.items, totals.bytes)
   const counters: Counters = { bytes: 0, items: 0 }
   for (const src of sources) {
+    // 파일 경계 일시정지(M7).
+    if (hooks.awaitResume) await hooks.awaitResume()
     if (hooks.shouldCancel()) {
       result.canceled = true
       break
@@ -375,6 +386,8 @@ export async function runDelete(sources: string[], hooks: EngineHooks): Promise<
   const counters: Counters = { bytes: 0, items: 0 }
 
   for (const src of sources) {
+    // 파일 경계 일시정지(M7).
+    if (hooks.awaitResume) await hooks.awaitResume()
     if (hooks.shouldCancel()) {
       result.canceled = true
       break

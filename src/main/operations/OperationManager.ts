@@ -23,14 +23,33 @@ import { shell } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
 import type { FileOpError, Result } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
-import type { ConflictResolution, OpFailure, OpKind, OpSummary } from '@shared/dto'
+import type {
+  ConflictResolution,
+  OpFailure,
+  OpKind,
+  OpSummary,
+  QueueItemDTO,
+  QueueItemKind
+} from '@shared/dto'
 import { fileOpError, toFileOpError } from '../fs/errors'
 import { runDelete } from './engine'
-import { CANCEL_FLAG_INDEX } from '../workers/protocol'
+import { CANCEL_FLAG_INDEX, FLAG_WORD_COUNT, PAUSE_FLAG_INDEX } from '../workers/protocol'
 import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from '../workers/protocol'
+import { TransferQueue } from './TransferQueue'
+import type { ProgressSnapshot, QueueEntry } from './TransferQueue'
 
 /** 진행률 스로틀 간격(ms). roadmap P4 DoD: 200ms 이내 갱신. */
 const PROGRESS_THROTTLE_MS = 200
+
+/** queue:state 푸시 디바운스 간격(ms · ADR-011 §3.1). */
+const QUEUE_STATE_DEBOUNCE_MS = 150
+
+/** 소스 목록 표시용 요약(경로 전체 미수록 — QueueItemDTO.sourcesSummary). */
+function summarizeSources(sources: readonly string[]): string {
+  if (sources.length === 0) return ''
+  if (sources.length === 1) return win32.basename(sources[0] ?? '')
+  return `${win32.basename(sources[0] ?? '')} 외 ${sources.length - 1}개`
+}
 
 type OpState = 'running' | 'conflict' | 'cancelling' | 'done'
 
@@ -40,8 +59,10 @@ interface ActiveOp {
   state: OpState
   wc: WebContents
   worker: Worker | null
-  /** 취소 플래그 공유 버퍼(Int32). */
+  /** 협조 플래그 공유 버퍼 뷰(Int32[0]=cancel, Int32[1]=pause). */
   cancelView: Int32Array | null
+  /** 시작 시각(속도/ETA 산출). */
+  startedAt: number
   /** 진행 스로틀 타이머/마지막 페이로드. */
   lastProgress: {
     processedBytes: number
@@ -71,9 +92,76 @@ export interface ExternalProgress {
 export class OperationManager {
   private readonly ops = new Map<string, ActiveOp>()
 
+  /** 통합 전송 큐 스케줄러(M7 W2 · ADR-011). 단발 동치: 기본 무한 동시성. */
+  private readonly queue = new TransferQueue()
+
+  /** queue:state 푸시 디바운스 타이머·구독 WebContents 집합. */
+  private queueDebounce: NodeJS.Timeout | null = null
+  private readonly queueSubscribers = new Set<WebContents>()
+
+  /** operationId → 재시도 팩토리(같은 소스/대상으로 새 op 기동). failed 항목만 사용. */
+  private readonly retryMeta = new Map<string, () => Result<{ operationId: string }>>()
+
+  constructor() {
+    // 큐 변경 시 디바운스 후 queue:state 푸시.
+    this.queue.setOnChange(() => this.scheduleQueueEmit())
+  }
+
   /** 번들된 워커 경로. out/main/fileOpWorker.js (index.js 와 동일 디렉토리). */
   private workerPath(): string {
     return join(__dirname, 'fileOpWorker.js')
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // 큐 스냅샷·디바운스 emit (queue:list / queue:state · ADR-011)
+  // ──────────────────────────────────────────────────────────────────
+
+  /** ActiveOp.lastProgress + startedAt → 속도/ETA 합성(TransferQueue.snapshot 주입). */
+  private progressOf(operationId: string): ProgressSnapshot | null {
+    const op = this.ops.get(operationId)
+    if (!op) return null
+    const lp = op.lastProgress
+    const processedBytes = lp?.processedBytes ?? 0
+    const totalBytes = lp?.totalBytes ?? op.totals.totalBytes
+    const elapsedSec = Math.max(0.001, (Date.now() - op.startedAt) / 1000)
+    const bytesPerSec = processedBytes > 0 ? processedBytes / elapsedSec : 0
+    const remaining = totalBytes - processedBytes
+    const etaSec = bytesPerSec > 0 && remaining > 0 ? remaining / bytesPerSec : null
+    return {
+      processedBytes,
+      totalBytes,
+      processedItems: lp?.processedItems ?? 0,
+      totalItems: lp?.totalItems ?? op.totals.totalItems,
+      bytesPerSec,
+      etaSec
+    }
+  }
+
+  /** 현재 큐 스냅샷(queue:list 응답·queue:state 페이로드). */
+  buildQueueSnapshot(): QueueItemDTO[] {
+    return this.queue.snapshot((id) => this.progressOf(id))
+  }
+
+  /** queue:state 디바운스 푸시 예약. */
+  private scheduleQueueEmit(): void {
+    if (this.queueDebounce) return
+    this.queueDebounce = setTimeout(() => {
+      this.queueDebounce = null
+      this.emitQueueState()
+    }, QUEUE_STATE_DEBOUNCE_MS)
+  }
+
+  private emitQueueState(): void {
+    const items = this.buildQueueSnapshot()
+    for (const wc of this.queueSubscribers) {
+      if (wc.isDestroyed()) this.queueSubscribers.delete(wc)
+      else wc.send(CHANNELS.QUEUE_STATE, { items })
+    }
+  }
+
+  /** queue:list 시 구독 WebContents 등록(이후 변경 푸시 수신). */
+  private trackSubscriber(wc: WebContents): void {
+    this.queueSubscribers.add(wc)
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -167,7 +255,10 @@ export class OperationManager {
     conflictPolicy: ConflictResolution | undefined,
     wc: WebContents
   ): Result<{ operationId: string }> {
-    const cancelBuffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)
+    // 협조 플래그 버퍼 2워드(=cancel + pause, M7). 단발 경로는 pause(1) 미사용 → 동치.
+    const cancelBuffer = new SharedArrayBuffer(
+      Int32Array.BYTES_PER_ELEMENT * FLAG_WORD_COUNT
+    )
     const cancelView = new Int32Array(cancelBuffer)
 
     const op: ActiveOp = {
@@ -177,6 +268,7 @@ export class OperationManager {
       wc,
       worker: null,
       cancelView,
+      startedAt: Date.now(),
       lastProgress: null,
       totals: { totalItems: 0, totalBytes: 0 },
       throttleTimer: null,
@@ -194,42 +286,94 @@ export class OperationManager {
       cancelBuffer
     }
 
-    let worker: Worker
-    try {
-      worker = new Worker(this.workerPath(), { workerData: job })
-    } catch (e) {
-      this.ops.delete(operationId)
-      return err(toFileOpError(e))
-    }
-    op.worker = worker
-
-    worker.on('message', (msg: WorkerOutMsg) => this.onWorkerMessage(op, msg))
-    worker.on('error', (e) => {
-      this.finish(op, {
-        operationId,
-        kind,
-        succeededItems: 0,
-        failedItems: sources.length,
-        canceled: op.canceled,
-        failures: [{ path: sources[0] ?? '', code: 'EUNKNOWN', message: e.message }]
-      })
-    })
-    worker.on('exit', () => {
-      // 정상 done 메시지로 이미 finish 됐으면 무시. 비정상 종료만 보강.
-      if (op.state !== 'done') {
+    // 실제 Worker 기동을 큐의 run 클로저로 분리(enqueue → pump). 단발 동치: 기본 무한
+    // 동시성이라 enqueue 즉시 run() 호출(아래 동기 경로) → 기존 동작과 바이트 동치.
+    let launchError: unknown = null
+    const run = (): void => {
+      op.startedAt = Date.now()
+      let worker: Worker
+      try {
+        worker = new Worker(this.workerPath(), { workerData: job })
+      } catch (e) {
+        launchError = e
+        // 기동 실패: 큐 항목·op·재시도 메타 모두 정리(기존 동작 동치 — 즉시 err 반환).
+        this.queue.remove(operationId)
+        this.retryMeta.delete(operationId)
+        this.ops.delete(operationId)
+        return
+      }
+      op.worker = worker
+      worker.on('message', (msg: WorkerOutMsg) => this.onWorkerMessage(op, msg))
+      worker.on('error', (e) => {
         this.finish(op, {
           operationId,
           kind,
           succeededItems: 0,
-          failedItems: 0,
-          canceled: true,
-          failures: []
+          failedItems: sources.length,
+          canceled: op.canceled,
+          failures: [{ path: sources[0] ?? '', code: 'EUNKNOWN', message: e.message }]
         })
-      }
+      })
+      worker.on('exit', () => {
+        // 정상 done 메시지로 이미 finish 됐으면 무시. 비정상 종료만 보강.
+        if (op.state !== 'done') {
+          this.finish(op, {
+            operationId,
+            kind,
+            succeededItems: 0,
+            failedItems: 0,
+            canceled: true,
+            failures: []
+          })
+        }
+      })
+      this.startThrottle(op)
+    }
+
+    // 재시도 메타 보관(failed → retry 시 같은 소스/대상으로 새 op 재기동).
+    this.retryMeta.set(operationId, () =>
+      this.startWorker(randomUUID(), kind, sources, destDir, conflictPolicy, wc)
+    )
+
+    this.enqueueOp({
+      operationId,
+      kind,
+      run,
+      sourcesSummary: summarizeSources(sources),
+      destSummary: destDir ?? '',
+      setPauseFlag: (paused) =>
+        Atomics.store(cancelView, PAUSE_FLAG_INDEX, paused ? 1 : 0)
     })
 
-    this.startThrottle(op)
+    // 기동 실패(즉시 실행 경로에서 new Worker throw)면 err 반환(기존 동작 보존).
+    if (launchError !== null) return err(toFileOpError(launchError))
     return ok({ operationId })
+  }
+
+  /** 큐 항목 등록 헬퍼(enqueue → pump). */
+  private enqueueOp(args: {
+    operationId: string
+    kind: QueueItemKind
+    run: () => void
+    sourcesSummary: string
+    destSummary: string
+    setPauseFlag: ((paused: boolean) => void) | null
+    externalPause?: () => void
+    externalResume?: () => void
+  }): void {
+    const entry: QueueEntry = {
+      operationId: args.operationId,
+      kind: args.kind,
+      status: 'pending',
+      enqueuedAt: Date.now(),
+      run: args.run,
+      sourcesSummary: args.sourcesSummary,
+      destSummary: args.destSummary,
+      setPauseFlag: args.setPauseFlag,
+      ...(args.externalPause ? { externalPause: args.externalPause } : {}),
+      ...(args.externalResume ? { externalResume: args.externalResume } : {})
+    }
+    this.queue.enqueue(entry)
   }
 
   private onWorkerMessage(op: ActiveOp, msg: WorkerOutMsg): void {
@@ -335,6 +479,7 @@ export class OperationManager {
       wc,
       worker: null,
       cancelView: null,
+      startedAt: Date.now(),
       lastProgress: null,
       totals: { totalItems: sources.length, totalBytes: 0 },
       throttleTimer: null,
@@ -343,41 +488,68 @@ export class OperationManager {
     }
     this.ops.set(operationId, op)
 
-    // 비동기로 진행(즉시 operationId 반환).
-    void (async () => {
-      const failures: OpFailure[] = []
-      let succeeded = 0
-      for (let i = 0; i < sources.length; i++) {
-        if (op.canceled) break
-        const src = sources[i] as string
-        try {
-          await shell.trashItem(src)
-          succeeded++
-          if (!wc.isDestroyed()) {
-            this.push(wc, CHANNELS.OP_PROGRESS, {
-              operationId,
-              processedBytes: 0,
-              totalBytes: 0,
-              processedItems: i + 1,
-              totalItems: sources.length,
-              currentName: win32.basename(src)
-            })
+    // 실제 휴지통 이동을 큐 run 클로저로 분리(enqueue → pump). 단발 동치: 기본 무한
+    // 동시성이라 enqueue 즉시 run() → 기존 동작과 동치.
+    const run = (): void => {
+      op.startedAt = Date.now()
+      void (async () => {
+        const failures: OpFailure[] = []
+        let succeeded = 0
+        for (let i = 0; i < sources.length; i++) {
+          if (op.canceled) break
+          const src = sources[i] as string
+          try {
+            await shell.trashItem(src)
+            succeeded++
+            if (!wc.isDestroyed()) {
+              this.push(wc, CHANNELS.OP_PROGRESS, {
+                operationId,
+                processedBytes: 0,
+                totalBytes: 0,
+                processedItems: i + 1,
+                totalItems: sources.length,
+                currentName: win32.basename(src)
+              })
+            }
+          } catch (e) {
+            const fe = toFileOpError(e, src)
+            failures.push({ path: src, code: fe.code, message: fe.message })
           }
-        } catch (e) {
-          const fe = toFileOpError(e, src)
-          failures.push({ path: src, code: fe.code, message: fe.message })
         }
-      }
-      this.finish(op, {
-        operationId,
-        kind: 'trash',
-        succeededItems: succeeded,
-        failedItems: failures.length,
-        canceled: op.canceled,
-        failures
-      })
-    })()
+        this.finish(op, {
+          operationId,
+          kind: 'trash',
+          succeededItems: succeeded,
+          failedItems: failures.length,
+          canceled: op.canceled,
+          failures
+        })
+      })()
+    }
 
+    // trash 는 Main 직접 처리 — SharedArrayBuffer 일시정지 불가(setPauseFlag=null).
+    this.retryMeta.set(operationId, () =>
+      this.startTrashSync(randomUUID(), sources, wc)
+    )
+    this.enqueueOp({
+      operationId,
+      kind: 'trash',
+      run,
+      sourcesSummary: summarizeSources(sources),
+      destSummary: '휴지통',
+      setPauseFlag: null
+    })
+
+    return ok({ operationId })
+  }
+
+  /** retry 용 동기 래퍼(startTrash 는 async — Result 동기 반환 필요). */
+  private startTrashSync(
+    operationId: string,
+    sources: string[],
+    wc: WebContents
+  ): Result<{ operationId: string }> {
+    void this.startTrash(operationId, sources, wc)
     return ok({ operationId })
   }
 
@@ -405,10 +577,89 @@ export class OperationManager {
     if (!op) return err(fileOpError('ENOENT', '해당 작업을 찾을 수 없습니다.'))
     op.state = 'cancelling'
     op.canceled = true
-    // Worker: 공유 취소 플래그 set(즉시 감지).
-    if (op.cancelView) Atomics.store(op.cancelView, CANCEL_FLAG_INDEX, 1)
+    // Worker: 공유 취소 플래그 set(즉시 감지). pause 플래그도 해제해 일시정지 중이던
+    //   워커가 awaitResume 루프를 빠져나와 취소를 관측하게 한다(파일 경계 일시정지).
+    if (op.cancelView) {
+      Atomics.store(op.cancelView, CANCEL_FLAG_INDEX, 1)
+      Atomics.store(op.cancelView, PAUSE_FLAG_INDEX, 0)
+      Atomics.notify(op.cancelView, PAUSE_FLAG_INDEX)
+    }
     // 외부(원격 전송) op: 취소 훅 호출(스트림 destroy → 어댑터가 ECANCELED 로 종료).
     if (op.externalCancel) op.externalCancel()
+    // 아직 실행 전(pending) 큐 항목이면 워커가 없으니 즉시 canceled 완료 처리.
+    const entry = this.queue.get(operationId)
+    if (entry && entry.status === 'pending' && !op.worker) {
+      this.finish(op, {
+        operationId,
+        kind: op.kind,
+        succeededItems: 0,
+        failedItems: 0,
+        canceled: true,
+        failures: []
+      })
+    }
+    return ok(undefined)
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // 큐 제어 (queue:* — ADR-011 결정②③④). 취소=기존 op:cancel, 진행률=op:progress.
+  // ──────────────────────────────────────────────────────────────────
+
+  /** queue:list — 현재 큐 스냅샷 + 이후 변경 푸시 구독 등록. */
+  listQueue(wc: WebContents): Result<{ items: QueueItemDTO[] }> {
+    this.trackSubscriber(wc)
+    return ok({ items: this.buildQueueSnapshot() })
+  }
+
+  /** queue:pause — 항목 일시정지(running → paused, 파일 경계). */
+  pauseQueueItem(operationId: string): Result<void> {
+    if (!this.queue.has(operationId)) {
+      return err(fileOpError('ENOENT', '해당 큐 항목을 찾을 수 없습니다.'))
+    }
+    if (!this.queue.pause(operationId)) {
+      return err(fileOpError('EINVAL', '일시정지할 수 없는 상태입니다.'))
+    }
+    return ok(undefined)
+  }
+
+  /** queue:resume — 항목 재개(paused → running). */
+  resumeQueueItem(operationId: string): Result<void> {
+    if (!this.queue.has(operationId)) {
+      return err(fileOpError('ENOENT', '해당 큐 항목을 찾을 수 없습니다.'))
+    }
+    if (!this.queue.resume(operationId)) {
+      return err(fileOpError('EINVAL', '재개할 수 없는 상태입니다.'))
+    }
+    return ok(undefined)
+  }
+
+  /** queue:retry — 실패 항목 재시도(같은 소스/대상으로 새 op 재기동). */
+  retryQueueItem(operationId: string): Result<void> {
+    const factory = this.retryMeta.get(operationId)
+    if (!factory) {
+      return err(fileOpError('EINVAL', '재시도할 수 없는 항목입니다.'))
+    }
+    const holder: { result: Result<{ operationId: string }> | null } = { result: null }
+    const newId = this.queue.retry(operationId, () => {
+      const r = factory()
+      holder.result = r
+      return r.ok ? r.value.operationId : null
+    })
+    this.retryMeta.delete(operationId)
+    if (newId === null) {
+      const r = holder.result
+      if (r && !r.ok) return r as Result<void>
+      return err(fileOpError('EINVAL', '재시도에 실패했습니다.'))
+    }
+    return ok(undefined)
+  }
+
+  /** queue:set-concurrency — 전역 동시성 한도 갱신 후 즉시 pump. */
+  setConcurrency(maxConcurrent: number): Result<void> {
+    if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1) {
+      return err(fileOpError('EINVAL', '동시성 한도는 1 이상이어야 합니다.'))
+    }
+    this.queue.setConcurrency(maxConcurrent)
     return ok(undefined)
   }
 
@@ -438,6 +689,18 @@ export class OperationManager {
       this.push(op.wc, CHANNELS.OP_DONE, { operationId: op.operationId, summary })
     }
     if (op.worker) void op.worker.terminate().catch(() => undefined)
+
+    // 큐 항목 종료 전이(슬롯 해제 → 다음 대기 항목 pump). 상태 분류:
+    //   canceled → 'canceled', 부분/전체 실패(failedItems>0) → 'failed', 그 외 'done'.
+    const queueStatus: 'done' | 'failed' | 'canceled' = summary.canceled
+      ? 'canceled'
+      : summary.failedItems > 0
+        ? 'failed'
+        : 'done'
+    this.queue.complete(op.operationId, queueStatus)
+    // 재시도 메타는 failed 일 때만 보존(retry 후 정리). 성공/취소는 제거.
+    if (queueStatus !== 'failed') this.retryMeta.delete(op.operationId)
+
     this.ops.delete(op.operationId)
   }
 
@@ -461,7 +724,18 @@ export class OperationManager {
   registerExternalOperation(
     kind: OpKind,
     wc: WebContents,
-    onCancel: () => void
+    onCancel: () => void,
+    /**
+     * M7(선택·비파괴): 원격 전송 큐 표시·일시정지/재개 훅. 미지정이면 기존 동작 동치
+     * (remoteTransfer 현행 3-arg 호출 보존). queueKind 는 큐 표시용(원격 다운/업로드).
+     */
+    queueOpts?: {
+      readonly queueKind: QueueItemKind
+      readonly sourcesSummary: string
+      readonly destSummary: string
+      readonly onPause: () => void
+      readonly onResume: () => void
+    }
   ): { operationId: string; reportProgress: (p: ExternalProgress) => void; finishOp: (summary: OpSummary) => void } {
     const operationId = randomUUID()
     const op: ActiveOp = {
@@ -471,6 +745,7 @@ export class OperationManager {
       wc,
       worker: null,
       cancelView: null,
+      startedAt: Date.now(),
       lastProgress: null,
       totals: { totalItems: 0, totalBytes: 0 },
       throttleTimer: null,
@@ -482,6 +757,19 @@ export class OperationManager {
     this.ops.set(operationId, op)
     // 진행률 200ms 스로틀(로컬 op 와 동일 경로 재사용).
     this.startThrottle(op)
+    // 외부 op 도 큐에 등록(목록·일시정지/재개·동시성 표시). 실제 작업은 호출부가 이미
+    // 구동하므로 run 은 no-op(슬롯만 점유) — 기존 즉시-시작 동작 동치. queueOpts 없으면
+    // 기존 동작(큐 표시 없음) 보존하되, 큐 일관성을 위해 표시용 요약만 비워 등록한다.
+    this.enqueueOp({
+      operationId,
+      kind: queueOpts?.queueKind ?? (kind as QueueItemKind),
+      run: () => undefined,
+      sourcesSummary: queueOpts?.sourcesSummary ?? '',
+      destSummary: queueOpts?.destSummary ?? '',
+      setPauseFlag: null,
+      ...(queueOpts ? { externalPause: queueOpts.onPause } : {}),
+      ...(queueOpts ? { externalResume: queueOpts.onResume } : {})
+    })
     return {
       operationId,
       reportProgress: (p): void => {

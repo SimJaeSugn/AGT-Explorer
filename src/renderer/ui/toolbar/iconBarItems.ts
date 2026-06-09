@@ -114,6 +114,18 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     active: (s) => s.previewOpen
   },
   {
+    // §P1: 폴더 비교 토글(좌우 2분할일 때만 활성). 두 패널 폴더를 메타 4상태로 diff.
+    id: 'compare.toggle',
+    label: '폴더 비교',
+    icon: '⇄',
+    group: 'layout',
+    enabled: (s) => {
+      const t = s.activeTab()
+      return (t?.layout === 'split-2-h' || t?.layout === 'split-2-v') && (t?.panelIds.length ?? 0) >= 2
+    },
+    active: (s) => s.compareActive
+  },
+  {
     id: 'view.setMode.details',
     label: '상세 보기',
     icon: '☰',
@@ -225,6 +237,23 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     icon: '🗑',
     group: 'tool',
     active: (s) => s.trashOpen
+  },
+  {
+    // §R2: 중복 파일 찾기(활성 패널 실폴더에서만). 크기→해시 2단계 탐지.
+    id: 'dedup.open',
+    label: '중복 파일 찾기',
+    icon: '⧉',
+    group: 'tool',
+    enabled: activeIsRealFolder,
+    active: (s) => s.dedupOpen
+  },
+  {
+    // §R3: 전송 큐 매니저(진행/대기 작업 목록·일시정지/재개·동시성).
+    id: 'queue.open',
+    label: '전송 큐',
+    icon: '⇅',
+    group: 'tool',
+    active: (s) => s.queuePanelOpen
   },
   {
     id: 'app.settings',

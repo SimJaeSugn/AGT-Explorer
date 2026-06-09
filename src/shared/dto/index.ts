@@ -350,6 +350,13 @@ export interface SettingsSnapshot {
   readonly recentLimit: number
   /** 프로그램 시작 시 용량 대시보드 자동 표시(기본 true, I장 §4.4·§6.5). */
   readonly showDashboardOnStartup: boolean
+  /**
+   * 복사 후 체크섬 검증(§R4·US-17.4·F25·Could). 켜면 복사 op 완료(op:done) 후
+   * 원본↔사본 SHA-256 해시 비교(hash:verify)로 무결성을 검증한다. 기본 off(비파괴 —
+   * 끄면 복사 동작 무변경·신규 채널 0). 비파괴 추가(optional) — 구버전 설정은
+   * coerce 가 false 폴백(defaults.ts). 신규 채널 0(hash:verify 재사용·ADR-009).
+   */
+  readonly verifyOnCopy?: boolean
 }
 
 /** 워크스페이스 1개 메타(workspace:list — 계약만 동결, 구현 P6). */
@@ -357,6 +364,143 @@ export interface WorkspaceInfo {
   readonly name: string
   /** 저장 시각(epoch ms). */
   readonly savedAt: number
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 듀얼 패널 폴더 비교 (§P1 — US-15.1 · F20 · ADR-009 · M6 메타 비교만)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 폴더 비교 4상태(§P1). 좌/우 패널 항목을 이름 기준으로 짝지어 분류한다.
+ *   - left-only  : 좌측에만 존재
+ *   - right-only : 우측에만 존재
+ *   - diff       : 양쪽 존재·메타(크기/수정일/종류) 다름
+ *   - same       : 양쪽 존재·메타 동일
+ *
+ * **M6 스코프: 단일 깊이 메타 비교만**. 해시(내용) 비교·재귀 하위폴더 비교는
+ * M7(ADR-009 `hash:compare:*`)로 연기. 분류는 렌더러 도메인 순수규칙
+ * (domain/rules/compare.ts)이 이미 로드된 양 패널 entries 로 수행한다(신규 채널 0).
+ */
+export type CompareStatus = 'left-only' | 'right-only' | 'diff' | 'same'
+
+/**
+ * 비교 페어 1건의 직렬화 표현(추적성·M7 `hash:compare:done` 결과 호환용 등록).
+ * M6는 렌더러 내부 도메인 타입(ComparePair)으로 충분하나, 계약 단일출처(추적성
+ * §1-P)를 위해 DTO 에 선등록한다. left/right 는 FileEntryDTO(없으면 null).
+ */
+export interface ComparePairDTO {
+  readonly name: string
+  readonly left: FileEntryDTO | null
+  readonly right: FileEntryDTO | null
+  readonly status: CompareStatus
+  /**
+   * 재귀 비교(P1·recursive=true) 시 좌/우 루트 기준 상대경로(예: "sub\\a.txt").
+   * 재귀에서 다른 하위 폴더의 동명 항목 충돌을 피하는 짝지음 키이며, 표시 들여쓰기·
+   * 깊이 산출에 쓰인다. **M6 단일깊이 메타 비교는 미사용(undefined)·동치**(비파괴 추가).
+   */
+  readonly relPath?: string
+}
+
+/** 비교 4상태 카운트 요약(합 = total). */
+export interface CompareSummary {
+  readonly leftOnly: number
+  readonly rightOnly: number
+  readonly diff: number
+  readonly same: number
+  readonly total: number
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 공용 해시·비교 엔진 (hash:* — 신규 M7, ADR-009)
+//   P1 해시/재귀 비교 · R2 중복 찾기 · R4 체크섬 검증이 공유하는 DTO.
+//   기존 §P1 메타 비교(ComparePairDTO·CompareSummary)는 비파괴 — append 만.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 해시 알고리즘(ADR-009 결정①). 1차 'sha256' 1종(Node 내장·의존 0).
+ * algo 파라미터화로 후속 고속화(xxHash/BLAKE3 wasm — UQ-H1) 교체 여지를 둔다.
+ */
+export type HashAlgo = 'sha256'
+
+/**
+ * R2 중복 그룹 1건 — 내용 동일(같은 크기 + 같은 해시) 파일 묶음.
+ * files 는 항상 2개 이상(중복만 그룹화). 유일 크기는 해시 0(비용 통제·ADR-009 결정③).
+ */
+export interface DupGroupDTO {
+  /** 그룹 식별 해시(표시·중복판정). */
+  readonly hash: string
+  /** 그룹 공통 바이트(같은 크기). */
+  readonly size: number
+  /** 동일 내용 파일(2개 이상). */
+  readonly files: DupFileDTO[]
+}
+
+/** 중복 그룹에 속한 파일 1개의 경량 표현. */
+export interface DupFileDTO {
+  readonly path: string
+  readonly name: string
+  /** 수정 시각(epoch ms, UTC). 원본 선택 보조(가장 오래된 것 보존 등). */
+  readonly mtime: number
+}
+
+/**
+ * R4 체크섬 불일치 1건. 일치 수(verified)는 hash:verify:done evt 에 합산된다.
+ * reason: hash-mismatch=내용 다름, size-mismatch=크기 다름(해시 회피), read-error=읽기 실패.
+ */
+export interface VerifyMismatchDTO {
+  readonly src: string
+  readonly dst: string
+  readonly reason: 'hash-mismatch' | 'size-mismatch' | 'read-error'
+}
+
+/**
+ * P1 해시/재귀 비교 결과(Main compareEngine → 렌더러). 짝지음·4상태 분류 단일출처는
+ * ComparePairDTO(M6 재사용·relPath 옵셔널 추가는 P1해시 단계). usedHash/recursive 는
+ * 실제 적용된 옵션(정직 표기), truncated 는 항목 상한 도달.
+ */
+export interface CompareResultDTO {
+  /** 4상태(left-only/right-only/diff/same)·재귀면 상대경로(relPath) 포함. */
+  readonly pairs: ComparePairDTO[]
+  readonly summary: CompareSummary
+  readonly usedHash: boolean
+  readonly recursive: boolean
+  /** 항목 상한 도달로 잘렸는지(정직 표기). */
+  readonly truncated: boolean
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 전송 큐 (queue:* — 신규 M7, ADR-011) — W0 타입 동결, 큐 핸들러 impl: W2
+//   큐 항목 = 기존 operationId(op:* 재사용). 단발 작업도 "큐 길이 1"로 흡수.
+// ────────────────────────────────────────────────────────────────────────
+
+/** 큐 항목 작업 종류(로컬 op + 원격 download/upload 통합). */
+export type QueueItemKind = 'copy' | 'move' | 'delete' | 'trash' | 'remote-download' | 'remote-upload'
+
+/** 큐 항목 상태 머신. pending→running→(done|failed|canceled), running↔paused. */
+export type QueueItemStatus = 'pending' | 'running' | 'paused' | 'done' | 'failed' | 'canceled'
+
+/**
+ * 큐 항목 1건(queue:list / queue:state). operationId 로 식별(기존 op 재사용).
+ * 진행률·속도·ETA 는 op:progress 와 동형 누계. sources/destSummary 는 표시용 요약
+ * (경로 전체 미수록 — 프라이버시·전송비용). 큐 스케줄러 impl: W2.
+ */
+export interface QueueItemDTO {
+  readonly operationId: string
+  readonly kind: QueueItemKind
+  readonly status: QueueItemStatus
+  /** "3개 항목" 등 소스 요약(표시용). */
+  readonly sourcesSummary: string
+  /** 대상 디렉토리 요약(표시용). */
+  readonly destSummary: string
+  readonly processedBytes: number
+  readonly totalBytes: number
+  readonly processedItems: number
+  readonly totalItems: number
+  readonly bytesPerSec: number
+  /** 남은 예상 시간(초). 산출 불가 시 null. */
+  readonly etaSec: number | null
+  /** 큐 진입 시각(epoch ms, FIFO 정렬). */
+  readonly enqueuedAt: number
 }
 
 // ────────────────────────────────────────────────────────────────────────

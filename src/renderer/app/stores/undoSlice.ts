@@ -61,6 +61,16 @@ export type UndoEntry =
       /** 휴지통으로 보낸 항목들의 원래 전체 경로(복원 매칭 키). */
       readonly originalPaths: string[]
     }
+  | {
+      readonly kind: 'batchRename'
+      /**
+       * 한 묶음으로 바뀐 각 항목의 역연산 정보(R1·§R·F22). 적용 성공분만 담는다
+       * (부분 적용 시 적용된 것만 역연산). newPath→oldName 으로 되돌린다.
+       */
+      readonly items: { readonly newPath: string; readonly oldName: string; readonly newName: string }[]
+      /** 영향 폴더(되돌리기 후 새로고침용). */
+      readonly dir: string
+    }
 
 export interface UndoSlice {
   /** 되돌리기 스택. push=top(끝), pop=undo. 상한 UNDO_STACK_CAP. */

@@ -84,6 +84,15 @@ export function StatusBar(): JSX.Element {
       }).length
   )
 
+  // §R3: 전송 큐 합산 인디케이터(진행/대기/일시정지 = 활성). 클릭 시 큐 패널 토글.
+  const queueActiveCount = useRootStore(
+    (s) =>
+      s.queueItems.filter(
+        (it) => it.status === 'pending' || it.status === 'running' || it.status === 'paused'
+      ).length
+  )
+  const openQueuePanel = useRootStore((s) => s.openQueuePanel)
+
   return (
     <div
       style={{
@@ -126,6 +135,24 @@ export function StatusBar(): JSX.Element {
                 : ''}
               {activeOpCount > 1 ? ` (+${activeOpCount - 1})` : ''}
             </span>
+          )}
+          {queueActiveCount > 0 && (
+            <button
+              type="button"
+              onClick={() => openQueuePanel()}
+              title="전송 큐 열기"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: tokens.color.accent,
+                fontSize: 12,
+                padding: 0,
+                font: 'inherit'
+              }}
+            >
+              ⇅ {queueActiveCount}개 작업 진행 중
+            </button>
           )}
           <span style={{ marginLeft: 'auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {info.path}

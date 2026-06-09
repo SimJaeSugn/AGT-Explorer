@@ -30,7 +30,7 @@ export function computeVisible(panel: Panel): FileEntryDTO[] {
   const { entries } = panel.directory
   const { sortKey, sortDir, folderFirst } = panel.view
   const query = panel.filter.open ? panel.filter.query : ''
-  // 이 패널 경로에 고정된 항목(상단 고정 기능). 변경 시에만 새 배열 참조 → 메모 무효화.
+  // 이 패널 경로에 고정된 항목(상단 고정 기능). 변경 시에만 새 배열 참조로 메모 무효화.
   const pinned = store.getState().pinnedIn(panel.path)
 
   const slot = memo.get(panel.id)
@@ -46,6 +46,7 @@ export function computeVisible(panel: Panel): FileEntryDTO[] {
     return slot.result
   }
 
+  // 이름 부분일치 필터(빈 쿼리면 원본 참조 그대로 반환 — 메모 친화).
   const filtered = filterEntries(entries, query)
   const sorted = sortEntries(filtered, sortKey, sortDir, folderFirst)
   const result = applyPins(sorted, new Set(pinned))

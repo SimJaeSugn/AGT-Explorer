@@ -15,12 +15,15 @@
 import type { CHANNELS } from './channels'
 import type {
   ClipboardEffectKind,
+  CompareResultDTO,
   ConflictPolicy,
   ConflictResolution,
   DirListResult,
   DriveDTO,
+  DupGroupDTO,
   FileEntryDTO,
   FileOpErrorCode,
+  HashAlgo,
   ListStreamChunk,
   ListStreamDone,
   ListStreamStart,
@@ -28,11 +31,13 @@ import type {
   OpSummary,
   PathValidation,
   PreviewData,
+  QueueItemDTO,
   RemoteProfileDTO,
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
   TrashItemDTO,
+  VerifyMismatchDTO,
   WorkspaceInfo
 } from '../dto'
 
@@ -384,6 +389,66 @@ export interface RemoteTransferRes {
   readonly operationId: string
 }
 
+// ── hash:* 공용 해시·비교 엔진 (신규 M7 — ADR-009) ──────────────────────
+// 잡 시작 invoke → Result<{ jobId }>. 진행/완료/오류는 jobId 상관 푸시 evt.
+// 모든 경로는 핸들러가 guardPath 로 정규화·상위이탈 차단·원격 prefix 거부(로컬 한정).
+
+/** P1 폴더 비교 시작(메타 4상태 + 해시 옵션 + 재귀). */
+export interface HashCompareStartReq {
+  readonly leftDir: string
+  readonly rightDir: string
+  /** true=같은 이름·같은 크기 항목의 내용 해시 비교(같은 크기 아님=diff·해시 회피). */
+  readonly useHash: boolean
+  /** true=양쪽 동명 하위 폴더 재귀 비교(relPath 누적·순환차단). */
+  readonly recursive: boolean
+  readonly algo?: HashAlgo
+}
+
+/** R2 중복 탐지 시작(크기 그룹핑 → 해시 그룹 확정). */
+export interface HashDupStartReq {
+  /** 탐지 범위(폴더/드라이브/패널 경로). 핸들러가 각 디렉토리 검증. */
+  readonly roots: string[]
+  /** 이 크기 미만 무시(기본 1 — 0바이트 제외). */
+  readonly minSize?: number
+  readonly algo?: HashAlgo
+}
+
+/** R4 체크섬 검증 시작(원본·사본 쌍 비교). pairs 는 핸들러가 각 파일 검증. */
+export interface HashVerifyStartReq {
+  readonly pairs: { readonly src: string; readonly dst: string }[]
+  readonly algo?: HashAlgo
+}
+
+/** 해시 잡 취소(jobId 협조취소). */
+export interface HashCancelReq {
+  readonly jobId: string
+}
+
+/** 잡 시작 응답 — 이후 progress/done/error 를 묶는 jobId. */
+export interface HashJobStartRes {
+  readonly jobId: string
+}
+
+// ── queue:* 전송 큐 (신규 M7 — ADR-011, 타입만 동결 / impl: W2) ──────────
+/** queue:list 응답 — 현재 큐 항목 스냅샷. */
+export interface QueueListRes {
+  readonly items: QueueItemDTO[]
+}
+/** 큐 항목 일시정지/재개/재시도 요청(operationId 식별 — 기존 op 재사용). */
+export interface QueuePauseReq {
+  readonly operationId: string
+}
+export interface QueueResumeReq {
+  readonly operationId: string
+}
+export interface QueueRetryReq {
+  readonly operationId: string
+}
+/** 큐 동시성 한도 설정(스케줄러 한도 갱신 후 pump). */
+export interface QueueSetConcurrencyReq {
+  readonly maxConcurrent: number
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
@@ -488,6 +553,19 @@ export interface IpcRequestMap {
   [CHANNELS.REMOTE_DELETE]: { req: RemoteDeleteReq; res: Result<void, RemoteError> }
   [CHANNELS.REMOTE_DOWNLOAD]: { req: RemoteDownloadReq; res: Result<RemoteTransferRes, RemoteError> }
   [CHANNELS.REMOTE_UPLOAD]: { req: RemoteUploadReq; res: Result<RemoteTransferRes, RemoteError> }
+
+  // hash:* (신규 M7 — ADR-009, 핸들러 impl: W1)
+  [CHANNELS.HASH_COMPARE_START]: { req: HashCompareStartReq; res: Result<HashJobStartRes> }
+  [CHANNELS.HASH_DUP_START]: { req: HashDupStartReq; res: Result<HashJobStartRes> }
+  [CHANNELS.HASH_VERIFY_START]: { req: HashVerifyStartReq; res: Result<HashJobStartRes> }
+  [CHANNELS.HASH_CANCEL]: { req: HashCancelReq; res: Result<void> }
+
+  // queue:* (신규 M7 — ADR-011, 타입만 동결 / 큐 핸들러 impl: W2)
+  [CHANNELS.QUEUE_LIST]: { req: void; res: Result<QueueListRes> }
+  [CHANNELS.QUEUE_PAUSE]: { req: QueuePauseReq; res: Result<void> }
+  [CHANNELS.QUEUE_RESUME]: { req: QueueResumeReq; res: Result<void> }
+  [CHANNELS.QUEUE_RETRY]: { req: QueueRetryReq; res: Result<void> }
+  [CHANNELS.QUEUE_SET_CONCURRENCY]: { req: QueueSetConcurrencyReq; res: Result<void> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -570,6 +648,43 @@ export interface RemoteSessionErrorEvt {
   readonly error: RemoteError
 }
 
+// ── hash:* 푸시 evt (신규 M7 — ADR-009, jobId 상관 — 소비측 필터) ────────
+/** 진행률(200ms 스로틀) — 누적 항목/바이트 + 현재 경로. 3 잡 종류 공통. */
+export interface HashProgressEvt {
+  readonly jobId: string
+  readonly scannedItems: number
+  readonly scannedBytes: number
+  readonly currentPath: string
+}
+/** P1 폴더 비교 완료 — 4상태 분류·짝지음 결과. */
+export interface HashCompareDoneEvt {
+  readonly jobId: string
+  readonly result: CompareResultDTO
+}
+/** R2 중복 탐지 완료 — 중복 그룹 + 항목 상한 도달 여부. */
+export interface HashDupDoneEvt {
+  readonly jobId: string
+  readonly groups: DupGroupDTO[]
+  readonly truncated: boolean
+}
+/** R4 체크섬 검증 완료 — 불일치 목록 + 일치 수(verified). */
+export interface HashVerifyDoneEvt {
+  readonly jobId: string
+  readonly mismatches: VerifyMismatchDTO[]
+  readonly verified: number
+}
+/** 잡 치명 오류(hash:error) — analyze:scan:error 동형(잡 시작은 invoke Result.err). */
+export interface HashErrorEvt {
+  readonly jobId: string
+  readonly error: FileOpError
+}
+
+// ── queue:* 푸시 evt (신규 M7 — ADR-011, 타입만 동결 / impl: W2) ─────────
+/** 디바운스 큐 스냅샷(queue:state). 큐 변경 시 1건 푸시. */
+export interface QueueStateEvt {
+  readonly items: QueueItemDTO[]
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -593,6 +708,18 @@ export interface IpcEventMap {
   // remote:* 푸시 evt (신규 §M M3, 계약만 동결)
   [CHANNELS.REMOTE_HOST_KEY]: RemoteHostKeyEvt
   [CHANNELS.REMOTE_SESSION_ERROR]: RemoteSessionErrorEvt
+
+  // hash:* 푸시 evt (신규 M7 — ADR-009)
+  [CHANNELS.HASH_COMPARE_PROGRESS]: HashProgressEvt
+  [CHANNELS.HASH_COMPARE_DONE]: HashCompareDoneEvt
+  [CHANNELS.HASH_DUP_PROGRESS]: HashProgressEvt
+  [CHANNELS.HASH_DUP_DONE]: HashDupDoneEvt
+  [CHANNELS.HASH_VERIFY_PROGRESS]: HashProgressEvt
+  [CHANNELS.HASH_VERIFY_DONE]: HashVerifyDoneEvt
+  [CHANNELS.HASH_ERROR]: HashErrorEvt
+
+  // queue:* 푸시 evt (신규 M7 — ADR-011, 타입만 동결 / impl: W2)
+  [CHANNELS.QUEUE_STATE]: QueueStateEvt
 }
 
 export type EventChannel = keyof IpcEventMap

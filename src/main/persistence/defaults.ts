@@ -22,7 +22,10 @@ import type {
   WindowSnapshot
 } from '@shared/dto'
 
-/** 현재 스키마 버전. 구조 변경 시 +1 하고 마이그레이션을 추가한다. */
+/**
+ * 현재 스키마 버전. 구조 변경 시 +1 하고 마이그레이션을 추가한다.
+ * domain/session/index.ts 의 SESSION_SCHEMA_VERSION 미러를 동시에 맞춰야 한다(SA §5.3).
+ */
 export const SESSION_SCHEMA_VERSION = 1
 export const SETTINGS_SCHEMA_VERSION = 1
 
@@ -66,7 +69,9 @@ export function defaultSettings(): SettingsSnapshot {
     showHidden: false,
     showExtensions: true,
     recentLimit: 10,
-    showDashboardOnStartup: true
+    showDashboardOnStartup: true,
+    // §R4 체크섬 검증: 기본 off(끄면 복사 동작 무변경·비파괴).
+    verifyOnCopy: false
   }
 }
 
@@ -122,7 +127,9 @@ export function coerceSettings(raw: unknown): SettingsSnapshot {
     showExtensions: asBool(o['showExtensions'], d.showExtensions),
     // 1~1000 범위로 클램프(비정상 값 방어).
     recentLimit: Math.min(1000, Math.max(1, Math.trunc(recentLimit))),
-    showDashboardOnStartup: asBool(o['showDashboardOnStartup'], d.showDashboardOnStartup)
+    showDashboardOnStartup: asBool(o['showDashboardOnStartup'], d.showDashboardOnStartup),
+    // §R4: 비파괴 — 구버전 설정(키 누락)은 기본 false 폴백.
+    verifyOnCopy: asBool(o['verifyOnCopy'], d.verifyOnCopy ?? false)
   }
 }
 

@@ -170,6 +170,13 @@ const baseBindings: KeyBinding[] = [
   { chord: 'ctrl+v', commandId: 'file.paste', context: 'list', label: '붙여넣기', group: '파일' },
   { chord: 'f2', commandId: 'file.rename', context: 'list', label: '이름변경', group: '파일' },
   {
+    chord: 'ctrl+shift+r',
+    commandId: 'file.batchRename',
+    context: 'list',
+    label: '고급 일괄 이름변경',
+    group: '파일'
+  },
+  {
     chord: 'ctrl+shift+n',
     commandId: 'file.newFolder',
     context: 'global',

@@ -46,6 +46,97 @@ export async function performUndo(): Promise<void> {
     case 'trash':
       await undoTrash(entry)
       return
+    case 'batchRename':
+      await undoBatchRename(entry)
+      return
+  }
+}
+
+/**
+ * batchRename 역연산(R1·§R·F22): 각 item 을 newPath → oldName 으로 되돌린다.
+ *
+ * - 충돌 선검증(undoRename 원칙 재사용): newPath 부재면 그 항목 건너뜀,
+ *   oldName 자리에 동명 항목이 새로 생겼으면 덮어쓰지 않고 그 항목만 건너뜀.
+ * - **순환(A→B, B→A) 회피**: 묶음 내 복원 목표 이름끼리 또는 현재 이름과 충돌하면
+ *   2단계 rename(임시명 경유)으로 안전 처리(applyBatchRename 과 동일 원칙).
+ * - 부분 복원 가능(fs 비원자) → 결과를 정직 안내(은폐 금지·계획서 §6.2·§10.3).
+ */
+async function undoBatchRename(entry: Extract<UndoEntry, { kind: 'batchRename' }>): Promise<void> {
+  const s = store.getState()
+  if (entry.items.length === 0) {
+    s.pushToast('info', '되돌릴 항목이 없습니다.')
+    return
+  }
+
+  // 복원 목표 이름 집합(대소문자 무시)·현재 이름 집합. 둘이 겹치면 순환 → 2단계 필요.
+  const targetNames = new Set(entry.items.map((it) => it.oldName.toLowerCase()))
+  const currentNames = new Set(entry.items.map((it) => baseName(it.newPath).toLowerCase()))
+  let cyclic = false
+  for (const n of targetNames) {
+    if (currentNames.has(n)) {
+      cyclic = true
+      break
+    }
+  }
+
+  let done = 0
+  let skipped = 0
+  const tempSuffix = `.agtundo-${Date.now()}`
+
+  if (cyclic) {
+    // 1단계: 전부 임시명으로. 2단계: 임시명 → oldName.
+    const staged: { tempPath: string; oldName: string; parent: string }[] = []
+    for (const it of entry.items) {
+      const parent = parentOf(it.newPath)
+      if (parent === null || !(await pathExists(it.newPath))) {
+        skipped++
+        continue
+      }
+      const tempName = `${baseName(it.newPath)}${tempSuffix}`
+      const r1 = await fsApi.rename({ path: it.newPath, newName: tempName })
+      if (!r1.ok) {
+        skipped++
+        continue
+      }
+      staged.push({ tempPath: r1.value.path, oldName: it.oldName, parent })
+    }
+    for (const st of staged) {
+      // oldName 자리에 비대상 동명이 새로 있으면 중단(건너뜀·덮어쓰기 금지).
+      const finalPath = joinPath(st.parent, st.oldName)
+      if (finalPath.toLowerCase() !== st.tempPath.toLowerCase() && (await pathExists(finalPath))) {
+        skipped++
+        continue
+      }
+      const r2 = await fsApi.rename({ path: st.tempPath, newName: st.oldName })
+      if (r2.ok) done++
+      else skipped++
+    }
+  } else {
+    for (const it of entry.items) {
+      const parent = parentOf(it.newPath)
+      if (parent === null || !(await pathExists(it.newPath))) {
+        skipped++
+        continue
+      }
+      const oldPath = joinPath(parent, it.oldName)
+      if (await pathExists(oldPath)) {
+        // 원래 이름 자리에 동명 항목 → 덮어쓰지 않고 건너뜀.
+        skipped++
+        continue
+      }
+      const res = await fsApi.rename({ path: it.newPath, newName: it.oldName })
+      if (res.ok) done++
+      else skipped++
+    }
+  }
+
+  refreshDirs([entry.dir])
+  if (done > 0 && skipped === 0) {
+    s.pushToast('info', `일괄 이름변경을 되돌렸습니다(${done}건).`)
+  } else if (done > 0 && skipped > 0) {
+    s.pushToast('info', `일부만 되돌렸습니다 — 복원 ${done}건, 건너뜀 ${skipped}건(충돌/부재).`)
+  } else {
+    s.pushToast('error', '되돌리지 못했습니다 — 대상이 없거나 같은 이름이 이미 있습니다.')
   }
 }
 

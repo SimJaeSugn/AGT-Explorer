@@ -44,6 +44,24 @@ export interface ContextMenuState {
 }
 
 /**
+ * 폴더 비교 미러 확인 모달 상태(§P1). 파괴적 동기화(복사 덮어쓰기·삭제 포함)는
+ * 확정 전 변경 미리보기(복사 N·덮어쓰기 M·삭제 K)를 보여주고 사용자가 확인한다.
+ * 삭제 동기화는 휴지통 경유·K1 undo 보장. confirm 콜백은 usecase 가 실행한다.
+ */
+export interface CompareMirrorConfirmState {
+  /** 미러 방향(좌→우 / 우→좌). */
+  readonly direction: 'l2r' | 'r2l'
+  /** 복사(없는 것/다른 것) 항목 수. */
+  readonly copyCount: number
+  /** 덮어쓰기가 되는 항목 수(복사 중 dest 동명 존재). */
+  readonly overwriteCount: number
+  /** 삭제 동기화 항목 수(휴지통 경유). 삭제 미포함이면 0. */
+  readonly deleteCount: number
+  /** 삭제 동기화 포함 여부(사용자가 명시 선택). */
+  readonly includeDeletes: boolean
+}
+
+/**
  * 인라인 이름변경 대상(P4). F2/새 항목 생성 직후 진입.
  * FileListView 가 panelId·path 가 일치하는 행을 input 으로 렌더한다.
  */
@@ -98,8 +116,18 @@ export interface UiSlice {
   readonly trashOpen: boolean
   /** 원격 연결 다이얼로그 열림 여부(§M M3). */
   readonly remoteDialogOpen: boolean
+  /** 고급 일괄 이름변경 다이얼로그 열림 여부(§R1·다중선택). */
+  readonly batchRenameOpen: boolean
+  /** 폴더 비교 미러 확인 모달(파괴적 동기화 확정 전·없으면 null, §P1). */
+  readonly compareMirrorConfirm: CompareMirrorConfirmState | null
+  /** 중복 파일 찾기 다이얼로그 열림 여부(§R2·US-17.2). */
+  readonly dedupOpen: boolean
+  /** 전송 큐 매니저 패널 열림 여부(§R3·US-17.3). */
+  readonly queuePanelOpen: boolean
   /** 프로그램 시작 시 용량 대시보드 자동 표시(설정 영속, I장 §4.4). */
   readonly showDashboardOnStartup: boolean
+  /** 복사 후 체크섬 검증(설정 영속, §R4·US-17.4). 기본 off. */
+  readonly verifyOnCopy: boolean
 
   // P6 미리보기 / 워크스페이스 ────────────────────────────────────────────
   /** 미리보기 패널 열림 여부(기본 false, Ctrl+P 토글, US-4.3). 세션 복원 대상. */
@@ -153,6 +181,8 @@ export interface UiSlice {
   closeDashboard(): void
   /** 시작 시 대시보드 표시 설정(영속은 usecase/settings 가 처리). */
   setShowDashboardOnStartup(v: boolean): void
+  /** 복사 후 체크섬 검증 설정(영속은 usecase/settings 가 처리, §R4). */
+  setVerifyOnCopy(v: boolean): void
   /** 휴지통 모달이 열릴 때 inputContext='dialog' 전환(trashSlice.openTrash 와 함께 호출). */
   openTrash(): void
   /** 휴지통 모달 닫힘 시 다른 모달 없으면 inputContext='list' 복귀(trashSlice.closeTrash 와 함께). */
@@ -161,6 +191,22 @@ export interface UiSlice {
   openRemoteDialog(): void
   /** 원격 연결 다이얼로그 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
   closeRemoteDialog(): void
+  /** 고급 일괄 이름변경 다이얼로그 열기(inputContext='dialog', §R1). */
+  openBatchRename(): void
+  /** 일괄 이름변경 다이얼로그 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closeBatchRename(): void
+  /** 폴더 비교 미러 확인 모달 열기(inputContext='dialog', §P1). */
+  openCompareMirrorConfirm(state: CompareMirrorConfirmState): void
+  /** 미러 확인 모달 닫기(다른 모달 없으면 inputContext='list' 복귀). */
+  closeCompareMirrorConfirm(): void
+  /** 중복 파일 찾기 다이얼로그 열기(inputContext='dialog', §R2). */
+  openDedup(): void
+  /** 중복 파일 찾기 다이얼로그 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closeDedup(): void
+  /** 전송 큐 매니저 패널 열기(inputContext='dialog', §R3). */
+  openQueuePanel(): void
+  /** 전송 큐 매니저 패널 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closeQueuePanel(): void
 
   // P6 미리보기 / 워크스페이스 액션 ────────────────────────────────────────
   /** 미리보기 패널 토글(Ctrl+P). */
@@ -214,7 +260,12 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   dashboardOpen: false,
   trashOpen: false,
   remoteDialogOpen: false,
+  batchRenameOpen: false,
+  compareMirrorConfirm: null,
+  dedupOpen: false,
+  queuePanelOpen: false,
   showDashboardOnStartup: true,
+  verifyOnCopy: false,
   previewOpen: false,
   previewWidth: 320,
   workspaceOpen: false,
@@ -228,6 +279,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       s.showExtensions = snapshot.showExtensions
       s.recentLimit = Math.min(1000, Math.max(1, Math.trunc(snapshot.recentLimit)))
       s.showDashboardOnStartup = snapshot.showDashboardOnStartup
+      // §R4: 비파괴 — 구버전 스냅샷(undefined)은 false 폴백.
+      s.verifyOnCopy = snapshot.verifyOnCopy ?? false
       s.telemetryOptIn = telemetryOptIn
       s.settingsLoaded = true
     })
@@ -307,6 +360,12 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     })
   },
 
+  setVerifyOnCopy(v) {
+    set((s) => {
+      s.verifyOnCopy = v
+    })
+  },
+
   openTrash() {
     set((s) => {
       s.trashOpen = true
@@ -347,6 +406,107 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         !s.dashboardOpen &&
         !s.workspaceOpen &&
         !s.trashOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openBatchRename() {
+    set((s) => {
+      s.batchRenameOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeBatchRename() {
+    set((s) => {
+      s.batchRenameOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openCompareMirrorConfirm(state) {
+    set((s) => {
+      s.compareMirrorConfirm = state
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeCompareMirrorConfirm() {
+    set((s) => {
+      s.compareMirrorConfirm = null
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openDedup() {
+    set((s) => {
+      s.dedupOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeDedup() {
+    set((s) => {
+      s.dedupOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.queuePanelOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openQueuePanel() {
+    set((s) => {
+      s.queuePanelOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeQueuePanel() {
+    set((s) => {
+      s.queuePanelOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.dedupOpen
       ) {
         s.inputContext = 'list'
       }
@@ -467,6 +627,10 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         s.dashboardOpen ||
         s.trashOpen ||
         s.remoteDialogOpen ||
+        s.batchRenameOpen ||
+        s.compareMirrorConfirm ||
+        s.dedupOpen ||
+        s.queuePanelOpen ||
         s.renameTarget
       ) {
         return

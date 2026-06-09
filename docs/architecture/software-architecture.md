@@ -417,8 +417,103 @@ resolveFavoriteWatermark(
 
 ---
 
+## 13. §P~§U 파워 기능 — 무거운 백그라운드 모듈 경계 (archive·hash·grep·전송 큐) (2026-06-09 추가)
+
+> 비파괴 추가. 채널·흐름은 [system-architecture §5-PU](./system-architecture.md). ADR: [008](./adr/ADR-008-archive-namespace-adapter.md)/[009](./adr/ADR-009-hash-and-compare-engine.md)/[010](./adr/ADR-010-content-search-grep-engine.md)/[011](./adr/ADR-011-transfer-queue.md). 상태: **🔜 미착수(설계 단계)**. 계층 규칙(§3.1 의존 방향)·네트워크 0(로컬만)·throw0/Result 불변.
+
+### 13.1 압축 `archive://` 어댑터 (Q1)
+
+§11.1 원격 패턴(별도 네임스페이스 + 공통 인터페이스)을 차용. `Panel.location`에 `ArchiveLocation = { kind:'archive'; sessionId; archivePath; innerPath }` 추가, `usecases/navigation`이 `location.kind`로 분기(`archive:list`), `transferRoute.ts`에 archive→local(추출)·local→archive(추가) 조합 추가.
+
+| 계층 | 신규 모듈 | 책임 |
+|---|---|---|
+| 도메인 | `domain/entities`(확장) | `ArchiveLocation` 타입 |
+| 도메인 | `domain/rules/archiveSafePath.ts` | **Zip Slip** 경계 검증(순수·destDir 하위 판정·`../`/절대/드라이브/UNC/심볼릭 거부) |
+| 도메인 | `domain/rules/transferRoute.ts`(확장) | archive↔local 전송 종류 판정 추가 |
+| 애플리케이션 | `app/usecases/archive.ts` | open/list/close·추출·추가 트리거(infra 경유) |
+| 애플리케이션 | `app/stores/`(확장) | 압축 세션 상태(remoteSlice 형태 또는 panelsSlice location) |
+| 인프라 | `infra/api`(확장) | `archiveApi` 래퍼 |
+| UI | `ui/`(확장) | 압축 패널 배지·"폴더처럼 열기"/"추출" 액션(로컬 패널 UX 재사용) |
+| Main | `src/main/archive/*` | `ArchiveService`·`ZipReader`(yauzl)·`ZipWriter`(yazl)·`ArchiveSessionManager` + 추출/추가 워커 |
+
+### 13.2 공용 해시·비교 엔진 (P1 해시 옵션·R2·R4)
+
+세 기능이 단일 엔진 공유(ADR-009). 비교 4상태 분류 규칙은 도메인 순수, 실제 해시·스캔은 Main 워커.
+
+| 계층 | 신규 모듈 | 책임 |
+|---|---|---|
+| 도메인 | `domain/rules/compare.ts` | 4상태(좌만/우만/다름/같음) 분류·짝지음 순수 규칙(렌더러 표시·Main 엔진과 타입 공유) |
+| 애플리케이션 | `app/usecases/compare.ts`·`dedup.ts`·`checksum.ts` | 비교/중복/검증 잡 트리거·결과 수신 브리지 |
+| 애플리케이션 | `app/stores/`(신규 `compareSlice`·`dedupSlice`) | diff 상태·동기 스크롤·중복 그룹·검증 결과 |
+| UI | `ui/compare/`·`ui/dedup/` | diff 뷰(동기 스크롤·"차이만 보기")·미러 미리보기·중복 그룹 패널 |
+| Main | `src/main/hash/*` | `hashEngine`(스트리밍·algo)·`compareEngine`·`dupEngine`·`HashManager`(jobId·취소·200ms) + 워커 |
+
+- **P1 동기 스크롤**: 짝지어진 좌/우 목록을 같은 가상 스크롤 인덱스로 동기화(짝 없는 항목은 플레이스홀더). FileListView 가상 스크롤(§6) 위에 "동기 스크롤 컨트롤러"를 얹는다(렌더러).
+- **P1 미러(파괴적)**: 변경 미리보기(복사 N·덮어쓰기 M·삭제 K) → 사용자 확정 → 기존 `op:*`(삭제는 휴지통 경유·D4 충돌)·K1 되돌리기 누적. 메타 비교(M6)는 해시 없이 동작, 해시 옵션(M7)은 hash 엔진 연결.
+
+### 13.3 내용 검색(grep) 엔진 (S1)
+
+| 계층 | 신규 모듈 | 책임 |
+|---|---|---|
+| 애플리케이션 | `app/usecases/contentSearch.ts` | grep 잡 트리거·증분 결과 수신·점프 |
+| 애플리케이션 | `app/stores/`(신규 `searchSlice` 또는 panelsSlice 확장) | 결과 목록(가상 스크롤)·진행·취소 |
+| UI | `ui/search/`(확장) | "내용 검색" 모드·결과 목록(라인·하이라이트)·미리보기 점프(D3/J5 재사용) |
+| Main | `src/main/search/*` | `grepEngine`(스트리밍 라인 스캔)·`binaryDetect`·`GrepManager` + 워커 |
+
+### 13.4 전송 큐 (R3)
+
+| 계층 | 신규 모듈 | 책임 |
+|---|---|---|
+| 애플리케이션 | `app/stores/operationsSlice`(확장) | 큐 항목(`QueueItemDTO`)·상태(대기/진행/일시정지/완료/실패)·동시성 |
+| 애플리케이션 | `app/usecases/queue.ts` | pause/resume/retry/concurrency·큐 스냅샷 구독 |
+| UI | `ui/queue/` | 전송 큐 패널(작업 목록·진행률·속도·ETA·제어 버튼)·StatusBar 인디케이터 연동 |
+| Main | `OperationManager`(확장) | 내부 `TransferQueue` 스케줄러·일시정지 플래그(SharedArrayBuffer/stream)·재시도. op:* 채널·의미 불변 |
+
+---
+
+## 14. §P~§U 경량·독립 기능 — 모듈 설계 (ADR 불요) (2026-06-09 추가)
+
+> ADR이 과한 경량 기능(R1·S2·T1·T2·T3·U1·U2·U3)을 모듈 설계로 정의한다. 대부분 **렌더러 전용·신규 채널 0**(§5-PU.0). 메타/필터 결정은 [ADR-012](./adr/ADR-012-metadata-persistence-and-filter-composition.md). 상태: **🔜 미착수**.
+
+### 14.1 R1 고급 일괄 이름변경 (신규 채널 0)
+- `domain/rules/batchRename.ts`(순수): 규칙(찾기/바꾸기·정규식·접두/접미·연번·대소문자·확장자) → 현재명→변경후명 매핑 계산 + **충돌 검사**(변경 후 서로 충돌·기존 파일 충돌)·금지문자/예약명/빈 이름(B3 규칙 재사용). 실시간 미리보기는 이 순수 함수 결과.
+- `ui/rename/BatchRenameDialog.tsx`: 규칙 입력·미리보기 표·충돌 경고. 실행 = 기존 `fs:rename` 반복(또는 안전 2단계 rename으로 순환 충돌 회피) → **K1 undo 스택에 한 묶음으로 push**(features §R1).
+- 미디어 메타 명명·이름변경 프리셋은 1차 제외.
+
+### 14.2 S2 명령 팔레트 (신규 채널 0·Ctrl+Shift+P)
+- `ui/palette/CommandPalette.tsx`(오버레이): 입력 → **명령(commandBus의 commandId 전체·단축키 표기)·즐겨찾기·최근·드라이브** 통합 검색(부분 일치·점수·최근 가중). 명령 실행 = 기존 `commandBus.execCommand`(키보드/아이콘바와 동일 수렴)·위치 항목 = 그 경로 navigate. 컨텍스트 불가 명령은 흐림/제외(activeWhen 재사용).
+- `domain/keybindings`에 `Ctrl+Shift+P`→`palette.open` 등록(PRD §8 신규·미배정 조합·충돌 0). 매칭 점수는 `domain/rules/paletteMatch.ts`(순수).
+
+### 14.3 T1 태그/색상 라벨 · ~~T3 정렬/필터 프리셋 · 복수 필터 합성~~(T3·합성 폐기) (신규 채널 0)
+> **폐기 주석(2026-06-09 사용자 결정):** **T3 정렬/필터 프리셋 및 복수 필터 합성(`filterComposition.ts`) 부분은 폐기·코드 전면 제거**됐다(`presetsSlice`·`usecases/presets`·`ui/preset/*`·`FilterPreset` DTO·`SessionSnapshot.filterPresets` 삭제·`computeVisible`→기존 `filterEntries` 환원·`SESSION_SCHEMA_VERSION` 2→1 환원). **T1 태그 메타 영속(`tagsByPath`·`tags.ts`·`ui/tags/`)는 M8용으로 유효**하나, T1 태그 필터 합성은 `filterComposition.ts` 폐기로 구현 시 재설계 필요. 아래 T3·합성 관련 설계는 이력으로만 보존.
+- 메타 영속: `SessionSnapshot.tagsByPath`(T1·유효)·~~`filterPresets`(T3·폐기)~~ 확장(J7 `favoriteLabels`·O1 `pinnedByDir` 패턴·`coerce*` 재사용·신규 채널 0·스키마 version +1). ADR-012 결정①(태그 부분 유효).
+- ~~**복수 필터 합성(ADR-012 결정②)**: `domain/rules/filterComposition.ts`(순수) — **차원 간 AND·차원 내 OR**(이름 query·확장자 패턴·태그 색·"차이만 보기" diffOnly). `selectors.ts#computeVisible`가 이 함수로 가시 목록 파생(메모이즈). D1/D2/T1/P1/T3가 동일 규칙 공유.~~ **(폐기·`filterComposition.ts` 삭제됨)**
+- `domain/rules/tags.ts`(팔레트·키 정규화·T1 유효)·~~`app/stores/presetsSlice`(폐기)~~·`ui/tags/`(부여·표시·필터·T1)·~~`ui/preset/`(저장/적용/관리·폐기)~~.
+- 데이터 비파괴(파일/ADS 미변경)·고아 키 lazy GC(ADR-012 결정③).
+
+### 14.4 T2 폴더 용량 인라인 (신규 채널 0·scanEngine 재사용)
+- 자세히 보기 폴더 행의 온디맨드 재귀 크기 계산. 기존 `scanEngine.ts`(순환차단·권한 skip·취소·진행률) 재사용 — 단일 폴더 합계만(`analyze:scan:*` 재사용 또는 단일 폴더 경량 호출). 폴더 이동/정렬 변경 시 진행 잡 취소·정리. 기본 off·결과 영속 캐시 1차 제외.
+- `app/usecases/folderSize.ts`·`ui/panel/views/FileListView`(details 폴더 행 크기 칸 인라인 상태).
+
+### 14.5 U1 Space 퀵룩 (신규 채널 0·preview 재사용)
+- `ui/quicklook/QuickLookOverlay.tsx`: `Space`로 중앙 큰 미리보기 오버레이(이미지/텍스트/코드/마크다운/메타) — **D3/J5 렌더러 재사용**(`preview:read`·CSP·DOMPurify·렌더러 직접 파일 접근 없음). 연 채 ↑/↓ 이전/다음 항목 전환·`Space`/`Esc` 닫기. `domain/keybindings`에 `Space`→`quicklook.toggle`(목록 컨텍스트·텍스트 입력 중 비활성).
+
+### 14.6 U2 브레드크럼 드롭다운 (신규 채널 0·fs:tree-children 재사용)
+- `ui/toolbar/Breadcrumb`(확장): 각 세그먼트 ▾ 클릭 → 그 구간 **형제 폴더 목록** 드롭다운(기존 `fs:tree-children` 온디맨드 호출·폴더만). 선택 시 navigate·키보드 내비(↑/↓·Enter·Esc)·많으면 스크롤/필터. 권한 없음/지연 안내.
+
+### 14.7 U3 탭 색상/잠금 · 탭 분리(새 창) (Could·복잡도 명시)
+- **탭 색상·잠금(경량)**: `Tab`에 `color?`·`locked?` 추가·세션 영속(tabsSlice·SessionSnapshot). 잠금 시 `tab.close`/가운데클릭/X 차단(commandBus 가드). 우클릭 메뉴 토글.
+- **탭 분리=새 창(복잡도 큼)**: 신규 `BrowserWindow` 생성·해당 탭을 새 창으로 이전·원 창에서 제거. **멀티 윈도우 영향(정직 명시)**:
+  - **세션 복원**: 현재 `SessionSnapshot.windows[]`는 다중 창 구조를 이미 가지나(SA §5.1) 실제로는 단일 창 중심이었다 → 다중 창 복원·창별 활성 탭·창 위치/크기 영속이 필요(US-5.5 연계 범위 확장).
+  - **IPC 라우팅**: 진행률·이벤트 푸시가 `webContents`(창)별로 분기돼야 함(현재 단일 창 가정 코드 점검 필요). OperationManager·watch·scan 푸시의 대상 창 라우팅.
+  - **상태 격리**: 창 간 상태 격리(각 창 독립 store)·창 간 탭 드래그 이동은 1차 제외(features §U3).
+  - 복잡도 때문에 **Could·M9 마지막**. 창 간 IPC guard(sender 검증)는 각 창에 동일 적용.
+
+---
+
 ## 10. 미해결 질문
 
+0. **§P~§U 미해결**: 각 ADR-008~012 "미해결 질문(설계 deferral)" 절을 단일 출처로 둔다(압축 라이브러리 최종 픽스 UQ-Q1·zip 외 포맷 UQ-Q2·해시 고속화 UQ-H1·grep 인코딩 UQ-S1·큐 resume UQ-R2·태그 저장소 분리 UQ-T2 등). 전부 1차 범위 밖·구현 착수 비차단. **탭 분리(U3) 멀티 윈도우 범위**(세션 다중 창 복원·IPC 창 라우팅 수준)는 사용자/PM 결정 필요(§14.7·아래 보고).
 1. **Renderer 필터 Web Worker 오프로드 도입 시점**: MVP 메모이즈+가시영역 우선 필터(§6.3 폴백 1·2)로 200ms 충족되는지 **M1 성능 스파이크("1만 개 목록 입력 후 200ms 내 가시 결과" 측정)** 후 결정. 미달 시에만 §6.3 폴백 3(Web Worker) 도입.
 2. **인라인 이름편집·주소표시줄 컨텍스트 스코프 세분화 수준**: 접근성(포커스 트랩) 요구와 함께 디자인 단계 확정.
 3. flows 5장의 시각/배치 질문(분할 컨트롤 위치·미리보기 부착 방향)은 UI 디자인 단계 사안으로 본 설계는 LayoutHost/PreviewPanel을 양쪽 배치 가능하게만 열어둠.

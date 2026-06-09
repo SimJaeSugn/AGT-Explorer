@@ -15,6 +15,8 @@ import type { AnalyzeSlice } from './analyzeSlice'
 import type { TrashSlice } from './trashSlice'
 import type { UndoSlice } from './undoSlice'
 import type { RemoteSlice } from './remoteSlice'
+import type { CompareSlice } from './compareSlice'
+import type { DedupSlice } from './dedupSlice'
 
 /** 전체 스토어 상태 = 모든 슬라이스의 교집합. */
 export type AppStore = PanelsSlice &
@@ -26,7 +28,9 @@ export type AppStore = PanelsSlice &
   AnalyzeSlice &
   TrashSlice &
   UndoSlice &
-  RemoteSlice
+  RemoteSlice &
+  CompareSlice &
+  DedupSlice
 
 /** 슬라이스 생성자 시그니처(immer 미들웨어 가정 — set 은 mutate 가능). */
 export type SliceCreator<T> = StateCreator<

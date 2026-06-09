@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
 import type { ConflictResolution } from '@shared/dto'
 import { runCopy, runDelete, runMove } from '../operations/engine'
 import type { EngineHooks } from '../operations/engine'
-import { CANCEL_FLAG_INDEX } from './protocol'
+import { CANCEL_FLAG_INDEX, PAUSE_FLAG_INDEX } from './protocol'
 import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from './protocol'
 
 const port = parentPort
@@ -24,7 +24,9 @@ const job = workerData as WorkerJob
 if (!port) {
   // worker_threads 외부에서 import 된 경우(번들 검증 등) — no-op.
 } else {
+  // 2워드 협조 버퍼: [0]=cancel, [1]=pause(M7). 단일 Int32Array 뷰 공유.
   const cancelView = new Int32Array(job.cancelBuffer)
+  const pauseView = cancelView
   const post = (msg: WorkerOutMsg): void => port.postMessage(msg)
 
   // 충돌 응답 대기 레지스트리.
@@ -50,6 +52,16 @@ if (!port) {
       post({ type: 'progress', processedBytes, processedItems, currentName }),
     onFailure: (failure) => post({ type: 'failure', failure }),
     shouldCancel: () => Atomics.load(cancelView, CANCEL_FLAG_INDEX) === 1,
+    // 파일 경계 일시정지(M7 · ADR-011): pause(1) 면 재개/취소까지 대기. Atomics.wait 로
+    // 워커 스레드를 블록(CPU 0)하되 취소 즉시성 위해 100ms 마다 깨어 cancel 폴링.
+    awaitResume: async () => {
+      while (
+        Atomics.load(pauseView, PAUSE_FLAG_INDEX) === 1 &&
+        Atomics.load(cancelView, CANCEL_FLAG_INDEX) !== 1
+      ) {
+        Atomics.wait(pauseView, PAUSE_FLAG_INDEX, 1, 100)
+      }
+    },
     resolveConflict: (args) => {
       // 일괄 정책이 정해져 있으면 즉시 적용(질의 없이).
       if (stickyResolution !== null) return Promise.resolve(stickyResolution)

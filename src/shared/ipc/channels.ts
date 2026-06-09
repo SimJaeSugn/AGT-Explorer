@@ -138,7 +138,36 @@ export const CHANNELS = {
   REMOTE_RENAME: 'remote:rename', // invoke → Result<void, RemoteError>
   REMOTE_DELETE: 'remote:delete', // invoke → Result<void, RemoteError>
   REMOTE_DOWNLOAD: 'remote:download', // invoke → Result<{ operationId }, RemoteError>
-  REMOTE_UPLOAD: 'remote:upload' // invoke → Result<{ operationId }, RemoteError>
+  REMOTE_UPLOAD: 'remote:upload', // invoke → Result<{ operationId }, RemoteError>
+
+  // ── hash:* 공용 해시·비교 엔진 (M7 — ADR-009, 신규) ───────────────────
+  // P1 해시 옵션·R2 중복·R4 체크섬·P1 재귀가 공유하는 잡 단위 워커 작업.
+  // analyze:scan:* 선례 동형(jobId 상관·SharedArrayBuffer 협조취소·200ms 스로틀·
+  // 진행/완료/오류 푸시). 전부 로컬 한정(원격/archive prefix 거부 — ADR-005).
+  // 잡 시작 실패는 invoke Result.err, 잡 도중 치명 오류는 hash:error 푸시
+  // (analyze:scan:error 동형 — 정직 표면). W0 채널 동결, 핸들러 impl: W1.
+  HASH_COMPARE_START: 'hash:compare:start', // invoke → Result<{ jobId }> (P1 폴더 비교)
+  HASH_COMPARE_PROGRESS: 'hash:compare:progress', // 푸시 evt
+  HASH_COMPARE_DONE: 'hash:compare:done', // 푸시 evt
+  HASH_DUP_START: 'hash:dup:start', // invoke → Result<{ jobId }> (R2 중복 탐지)
+  HASH_DUP_PROGRESS: 'hash:dup:progress', // 푸시 evt
+  HASH_DUP_DONE: 'hash:dup:done', // 푸시 evt
+  HASH_VERIFY_START: 'hash:verify:start', // invoke → Result<{ jobId }> (R4 체크섬 검증)
+  HASH_VERIFY_PROGRESS: 'hash:verify:progress', // 푸시 evt
+  HASH_VERIFY_DONE: 'hash:verify:done', // 푸시 evt
+  HASH_ERROR: 'hash:error', // 푸시 evt (잡 치명 오류 — analyze:scan:error 동형)
+  HASH_CANCEL: 'hash:cancel', // invoke → Result<void> (jobId 협조취소)
+
+  // ── queue:* 전송 큐 (M7 — ADR-011, 신규) ──────────────────────────────
+  // OperationManager 큐 확장 위 요청-응답 + 큐 스냅샷 푸시. 취소=기존 op:cancel,
+  // 항목별 진행률=기존 op:progress 재사용(operationId 식별). W0 채널/타입 동결,
+  // 큐 핸들러/스케줄러 impl: W2(후속). 여기서는 채널·타입만 등록한다.
+  QUEUE_LIST: 'queue:list', // invoke → Result<{ items: QueueItemDTO[] }>
+  QUEUE_STATE: 'queue:state', // 푸시 evt (디바운스 큐 스냅샷)
+  QUEUE_PAUSE: 'queue:pause', // invoke → Result<void>
+  QUEUE_RESUME: 'queue:resume', // invoke → Result<void>
+  QUEUE_RETRY: 'queue:retry', // invoke → Result<void>
+  QUEUE_SET_CONCURRENCY: 'queue:set-concurrency' // invoke → Result<void>
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -163,7 +192,17 @@ export const EVENT_CHANNELS = [
   CHANNELS.FS_WATCH_ERROR,
   // remote:* 푸시 evt (신규 §M M3 — TOFU 호스트키 확인·세션 격리 오류)
   CHANNELS.REMOTE_HOST_KEY,
-  CHANNELS.REMOTE_SESSION_ERROR
+  CHANNELS.REMOTE_SESSION_ERROR,
+  // hash:* 푸시 evt (신규 M7 — ADR-009, jobId 상관 진행/완료/오류)
+  CHANNELS.HASH_COMPARE_PROGRESS,
+  CHANNELS.HASH_COMPARE_DONE,
+  CHANNELS.HASH_DUP_PROGRESS,
+  CHANNELS.HASH_DUP_DONE,
+  CHANNELS.HASH_VERIFY_PROGRESS,
+  CHANNELS.HASH_VERIFY_DONE,
+  CHANNELS.HASH_ERROR,
+  // queue:* 푸시 evt (신규 M7 — ADR-011, 디바운스 큐 스냅샷, impl: W2)
+  CHANNELS.QUEUE_STATE
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

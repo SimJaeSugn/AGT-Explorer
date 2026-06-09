@@ -350,6 +350,8 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       const id = tabId ?? get().activeTabId
       const tab = get().tabs[id]
       if (!tab) return
+      // §P1: 레이아웃이 바뀌면 폴더 비교 모드 종료(2분할 전제가 깨짐).
+      if (get().compareActive) get().clearCompare()
 
       if (tab.layout === 'single') {
         // 2분할로: 둘째 패널을 첫째와 같은 경로로 생성.
@@ -386,6 +388,8 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       const id = tabId ?? get().activeTabId
       const tab = get().tabs[id]
       if (!tab) return
+      // §P1: 레이아웃이 바뀌면 폴더 비교 모드 종료(2분할 전제가 깨짐).
+      if (get().compareActive) get().clearCompare()
 
       if (tab.layout === 'grid-4') {
         // 단일로 복귀: 활성 패널만 남기고 나머지 정리(toggleSplit2 와 동일).

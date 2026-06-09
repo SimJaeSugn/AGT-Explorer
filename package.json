@@ -22,6 +22,8 @@
     "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
     "verify:persistence": "esbuild scripts/verify-persistence.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-persistence.cjs && node ./out/verify-persistence.cjs",
     "verify:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-scan.cjs && node ./out/verify-scan.cjs",
+    "verify:hash": "esbuild scripts/verify-hash.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-hash.cjs && node ./out/verify-hash.cjs",
+    "verify:queue": "esbuild scripts/verify-queue.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-queue.cjs && node ./out/verify-queue.cjs",
     "verify:perf": "esbuild scripts/verify-perf.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-perf.cjs && node ./out/verify-perf.cjs",
     "verify:fmatrix": "esbuild scripts/verify-fmatrix.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-fmatrix.cjs && node ./out/verify-fmatrix.cjs",
     "verify:contrast": "esbuild scripts/verify-contrast.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-contrast.cjs && node ./out/verify-contrast.cjs",

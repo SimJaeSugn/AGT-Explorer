@@ -8,11 +8,17 @@
  * 전송 규칙: worker_threads 의 postMessage 는 구조화 복제(structured clone)를
  * 쓰므로 순수 직렬화 가능 객체만 주고받는다(함수·클래스 금지).
  *
- * 취소: 협조적 취소를 위해 SharedArrayBuffer(Int32Array[0]) 1워드를 공유한다.
- * Main 이 Atomics.store(cancelFlag, 0, 1) 로 세팅하면 Worker 가 안전 지점에서
- * 즉시 감지(메시지 큐 지연 없이). 충돌 해소 응답은 메시지로 전달한다.
+ * 취소: 협조적 취소를 위해 SharedArrayBuffer(Int32Array) 를 공유한다.
+ * Main 이 Atomics.store(view, CANCEL_FLAG_INDEX, 1) 로 세팅하면 Worker 가 안전
+ * 지점에서 즉시 감지(메시지 큐 지연 없이). 충돌 해소 응답은 메시지로 전달한다.
  *
- * 추적성: SA §4.1, ADR-005(Worker 실행 모델), roadmap SPK-Worker.
+ * 일시정지(M7 W2 · ADR-011): 같은 SharedArrayBuffer 를 **2워드**로 확장해
+ * Int32Array[PAUSE_FLAG_INDEX(=1)] 에 일시정지 플래그를 둔다. Worker 는 파일 경계
+ * 에서 이 플래그를 폴링해 1 이면 현재 파일 완료 후 재개(0)까지 대기한다(파일 경계
+ * 일시정지·ADR-011 결정②). **취소 인덱스(0) 의미·동작은 불변**(회귀 0): cancel 만
+ * 쓰는 단발 경로는 인덱스 0 만 set/load 하므로 2워드화는 비파괴이다.
+ *
+ * 추적성: SA §4.1, ADR-005(Worker 실행 모델), roadmap SPK-Worker, ADR-011.
  */
 import type { ConflictResolution, FileOpErrorCode, OpFailure, OpKind } from '@shared/dto'
 
@@ -26,7 +32,10 @@ export interface WorkerJob {
   readonly destDir?: string
   /** 사전 일괄 충돌 정책(없으면 충돌 시 질의). */
   readonly conflictPolicy?: ConflictResolution
-  /** 취소 플래그용 SharedArrayBuffer(Int32 1워드). */
+  /**
+   * 협조 플래그용 SharedArrayBuffer(Int32 2워드): [0]=cancel(불변), [1]=pause(M7).
+   * 단발 경로는 cancel(0)만 쓰고 pause(1)는 항상 0 → 기존 동작 동치.
+   */
   readonly cancelBuffer: SharedArrayBuffer
 }
 
@@ -106,5 +115,11 @@ export interface ResolveConflictMsg {
 
 export type WorkerInMsg = ResolveConflictMsg
 
-/** 취소 플래그 인덱스(Int32Array). */
+/** 취소 플래그 인덱스(Int32Array). 불변 — 단발/큐 공통 취소 동치. */
 export const CANCEL_FLAG_INDEX = 0
+
+/** 일시정지 플래그 인덱스(Int32Array, M7 W2 · ADR-011). 1=일시정지, 0=실행/재개. */
+export const PAUSE_FLAG_INDEX = 1
+
+/** 협조 플래그 버퍼 워드 수(cancel + pause). */
+export const FLAG_WORD_COUNT = 2

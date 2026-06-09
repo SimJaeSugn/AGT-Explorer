@@ -89,6 +89,12 @@ export async function changeShowDashboardOnStartup(v: boolean): Promise<void> {
   await persist({ showDashboardOnStartup: v })
 }
 
+/** 복사 후 체크섬 검증 토글: 슬라이스 반영 + 영속(§R4·US-17.4, 기본 off). */
+export async function changeVerifyOnCopy(v: boolean): Promise<void> {
+  store.getState().setVerifyOnCopy(v)
+  await persist({ verifyOnCopy: v })
+}
+
 /** 텔레메트리 옵트인 변경: 별도 채널로 영속(기본 false, D5). */
 export async function changeTelemetryOptIn(v: boolean): Promise<void> {
   store.getState().setTelemetryOptIn(v)

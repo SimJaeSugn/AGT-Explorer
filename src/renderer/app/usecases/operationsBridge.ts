@@ -13,6 +13,7 @@ import { store } from '@renderer/app/stores/rootStore'
 import type { OperationUndoMeta } from '@renderer/app/stores/operationsSlice'
 import type { UndoEntry } from '@renderer/app/stores/undoSlice'
 import { baseName, joinPath } from '@renderer/domain/paths'
+import { verifyAfterCopy } from './checksum'
 import type { OpSummary } from '@shared/dto'
 
 let disposer: (() => void) | null = null
@@ -58,6 +59,15 @@ export function initOperationsBridge(): void {
       if (op?.undoMeta) {
         const entry = deriveUndoEntry(op.undoMeta, evt.summary)
         if (entry) s.pushUndo(entry)
+        // §R4: 성공한 copy(실패/취소 0)이고 설정(verifyOnCopy) 켜졌으면 복사 후 체크섬 검증.
+        // 사본 경로 산출(destDir+basename)이 충돌 rename 으로 어긋날 수 있어 실패 0 일 때만.
+        if (
+          op.undoMeta.kind === 'copy' &&
+          !evt.summary.canceled &&
+          evt.summary.failedItems === 0
+        ) {
+          void verifyAfterCopy(op.undoMeta)
+        }
       }
       s._opDone(evt.operationId, evt.summary)
       // 결과를 목록에 반영: 등록된 패널 새로고침.

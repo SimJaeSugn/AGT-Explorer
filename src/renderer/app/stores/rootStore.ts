@@ -19,6 +19,8 @@ import { createAnalyzeSlice } from './analyzeSlice'
 import { createTrashSlice } from './trashSlice'
 import { createUndoSlice } from './undoSlice'
 import { createRemoteSlice } from './remoteSlice'
+import { createCompareSlice } from './compareSlice'
+import { createDedupSlice } from './dedupSlice'
 import type { AppStore } from './types'
 
 enableMapSet()
@@ -34,7 +36,9 @@ export const useRootStore = create<AppStore>()(
     ...createAnalyzeSlice(...a),
     ...createTrashSlice(...a),
     ...createUndoSlice(...a),
-    ...createRemoteSlice(...a)
+    ...createRemoteSlice(...a),
+    ...createCompareSlice(...a),
+    ...createDedupSlice(...a)
   }))
 )
 

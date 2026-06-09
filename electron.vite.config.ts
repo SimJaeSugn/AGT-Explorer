@@ -17,7 +17,9 @@ export default defineConfig({
           index: resolve('src/main/index.ts'),
           fileOpWorker: resolve('src/main/workers/fileOpWorker.ts'),
           // I장: Top10 디스크 사용량 스캔 Worker(별도 청크 out/main/scanWorker.js).
-          scanWorker: resolve('src/main/workers/scanWorker.ts')
+          scanWorker: resolve('src/main/workers/scanWorker.ts'),
+          // M7 W1: 공용 해시·비교 Worker(별도 청크 out/main/hashWorker.js).
+          hashWorker: resolve('src/main/workers/hashWorker.ts')
         },
         output: {
           entryFileNames: '[name].js'

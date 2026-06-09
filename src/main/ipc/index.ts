@@ -12,8 +12,10 @@ import { registerAnalyzeHandlers } from './analyze.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
 import { registerDndHandlers } from './dnd.handlers'
 import { registerFsHandlers } from './fs.handlers'
+import { registerHashHandlers } from './hash.handlers'
 import { registerOpHandlers } from './op.handlers'
 import { registerPreviewHandlers } from './preview.handlers'
+import { registerQueueHandlers } from './queue.handlers'
 import { registerRemoteHandlers } from './remote.handlers'
 import { registerSessionHandlers } from './session.handlers'
 import { registerShellHandlers } from './shell.handlers'
@@ -32,6 +34,8 @@ export function registerIpcHandlers(): void {
   registerAnalyzeHandlers() // I장: analyze:scan:start/cancel (+ progress/done/error 푸시)
   registerWatchHandlers() // J장 J2: fs:watch:start/stop (+ event/error 푸시)
   registerTrashHandlers() // K장 K2: trash:list/restore/empty (휴지통 COM)
+  registerHashHandlers() // M7 W1: hash:compare/dup/verify:start + cancel (+ progress/done/error 푸시)
+  registerQueueHandlers() // M7 W2: queue:list/pause/resume/retry/set-concurrency (+ queue:state 푸시)
   registerClipboardHdropAndDndRemote()
 }
 

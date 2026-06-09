@@ -24,7 +24,32 @@ import {
 } from '../src/renderer/domain/paths'
 import { resolveFavoriteWatermark } from '../src/renderer/domain/rules/favoriteWatermark'
 import { resolveDropTarget } from '../src/renderer/ui/sidebar/useFavoriteReorder'
-import type { FileEntryDTO } from '../src/shared/dto'
+import {
+  computeBatchRename,
+  isApplicable,
+  splitName
+} from '../src/renderer/domain/rules/batchRename'
+import {
+  compareEntries,
+  summarize,
+  diffOnlyPairs,
+  planMirror,
+  fromCompareResult,
+  DEFAULT_COMPARE_OPTIONS
+} from '../src/renderer/domain/rules/compare'
+import { summarizeVerify, verifyMessage } from '../src/renderer/domain/rules/checksumVerdict'
+import {
+  keepCandidate,
+  selectAllButOne,
+  selectAllButOneForAll,
+  hasFullSelection,
+  anyFullySelected,
+  sortGroupsByWaste,
+  wastedBytes,
+  totalWastedBytes,
+  countSelected
+} from '../src/renderer/domain/rules/dupGroup'
+import type { ComparePairDTO, DupGroupDTO, FileEntryDTO, VerifyMismatchDTO } from '../src/shared/dto'
 
 const mk = (name: string, isDir: boolean, size = 0, mtime = 0): FileEntryDTO => ({
   name,
@@ -268,6 +293,358 @@ eq(
   // 범위밖 가드.
   eq('N2 drop from 범위밖 null', resolveDropTarget(-1, 0, 4), null)
   eq('N2 drop insert 범위밖 null', resolveDropTarget(0, 5, 4), null)
+}
+
+// ── R1: batchRename(패턴/정규식/연번/대소문자/충돌검출/안전폴백) ─────────────
+{
+  const tg = (name: string, isDir = false): { path: string; name: string; isDir: boolean } => ({
+    path: `C:\\d\\${name}`,
+    name,
+    isDir
+  })
+
+  // splitName: 베이스/확장자 분리(선행점·점없음 경계).
+  eq('R1 splitName 일반', splitName('report.png'), { base: 'report', ext: 'png' })
+  eq('R1 splitName 점없음', splitName('README'), { base: 'README', ext: '' })
+  eq('R1 splitName 선행점(.gitignore)', splitName('.gitignore'), { base: '.gitignore', ext: '' })
+  eq('R1 splitName 다중점', splitName('a.b.c'), { base: 'a.b', ext: 'c' })
+  eq('R1 splitName 끝점', splitName('name.'), { base: 'name.', ext: '' })
+
+  // 패턴 치환(문자열·베이스명만·확장자 보존).
+  {
+    const r = computeBatchRename([tg('IMG_001.jpg'), tg('IMG_002.jpg')], { find: 'IMG', replace: 'Photo' }, new Set())
+    eq('R1 문자열 치환', r.rows.map((x) => x.newName), ['Photo_001.jpg', 'Photo_002.jpg'])
+    eq('R1 치환 changed', r.rows.map((x) => x.changed), [true, true])
+    eq('R1 치환 적용가능', isApplicable(r), true)
+  }
+
+  // 정규식 치환(캡처 그룹).
+  {
+    const r = computeBatchRename([tg('file12.txt')], { find: '(\\d+)', replace: '#$1', useRegex: true }, new Set())
+    eq('R1 정규식 캡처 치환', r.rows[0]!.newName, 'file#12.txt')
+    eq('R1 정규식 invalidRegex false', r.invalidRegex, false)
+  }
+
+  // 잘못된 정규식 → throw 금지·invalidRegex·원본 유지·isApplicable false.
+  {
+    const r = computeBatchRename([tg('a.txt')], { find: '(', replace: 'x', useRegex: true }, new Set())
+    eq('R1 잘못된 정규식 invalidRegex', r.invalidRegex, true)
+    eq('R1 잘못된 정규식 원본 유지', r.rows[0]!.newName, 'a.txt')
+    eq('R1 잘못된 정규식 isApplicable false', isApplicable(r), false)
+  }
+
+  // 연번(자릿수/시작/증가/위치) — 접미·pad3.
+  {
+    const r = computeBatchRename(
+      [tg('a.txt'), tg('b.txt'), tg('c.txt')],
+      { seq: { enabled: true, start: 5, step: 2, pad: 3, position: 'suffix' } },
+      new Set()
+    )
+    eq('R1 연번 접미 pad3', r.rows.map((x) => x.newName), ['a005.txt', 'b007.txt', 'c009.txt'])
+  }
+  // 연번 접두.
+  {
+    const r = computeBatchRename(
+      [tg('a.txt'), tg('b.txt')],
+      { seq: { enabled: true, start: 1, step: 1, pad: 2, position: 'prefix' } },
+      new Set()
+    )
+    eq('R1 연번 접두 pad2', r.rows.map((x) => x.newName), ['01a.txt', '02b.txt'])
+  }
+
+  // 대소문자(upper/lower/title) — 베이스명만.
+  eq(
+    'R1 대문자',
+    computeBatchRename([tg('hello.txt')], { caseMode: 'upper' }, new Set()).rows[0]!.newName,
+    'HELLO.txt'
+  )
+  eq(
+    'R1 소문자',
+    computeBatchRename([tg('HELLO.TXT')], { caseMode: 'lower' }, new Set()).rows[0]!.newName,
+    'hello.TXT'
+  )
+  eq(
+    'R1 타이틀',
+    computeBatchRename([tg('my report file.txt')], { caseMode: 'title' }, new Set()).rows[0]!.newName,
+    'My Report File.txt'
+  )
+
+  // 접두/접미.
+  eq(
+    'R1 접두접미',
+    computeBatchRename([tg('x.txt')], { prefix: 'pre_', suffix: '_post' }, new Set()).rows[0]!.newName,
+    'pre_x_post.txt'
+  )
+
+  // 확장자 포함 적용 토글: applyToExt=true 면 대문자가 확장자까지.
+  eq(
+    'R1 확장자 포함 적용',
+    computeBatchRename([tg('img.png')], { caseMode: 'upper', applyToExt: true }, new Set()).rows[0]!.newName,
+    'IMG.PNG'
+  )
+
+  // 충돌: dup-internal(변경 후 이름끼리).
+  {
+    const r = computeBatchRename(
+      [tg('a.txt'), tg('b.txt')],
+      { find: 'a', replace: 'b', useRegex: false }, // a.txt → b.txt (b.txt 와 충돌)
+      new Set()
+    )
+    const errs = r.rows.map((x) => x.error)
+    eq('R1 dup-internal 검출', errs.includes('dup-internal'), true)
+    eq('R1 충돌 시 isApplicable false', isApplicable(r), false)
+  }
+
+  // 충돌: dup-existing(폴더 내 비대상 기존과 충돌).
+  {
+    const r = computeBatchRename([tg('a.txt')], { find: 'a', replace: 'keep' }, new Set(['keep.txt']))
+    eq('R1 dup-existing 검출', r.rows[0]!.error, 'dup-existing')
+  }
+  // 비변경 행은 기존 동명이어도 dup-existing 아님(자기 자신 충돌 방지: 대상은 existing 에서 제외하므로 N/A).
+  {
+    const r = computeBatchRename([tg('a.txt')], {}, new Set())
+    eq('R1 규칙 없으면 changed false·에러 없음', { changed: r.rows[0]!.changed, error: r.rows[0]!.error }, {
+      changed: false,
+      error: null
+    })
+    eq('R1 변경 0이면 isApplicable false', isApplicable(r), false)
+  }
+
+  // 금지문자·예약명·빈 이름.
+  eq(
+    'R1 금지문자 차단',
+    computeBatchRename([tg('a.txt')], { find: 'a', replace: 'b/c' }, new Set()).rows[0]!.error,
+    'invalid-char'
+  )
+  eq(
+    'R1 예약명 차단(CON)',
+    computeBatchRename([tg('x.txt')], { find: 'x', replace: 'con' }, new Set()).rows[0]!.error,
+    'reserved'
+  )
+  eq(
+    'R1 빈 이름 차단',
+    computeBatchRename([tg('a')], { find: 'a', replace: '' }, new Set()).rows[0]!.error,
+    'empty'
+  )
+
+  // 순서 보존: 연번이 입력 순서대로.
+  {
+    const r = computeBatchRename(
+      [tg('z.txt'), tg('a.txt'), tg('m.txt')],
+      { seq: { enabled: true, start: 1, step: 1, pad: 1, position: 'prefix' } },
+      new Set()
+    )
+    eq('R1 연번 입력순서 보존', r.rows.map((x) => x.newName), ['1z.txt', '2a.txt', '3m.txt'])
+  }
+}
+
+// ── P1: compare.compareEntries(4상태·크기/수정일 차·대소문자 무시·정렬무관) ──
+{
+  // 헬퍼: 이름·크기·수정일 지정 entry.
+  const f = (name: string, size = 100, mtime = 1000, isDir = false): FileEntryDTO => ({
+    ...mk(name, isDir, size, mtime)
+  })
+
+  // 4상태 분류: left-only / right-only / diff / same.
+  {
+    const left = [f('a.txt', 10, 1000), f('both.txt', 50, 2000), f('diffsize.txt', 10, 1000)]
+    const right = [f('b.txt', 20, 1000), f('both.txt', 50, 2000), f('diffsize.txt', 99, 1000)]
+    const pairs = compareEntries(left, right, DEFAULT_COMPARE_OPTIONS)
+    const byName = new Map(pairs.map((p) => [p.name, p.status]))
+    eq('P1 left-only', byName.get('a.txt'), 'left-only')
+    eq('P1 right-only', byName.get('b.txt'), 'right-only')
+    eq('P1 same(같은 크기·수정일)', byName.get('both.txt'), 'same')
+    eq('P1 diff(크기차)', byName.get('diffsize.txt'), 'diff')
+  }
+
+  // 수정일 허용오차 경계: tol 이내=same, 초과=diff.
+  {
+    const left = [f('m.txt', 10, 10000)]
+    const right = [f('m.txt', 10, 11500)] // 1500ms 차
+    const within = compareEntries(left, right, { bySize: true, byMtime: true, mtimeToleranceMs: 2000 })
+    eq('P1 mtime 허용오차 이내 same', within[0]!.status, 'same')
+    const right2 = [f('m.txt', 10, 13000)] // 3000ms 차 > 2000
+    const beyond = compareEntries(left, right2, { bySize: true, byMtime: true, mtimeToleranceMs: 2000 })
+    eq('P1 mtime 허용오차 초과 diff', beyond[0]!.status, 'diff')
+  }
+
+  // 대소문자 무시 매칭(기본 Windows): "Report.txt" ↔ "report.txt" 짝지음.
+  {
+    const left = [f('Report.txt', 10, 1000)]
+    const right = [f('report.txt', 10, 1000)]
+    const insensitive = compareEntries(left, right, DEFAULT_COMPARE_OPTIONS)
+    eq('P1 대소문자무시 1쌍·same', { len: insensitive.length, st: insensitive[0]!.status }, { len: 1, st: 'same' })
+    const sensitive = compareEntries(left, right, { ...DEFAULT_COMPARE_OPTIONS, caseSensitive: true })
+    eq('P1 대소문자구분 2개(left/right-only)', sensitive.length, 2)
+  }
+
+  // 폴더 vs 파일 동명 → diff.
+  {
+    const left = [f('node', 0, 1000, true)]
+    const right = [f('node', 0, 1000, false)]
+    const pairs = compareEntries(left, right, DEFAULT_COMPARE_OPTIONS)
+    eq('P1 폴더vs파일 동명 diff', pairs[0]!.status, 'diff')
+  }
+
+  // 폴더끼리 동명(메타 0) → same(단일 깊이·내부 차이는 M7).
+  {
+    const left = [f('sub', 0, 1000, true)]
+    const right = [f('sub', 0, 9999, true)] // 폴더 mtime 다름이어도 same
+    const pairs = compareEntries(left, right, DEFAULT_COMPARE_OPTIONS)
+    eq('P1 폴더끼리 동명 same(메타 비교 제외)', pairs[0]!.status, 'same')
+  }
+
+  // 정렬무관 키매칭: 입력 순서를 섞어도 동일 결과.
+  {
+    const a = [f('a', 1, 1), f('b', 2, 2), f('c', 3, 3)]
+    const b = [f('c', 3, 3), f('a', 1, 1), f('b', 2, 2)]
+    const p1 = compareEntries(a, b, DEFAULT_COMPARE_OPTIONS).map((p) => `${p.name}:${p.status}`)
+    const p2 = compareEntries(b, a, DEFAULT_COMPARE_OPTIONS).map((p) => `${p.name}:${p.status}`)
+    eq('P1 정렬무관 결과 동일', p1, p2)
+    eq('P1 키 정렬됨', p1, ['a:same', 'b:same', 'c:same'])
+  }
+
+  // summarize 카운트 합 = total + 빈 입력.
+  {
+    const pairs = compareEntries(
+      [f('a'), f('same'), f('d', 10)],
+      [f('b'), f('same'), f('d', 20)],
+      DEFAULT_COMPARE_OPTIONS
+    )
+    const sum = summarize(pairs)
+    eq('P1 summarize 합=total', sum.leftOnly + sum.rightOnly + sum.diff + sum.same, sum.total)
+    eq('P1 summarize 카운트', { l: sum.leftOnly, r: sum.rightOnly, d: sum.diff, s: sum.same }, { l: 1, r: 1, d: 1, s: 1 })
+    eq('P1 빈 입력 total 0', summarize(compareEntries([], [], DEFAULT_COMPARE_OPTIONS)).total, 0)
+  }
+
+  // diffOnlyPairs: same 제외.
+  {
+    const pairs = compareEntries([f('a'), f('same')], [f('b'), f('same')], DEFAULT_COMPARE_OPTIONS)
+    eq('P1 diffOnly same 제외', diffOnlyPairs(pairs).every((p) => p.status !== 'same'), true)
+    eq('P1 diffOnly 개수', diffOnlyPairs(pairs).length, 2)
+  }
+
+  // planMirror: 복사(없는것+다른것)·덮어쓰기 카운트·삭제(includeDeletes).
+  {
+    const left = [f('only-l', 10), f('diff', 10, 1000), f('same', 5, 1000)]
+    const right = [f('only-r', 10), f('diff', 99, 1000), f('same', 5, 1000)]
+    const pairs = compareEntries(left, right, DEFAULT_COMPARE_OPTIONS)
+    // l2r dest=오른쪽 폴더. 복사 대상 = only-l(없는것) + diff(다른것). 삭제 미포함.
+    const planCopy = planMirror(pairs, 'l2r', 'C:\\right', false)
+    eq('P1 mirror l2r 복사 2건', planCopy.copyPaths.length, 2)
+    eq('P1 mirror l2r 덮어쓰기 1건(diff)', planCopy.overwriteCount, 1)
+    eq('P1 mirror 삭제 미포함', planCopy.deletePaths.length, 0)
+    // includeDeletes=true → only-r(우측에만 있음·기준에 없음)이 삭제 대상.
+    const planDel = planMirror(pairs, 'l2r', 'C:\\right', true)
+    eq('P1 mirror 삭제 동기화 1건(only-r)', planDel.deletePaths.length, 1)
+  }
+}
+
+// ── §P1 M7: fromCompareResult(백엔드 hash:compare DTO → ComparePair·relPath·status 신뢰) ──
+{
+  const fe = (name: string, size = 10, mtime = 1000): FileEntryDTO => ({ ...mk(name, false, size, mtime) })
+  // 단일깊이(relPath 없음) — status 는 백엔드 값 그대로 신뢰, key=name 정규화.
+  const dtos: ComparePairDTO[] = [
+    { name: 'a.txt', left: fe('a.txt'), right: null, status: 'left-only' },
+    { name: 'same.txt', left: fe('same.txt'), right: fe('same.txt'), status: 'same' },
+    { name: 'hashdiff.txt', left: fe('hashdiff.txt'), right: fe('hashdiff.txt'), status: 'diff' }
+  ]
+  const pairs = fromCompareResult(dtos, DEFAULT_COMPARE_OPTIONS)
+  eq('P1H fromCompareResult 개수', pairs.length, 3)
+  eq('P1H status 백엔드 신뢰(해시 diff 보존)', pairs.map((p) => p.status), ['left-only', 'same', 'diff'])
+  eq('P1H 단일깊이 relPath undefined', pairs.every((p) => p.relPath === undefined), true)
+  eq('P1H key 대소문자 정규화(기본)', fromCompareResult([{ name: 'A.TXT', left: fe('A.TXT'), right: null, status: 'left-only' }])[0]!.key, 'a.txt')
+  // summarize 동치(메타 경로와 같은 요약 함수).
+  const sum = summarize(pairs)
+  eq('P1H summarize 합=total', sum.leftOnly + sum.rightOnly + sum.diff + sum.same, sum.total)
+
+  // 재귀(relPath 있음) — key 는 relPath 기준(동명 충돌 회피).
+  const recDtos: ComparePairDTO[] = [
+    { name: 'a.txt', left: fe('a.txt'), right: fe('a.txt'), status: 'same', relPath: 'a.txt' },
+    { name: 'a.txt', left: fe('a.txt'), right: null, status: 'left-only', relPath: 'sub\\a.txt' }
+  ]
+  const recPairs = fromCompareResult(recDtos, DEFAULT_COMPARE_OPTIONS)
+  eq('P1H 재귀 relPath 보존', recPairs.map((p) => p.relPath), ['a.txt', 'sub\\a.txt'])
+  eq('P1H 재귀 동명 다른 key', recPairs[0]!.key !== recPairs[1]!.key, true)
+  eq('P1H 재귀 key=relPath정규화', recPairs[1]!.key, 'sub\\a.txt')
+  // 빈 입력 안전.
+  eq('P1H 빈 입력 0', fromCompareResult([]).length, 0)
+}
+
+// ── §R4 M7: checksumVerdict(일치/불일치/사유 집계·요약·메시지) ──────────────
+{
+  const mm = (src: string, dst: string, reason: VerifyMismatchDTO['reason']): VerifyMismatchDTO => ({ src, dst, reason })
+  // 전부 일치(불일치 0·verified 5).
+  const okV = summarizeVerify([], 5)
+  eq('R4 verdict ok kind', okV.kind, 'ok')
+  eq('R4 verdict ok total=matched', { t: okV.total, m: okV.matched, x: okV.mismatched }, { t: 5, m: 5, x: 0 })
+  eq('R4 verdict ok 메시지(전부 일치)', verifyMessage(okV).includes('모두 일치'), true)
+  // total 0(검증 대상 없음) 안내.
+  eq('R4 verdict 빈(0) 메시지', verifyMessage(summarizeVerify([], 0)).includes('검증할 파일이 없습니다'), true)
+
+  // 불일치 혼합(hash·size·read-error) + verified 2.
+  const mis = summarizeVerify(
+    [mm('a', 'a2', 'hash-mismatch'), mm('b', 'b2', 'size-mismatch'), mm('c', 'c2', 'read-error'), mm('d', 'd2', 'hash-mismatch')],
+    2
+  )
+  eq('R4 verdict mismatch kind', mis.kind, 'mismatch')
+  eq('R4 verdict 집계', { t: mis.total, m: mis.matched, x: mis.mismatched }, { t: 6, m: 2, x: 4 })
+  eq('R4 verdict 사유별', mis.byReason, { 'hash-mismatch': 2, 'size-mismatch': 1, 'read-error': 1 })
+  const msg = verifyMessage(mis)
+  eq('R4 verdict 메시지 불일치 표기', msg.includes('2개 일치') && msg.includes('4개 불일치'), true)
+  eq('R4 verdict 메시지 사유 표기', msg.includes('내용 다름 2') && msg.includes('크기 다름 1') && msg.includes('읽기 실패 1'), true)
+
+  // 방어: 음수 verified → 0 클램프, 손상 reason 무시.
+  const def = summarizeVerify([{ src: 'x', dst: 'y', reason: 'bogus' as VerifyMismatchDTO['reason'] }], -3)
+  eq('R4 verdict 음수 verified 0클램프', def.matched, 0)
+  eq('R4 verdict 손상 reason 집계 0', def.byReason, { 'hash-mismatch': 0, 'size-mismatch': 0, 'read-error': 0 })
+}
+
+// ── §R2: 중복 그룹 보조 규칙(dupGroup) ─────────────────────────────────────
+{
+  const dupFile = (path: string, mtime: number): { path: string; name: string; mtime: number } => ({
+    path,
+    name: path.split('\\').pop() ?? path,
+    mtime
+  })
+  // 그룹 A: 3개(원본=가장 오래된 mtime). 그룹 B: 2개(같은 mtime → path 사전순 보존).
+  const gA: DupGroupDTO = {
+    hash: 'hA',
+    size: 100,
+    files: [dupFile('C:\\x\\c.txt', 300), dupFile('C:\\x\\a.txt', 100), dupFile('C:\\x\\b.txt', 200)]
+  }
+  const gB: DupGroupDTO = {
+    hash: 'hB',
+    size: 2000,
+    files: [dupFile('C:\\y\\z.txt', 500), dupFile('C:\\y\\m.txt', 500)]
+  }
+  const groups = [gA, gB]
+
+  eq('R2 keepCandidate 가장오래된', keepCandidate(gA), 'C:\\x\\a.txt')
+  eq('R2 keepCandidate 동률 path사전순', keepCandidate(gB), 'C:\\y\\m.txt')
+  eq('R2 keepCandidate 빈그룹 null', keepCandidate({ hash: 'e', size: 0, files: [] }), null)
+
+  const abo = selectAllButOne(gA)
+  eq('R2 selectAllButOne 보존1개 제외', abo.sort(), ['C:\\x\\b.txt', 'C:\\x\\c.txt'])
+  eq('R2 selectAllButOne 보존미포함', abo.includes('C:\\x\\a.txt'), false)
+  eq('R2 selectAllButOne 1개그룹 빈배열', selectAllButOne({ hash: 'h', size: 1, files: [dupFile('C:\\p', 1)] }), [])
+
+  eq('R2 selectAllButOneForAll 합산', selectAllButOneForAll(groups).length, 3)
+
+  // hasFullSelection: 그룹 전부 선택(보존 0) 감지.
+  const fullA = new Set(['C:\\x\\a.txt', 'C:\\x\\b.txt', 'C:\\x\\c.txt'])
+  eq('R2 hasFullSelection 전부선택 true', hasFullSelection(gA, fullA), true)
+  eq('R2 hasFullSelection 추천선택 false(보존1)', hasFullSelection(gA, new Set(abo)), false)
+  eq('R2 anyFullySelected 위험감지', anyFullySelected(groups, fullA), true)
+  eq('R2 anyFullySelected 추천선택 안전', anyFullySelected(groups, new Set(selectAllButOneForAll(groups))), false)
+
+  // wastedBytes / 정렬: gB(2000*1=2000) > gA(100*2=200) → gB 먼저.
+  eq('R2 wastedBytes gA', wastedBytes(gA), 200)
+  eq('R2 wastedBytes gB', wastedBytes(gB), 2000)
+  eq('R2 totalWastedBytes', totalWastedBytes(groups), 2200)
+  eq('R2 sortGroupsByWaste 큰낭비먼저', sortGroupsByWaste(groups).map((g) => g.hash), ['hB', 'hA'])
+
+  eq('R2 countSelected', countSelected(groups, new Set(['C:\\x\\b.txt', 'C:\\y\\z.txt'])), 2)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

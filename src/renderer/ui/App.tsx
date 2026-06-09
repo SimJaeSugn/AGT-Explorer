@@ -9,6 +9,10 @@
 import { useEffect, useRef } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { initOperationsBridge } from '@renderer/app/usecases/operationsBridge'
+import { initQueueBridge } from '@renderer/app/usecases/queueBridge'
+import { initDedupBridge } from '@renderer/app/usecases/dedup'
+import { initChecksumBridge } from '@renderer/app/usecases/checksum'
+import { initCompareBridge } from '@renderer/app/usecases/compare'
 import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
 import { initRemoteBridge } from '@renderer/app/usecases/remote'
@@ -28,6 +32,10 @@ import { DashboardModal } from '@renderer/ui/dashboard/DashboardModal'
 import { TrashDialog } from '@renderer/ui/trash/TrashDialog'
 import { RemoteDialog } from '@renderer/ui/remote/RemoteDialog'
 import { HostKeyModal } from '@renderer/ui/remote/HostKeyModal'
+import { BatchRenameDialog } from '@renderer/ui/rename/BatchRenameDialog'
+import { CompareMirrorDialog } from '@renderer/ui/compare/CompareMirrorDialog'
+import { DuplicatesDialog } from '@renderer/ui/dedup/DuplicatesDialog'
+import { QueuePanel } from '@renderer/ui/queue/QueuePanel'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
@@ -48,6 +56,14 @@ export function App(): JSX.Element {
   // op:* / analyze:scan:* 이벤트 → 슬라이스 브리지(진행률/충돌/완료).
   useEffect(() => {
     initOperationsBridge()
+    // M7 W2: queue:state 푸시 → operationsSlice 큐 미러(전역 1회 구독 + queue:list 초기 로드).
+    initQueueBridge()
+    // M7 R2: hash:dup:* 푸시 → dedupSlice 미러(전역 1회 구독·jobId 상관).
+    initDedupBridge()
+    // M7 R4: hash:verify:* 푸시 → 복사 후 체크섬 검증 결과 토스트(전역 1회 구독·jobId 상관).
+    initChecksumBridge()
+    // M7 §P1: hash:compare:* 푸시 → compareSlice 미러(해시/재귀 비교·전역 1회 구독·jobId 상관).
+    initCompareBridge()
     initScanBridge()
     // J2: 좌/우 패널 현재 디렉토리 실시간 감시 브리지(전역 1회 구독).
     initWatchBridge()
@@ -115,6 +131,10 @@ export function App(): JSX.Element {
       <TrashDialog />
       <RemoteDialog />
       <HostKeyModal />
+      <BatchRenameDialog />
+      <CompareMirrorDialog />
+      <DuplicatesDialog />
+      <QueuePanel />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}
       <ProgressDialog />

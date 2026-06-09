@@ -66,6 +66,17 @@ import type {
   ScanProgressEvt,
   ScanDoneEvt,
   ScanErrorEvt,
+  HashCompareStartReq,
+  HashDupStartReq,
+  HashVerifyStartReq,
+  HashJobStartRes,
+  HashProgressEvt,
+  HashCompareDoneEvt,
+  HashDupDoneEvt,
+  HashVerifyDoneEvt,
+  HashErrorEvt,
+  QueueListRes,
+  QueueStateEvt,
   Result,
   ShellIconReq,
   ShellIconRes,
@@ -347,6 +358,102 @@ export function subscribeRemoteEvents(h: RemoteEventHandlers): Unsubscribe {
 
 /** RemoteSecret 재노출(usecase 가 connect/credSave 요청 본문 타입으로 사용 — 영속 금지). */
 export type { RemoteSecret }
+
+// ── hash:* 어댑터 (M7 — ADR-009: 공용 해시·비교 엔진) ────────────────────
+// analyzeApi 동형 — invoke 래퍼 + raw 이벤트 구독. jobId 상관(필터)은 소비측 usecase.
+export const hashApi = {
+  /** hash:compare:start — P1 폴더 비교 시작(jobId 발급, useHash/recursive 옵션). */
+  compareStart: (req: HashCompareStartReq): Promise<Result<HashJobStartRes>> =>
+    bridge().hash.compareStart(req),
+  /** hash:dup:start — R2 중복 탐지 시작(크기→해시 2단계). */
+  dupStart: (req: HashDupStartReq): Promise<Result<HashJobStartRes>> =>
+    bridge().hash.dupStart(req),
+  /** hash:verify:start — R4 체크섬 검증 시작(원본·사본 쌍). */
+  verifyStart: (req: HashVerifyStartReq): Promise<Result<HashJobStartRes>> =>
+    bridge().hash.verifyStart(req),
+  /** hash:cancel — 진행 중 해시 잡 협조취소(SharedArrayBuffer 플래그). */
+  cancel: (jobId: string): Promise<Result<void>> => bridge().hash.cancel({ jobId })
+}
+
+/**
+ * hash:compare:* 진행률/완료 + 공용 hash:error 구독 묶음(jobId 상관은 소비측).
+ * subscribeScanStream 동형 — raw 이벤트를 그대로 콜백에 전달한다.
+ */
+export interface HashCompareStreamHandlers {
+  onProgress: (evt: HashProgressEvt) => void
+  onDone: (evt: HashCompareDoneEvt) => void
+  onError: (evt: HashErrorEvt) => void
+}
+export function subscribeHashCompareStream(h: HashCompareStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offP = api.hash.onCompareProgress((evt) => h.onProgress(evt))
+  const offD = api.hash.onCompareDone((evt) => h.onDone(evt))
+  const offE = api.hash.onError((evt) => h.onError(evt))
+  return () => {
+    offP()
+    offD()
+    offE()
+  }
+}
+
+/** hash:dup:* 진행률/완료 + 공용 hash:error 구독 묶음. */
+export interface HashDupStreamHandlers {
+  onProgress: (evt: HashProgressEvt) => void
+  onDone: (evt: HashDupDoneEvt) => void
+  onError: (evt: HashErrorEvt) => void
+}
+export function subscribeHashDupStream(h: HashDupStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offP = api.hash.onDupProgress((evt) => h.onProgress(evt))
+  const offD = api.hash.onDupDone((evt) => h.onDone(evt))
+  const offE = api.hash.onError((evt) => h.onError(evt))
+  return () => {
+    offP()
+    offD()
+    offE()
+  }
+}
+
+/** hash:verify:* 진행률/완료 + 공용 hash:error 구독 묶음. */
+export interface HashVerifyStreamHandlers {
+  onProgress: (evt: HashProgressEvt) => void
+  onDone: (evt: HashVerifyDoneEvt) => void
+  onError: (evt: HashErrorEvt) => void
+}
+export function subscribeHashVerifyStream(h: HashVerifyStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offP = api.hash.onVerifyProgress((evt) => h.onProgress(evt))
+  const offD = api.hash.onVerifyDone((evt) => h.onDone(evt))
+  const offE = api.hash.onError((evt) => h.onError(evt))
+  return () => {
+    offP()
+    offD()
+    offE()
+  }
+}
+
+// ── queue:* 어댑터 (M7 — ADR-011: 전송 큐, 큐 핸들러 impl: W2) ────────────
+// W0 에서 어댑터 표면만 동결한다(usecases/queue·queueBridge 는 R3 단계에서 사용).
+export const queueApi = {
+  /** queue:list — 현재 큐 항목 스냅샷. */
+  list: (): Promise<Result<QueueListRes>> => bridge().queue.list(),
+  /** queue:pause — 큐 항목 일시정지(operationId). */
+  pause: (operationId: string): Promise<Result<void>> => bridge().queue.pause({ operationId }),
+  /** queue:resume — 큐 항목 재개. */
+  resume: (operationId: string): Promise<Result<void>> => bridge().queue.resume({ operationId }),
+  /** queue:retry — 실패 항목 재시도. */
+  retry: (operationId: string): Promise<Result<void>> => bridge().queue.retry({ operationId }),
+  /** queue:set-concurrency — 동시성 한도 설정. */
+  setConcurrency: (maxConcurrent: number): Promise<Result<void>> =>
+    bridge().queue.setConcurrency({ maxConcurrent })
+}
+
+/**
+ * queue:state 구독(디바운스 큐 스냅샷). App 부팅 시 1회 전역 구독(queueBridge — R3).
+ */
+export function subscribeQueueStream(cb: (evt: QueueStateEvt) => void): Unsubscribe {
+  return bridge().queue.onState(cb)
+}
 
 // ── dialog:* 어댑터 (P4: 영구삭제 확인 모달) ────────────────────────────
 export const dialogApi = {

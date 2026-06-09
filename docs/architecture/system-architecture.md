@@ -496,6 +496,136 @@ sequenceDiagram
 
 ---
 
+## 5-PU. §P~§U 파워 기능 14종 — 신규 IPC 채널 카탈로그 · 프로세스 배치 · 데이터 흐름 (2026-06-09 추가)
+
+> 비파괴 추가. 14개 기능의 신규 채널을 기존 §3.2/§5-M 규약(`shared/ipc` 채널상수+계약타입·invoke/이벤트·`Result`·sender·zod·경로 화이트리스트)으로 정의한다. **동결 원칙 예외**(P1 채널 동결 이후 Should 신기능 신규채널)는 기존 선례(`preview:read`·`fs:watch:*`·`trash:*`·`analyze:scan:*`·`remote:*`)와 **동일 규약**이다. 신규 ADR: archive=[ADR-008](./adr/ADR-008-archive-namespace-adapter.md)·해시=[ADR-009](./adr/ADR-009-hash-and-compare-engine.md)·grep=[ADR-010](./adr/ADR-010-content-search-grep-engine.md)·전송 큐=[ADR-011](./adr/ADR-011-transfer-queue.md)·메타/필터=[ADR-012](./adr/ADR-012-metadata-persistence-and-filter-composition.md). 렌더러 내부 모듈 경계는 [software-architecture §13·§14](./software-architecture.md). 상태: **🔜 미착수(설계 단계)**.
+
+### 5-PU.0 프로세스 배치 요약 (어느 기능이 어디서·신규 채널 유무)
+
+| 기능 | 신규 채널 | 실행 위치 | 근거 |
+|---|---|---|---|
+| **P1 폴더 비교·동기화** | `hash:compare:*`(해시 옵션)·미러는 기존 `op:*`/`hash:*` | **Worker**(해시·비교) + Renderer(diff 표시·동기 스크롤) | ADR-009 — 비차단·취소 |
+| **Q1 압축 폴더처럼 열기** | `archive:*`(open/list/close/extract/add) + `op:*` 재사용 | **Main**(엔트리 열거) + **Worker**(추출/추가) | ADR-008 — Zip Slip·스트리밍 |
+| **R1 고급 일괄 이름변경** | **0**(렌더러 미리보기 + 기존 `fs:rename` 반복·K1 undo) | Renderer(미리보기·충돌검사) + Main(`fs:rename`) | 신규 채널 불요(SW §14) |
+| **R2 중복 찾기** | `hash:dup:*` + 정리는 `op:trash`/큐 | **Worker**(크기 그룹핑→해시) | ADR-009 |
+| **R3 전송 큐 매니저** | `queue:*`(list/state/pause/resume/retry/concurrency) + `op:*` 재사용 | **Main**(OperationManager 큐 스케줄러) | ADR-011 |
+| **R4 체크섬 검증** | `hash:verify:*` | **Worker**(복사 후 원본/사본 해시) | ADR-009 |
+| **S1 내용 검색(grep)** | `search:content:*`(start/progress/match/done/cancel) | **Worker**(스트리밍 스캔·바이너리 제외) | ADR-010 |
+| **S2 명령 팔레트** | **0**(commandBus·즐겨찾기/최근/드라이브는 렌더러 상태) | **Renderer 전용** | 신규 채널 불요(SW §14) |
+| **T1 태그/색상 라벨** | **0**(세션 스냅샷 메타 `tagsByPath` 확장·`session:save/load` 재사용) | **Renderer 전용** | ADR-012 — 데이터 비파괴 |
+| **T2 폴더 용량 인라인** | **0**(기존 `analyze:scan:*` 재사용·단일 폴더) | **Worker**(scanEngine 재사용) | 신규 채널 불요(SW §14·ADR-012 결정④) |
+| ~~**T3 정렬/필터 프리셋**~~ (폐기) | ~~**0**(세션 스냅샷 메타 `filterPresets` 확장)~~ | ~~Renderer 전용~~ | **폐기 — 2026-06-09 사용자 결정·코드 전면 제거(`filterPresets`/`filterComposition.ts`/`presetsSlice`/`ui/preset/*` 삭제·`SESSION_SCHEMA_VERSION` 2→1 환원)** |
+| **U1 Space 퀵룩** | **0**(기존 `preview:read` 재사용) | **Renderer 전용** | 신규 채널 불요(SW §14) |
+| **U2 브레드크럼 드롭다운** | **0**(기존 `fs:tree-children` 재사용·형제 폴더) | Renderer + Main(`fs:tree-children`) | 신규 채널 불요(SW §14) |
+| **U3 탭 색상/잠금·탭 분리** | **0**(탭 색상/잠금=세션 메타·탭 분리=신규 `BrowserWindow`·세션 라우팅) | Main(멀티 윈도우) + Renderer | 신규 채널 불요(SW §14·복잡도 명시) |
+
+> **신규 채널을 가진 기능은 5개(P1·Q1·R2/R4·R3·S1)뿐**이며 모두 워커/Main 백그라운드 작업이다. 나머지 9개는 렌더러 상태·도메인 순수 규칙·기존 채널 재사용으로 완결(§5-N 정신과 동일 — 신규 채널 최소화).
+
+### 5-PU.1 신규 IPC 채널 카탈로그 (설계 수준 시그니처)
+
+#### archive:* (Q1 — ADR-008)
+```text
+archive:open(req: { archivePath })   -> Result<{ sessionId }, FileOpError>   # 암호 zip이면 EUNSUPPORTED 안내
+archive:list(req: { sessionId; innerPath }) -> Result<{ entries: FileEntryDTO[] }, FileOpError>
+archive:close(req: { sessionId })    -> Result<void, FileOpError>
+archive:extract(req: { sessionId; innerPaths; destDir; conflictPolicy? }) -> Result<{ operationId }, FileOpError>  # op:* 재사용·Zip Slip 차단
+archive:add(req: { sessionId; localPaths; innerDir; conflictPolicy? })    -> Result<{ operationId }, FileOpError>  # op:* 재사용(재작성)
+```
+검증: 모든 경로 §3.3 정규화·존재·권한·로컬 한정(원격 archivePath/destDir 거부). 추출 엔트리는 `domain/rules/archiveSafePath.ts` + Main 워커 양쪽에서 destDir 경계 검증(ADR-008 결정④).
+
+#### hash:* (P1 해시 옵션·R2·R4 — ADR-009)
+```text
+hash:compare:start(req: { leftDir; rightDir; useHash; recursive }) -> Result<{ jobId }, FileOpError>
+hash:compare:progress(evt) / hash:compare:done(evt: { jobId; result: CompareResultDTO })
+hash:dup:start(req: { roots; minSize? }) -> Result<{ jobId }, FileOpError>
+hash:dup:progress(evt) / hash:dup:done(evt: { jobId; groups: DupGroupDTO[] })
+hash:verify:start(req: { pairs: { src; dst }[]; algo? }) -> Result<{ jobId }, FileOpError>
+hash:verify:progress(evt) / hash:verify:done(evt: { jobId; mismatches })
+hash:cancel(req: { jobId }) -> Result<void, FileOpError>
+```
+취소=SharedArrayBuffer 플래그(scanEngine/OperationManager 재사용)·진행률 200ms 스로틀.
+
+#### search:content:* (S1 — ADR-010)
+```text
+search:content:start(req: { root; query; isRegex; recursive; includeHidden?; maxFileBytes? }) -> Result<{ jobId }, FileOpError>
+search:content:progress(evt: { jobId; scannedFiles; matchedFiles; currentPath })
+search:content:match(evt: { jobId; file; lines: { lineNo; text; ranges }[] })   # 증분 결과
+search:content:done(evt: { jobId; totalMatches; truncated })
+search:content:cancel(req: { jobId }) -> Result<void, FileOpError>
+```
+바이너리 휴리스틱 제외·크기/라인/결과 상한·정규식 타임아웃. 점프는 기존 `preview:read` 재사용.
+
+#### queue:* (R3 — ADR-011)
+```text
+queue:list() -> Result<{ items: QueueItemDTO[] }, FileOpError>
+queue:state(evt: { items: QueueItemDTO[] })   # 푸시(디바운스)
+queue:pause(req: { operationId }) / queue:resume / queue:retry -> Result<void, FileOpError>
+queue:set-concurrency(req: { maxConcurrent }) -> Result<void, FileOpError>
+# 취소=기존 op:cancel, 진행률=기존 op:progress 재사용. 큐 항목 식별=기존 operationId.
+```
+
+> **신규 EVENT_CHANNELS 추가분**: `hash:compare:progress/done`·`hash:dup:progress/done`·`hash:verify:progress/done`·`search:content:progress/match/done`·`queue:state`(모두 Main→Renderer 단방향 푸시). `archive:*`는 전송이 op:* 재사용이라 푸시 채널 0.
+
+### 5-PU.2 데이터 흐름 (대표 3종)
+
+#### F(P1) — 듀얼 패널 폴더 비교(해시 옵션)
+```mermaid
+sequenceDiagram
+    participant R as Renderer(2패널)
+    participant M as Main(HashManager)
+    participant W as Worker(compareEngine)
+    R->>M: hash:compare:start(leftDir,rightDir,useHash)
+    M->>W: 비교 잡 위임(취소 플래그·HashHooks)
+    W->>W: 메타 4상태 분류(좌만/우만/다름/같음) + useHash면 같은 이름·같은 크기만 해시
+    W-->>M: 진행 보고(200ms 스로틀)
+    M-->>R: hash:compare:progress / hash:compare:done(CompareResultDTO)
+    R->>R: 4상태 색·아이콘·동기 스크롤·"차이만 보기"(compareDiffOnly·diffOnlyPairs — ※filterComposition은 T3와 함께 폐기됨)
+    Note over R,W: 미러 실행은 변경 미리보기→확정 후 op:* (휴지통 경유 삭제·D4 충돌)
+```
+
+#### F(Q1) — 압축 폴더처럼 열기·추출
+```mermaid
+sequenceDiagram
+    participant R as Renderer(Panel)
+    participant M as Main(ArchiveService/yauzl)
+    participant W as Worker(추출·op:*)
+    R->>M: archive:open(archivePath)
+    M->>M: central directory 열거(암호면 EUNSUPPORTED)
+    M-->>R: { sessionId }
+    R->>M: archive:list(sessionId, innerPath)
+    M-->>R: entries(FileEntryDTO·archive:// 경로 배지)
+    R->>M: archive:extract(sessionId, innerPaths, destDir)
+    M->>M: archiveSafePath 경계 검증(Zip Slip 차단)
+    M->>W: 추출 잡(.part→원자 rename·op:* 진행률)
+    M-->>R: op:progress(200ms)/op:done(요약)  [OperationManager 재사용·D4 충돌]
+```
+
+#### F(R3) — 전송 큐(통합·일시정지/동시성)
+```mermaid
+sequenceDiagram
+    participant R as Renderer(큐 패널)
+    participant M as Main(OperationManager 큐 스케줄러)
+    participant W as Worker/원격 스트림
+    R->>M: op:start(또는 remote:upload/download/archive:extract) → operationId
+    M->>M: 큐에 enqueue(동시성 한도 내 실행·초과분 pending)
+    M->>W: 실행(취소+일시정지 플래그)
+    M-->>R: op:progress(기존)·queue:state(큐 스냅샷·디바운스)
+    R->>M: queue:pause/resume(operationId) / queue:set-concurrency
+    M->>W: 일시정지=stream pause/SharedArrayBuffer 플래그·재개
+    M-->>R: op:done(요약)·실패는 queue:retry 로 재큐
+    Note over R,M: 큐 항목=기존 operationId·전송 자체는 op:* 재사용(비파괴)
+```
+
+### 5-PU.3 보안 규칙 (§3.3·§5-M.3 연장)
+
+11. **Zip Slip 차단(ADR-008 결정④)**: 추출 엔트리는 `path.win32.resolve(destDir, normalize(entry))`가 destDir 하위(경로 경계 일치)임을 검증·아니면 거부. `../`·절대경로·드라이브·UNC·심볼릭 엔트리·zip bomb(엔트리 수/총 해제 바이트 상한) 방어. `archiveSafePath.ts` 순수 함수 + 워커 양쪽 검증·헤드리스 verify 권고.
+12. **로컬 한정(압축·grep·해시)**: `archive:*`·`hash:*`·`search:content:*`의 모든 경로는 §3.3 정규화·로컬 한정(원격 네임스페이스 거부). **외부로 나가는 신규 네트워크/실행 없음**(압축=로컬 yauzl/yazl·grep=로컬 워커 스캔·해시=로컬). ADR-005 네트워크/실행 표면 불변.
+13. **정규식 ReDoS 완화(ADR-010)**: 사용자 grep 정규식은 신뢰 못 함 — 라인 단위 매칭·매칭 타임아웃·취소·컴파일 실패 안전 처리(throw0).
+14. **태그 데이터 비파괴(ADR-012)**: T1 태그는 앱 내부 세션 메타로만 저장·파일 자체/NTFS ADS 미변경.
+15. **throw0/Result·IPC guard 전면 준수**: 신규 핸들러 전부 sender 검증·zod 스키마·경로 화이트리스트·`Result<T, FileOpError>` 반환(throw 금지). 잡 식별자(jobId/operationId) 상관·세션 격리(한 잡 오류가 다른 잡·탐색을 막지 않음).
+
+---
+
 ## 6. 배포 / 인프라 구성
 
 - **타겟**: Windows 10/11 x64. NSIS 인스톨러 + 자동 업데이트 채널(향후). 코드 서명 권장.

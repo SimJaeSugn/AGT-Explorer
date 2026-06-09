@@ -36,6 +36,29 @@ const fakeApi = {
     openWith: async () => ({ ok: true, value: undefined }),
     showProperties: async () => ({ ok: true, value: undefined }),
     icon: async () => ({ ok: false, error: { code: 'EUNKNOWN', message: '' } })
+  },
+  // M7 R2: hash:dup:* 어댑터 모킹(usecases/dedup·initDedupBridge 가 참조).
+  hash: {
+    compareStart: async () => ({ ok: true, value: { jobId: 'job-c' } }),
+    dupStart: async () => ({ ok: true, value: { jobId: 'job-dup' } }),
+    verifyStart: async () => ({ ok: true, value: { jobId: 'job-v' } }),
+    cancel: async () => ({ ok: true, value: undefined }),
+    onCompareProgress: () => () => undefined,
+    onCompareDone: () => () => undefined,
+    onDupProgress: () => () => undefined,
+    onDupDone: () => () => undefined,
+    onVerifyProgress: () => () => undefined,
+    onVerifyDone: () => () => undefined,
+    onError: () => () => undefined
+  },
+  // M7 R3: queue:* 어댑터 모킹(usecases/queue·queueBridge 가 참조).
+  queue: {
+    list: async () => ({ ok: true, value: { items: [] } }),
+    pause: async () => ({ ok: true, value: undefined }),
+    resume: async () => ({ ok: true, value: undefined }),
+    retry: async () => ({ ok: true, value: undefined }),
+    setConcurrency: async () => ({ ok: true, value: undefined }),
+    onState: () => () => undefined
   }
 }
 ;(globalThis as unknown as { api: unknown }).api = fakeApi
@@ -46,7 +69,8 @@ const fakeApi = {
 
 import { useRootStore } from '../src/renderer/app/stores/rootStore'
 import { ratioFromPoint } from '../src/renderer/ui/layout/splitMath'
-import type { WindowSnapshot } from '../src/shared/dto'
+import { setConcurrency } from '../src/renderer/app/usecases/queue'
+import type { QueueItemDTO, WindowSnapshot } from '../src/shared/dto'
 
 let pass = 0
 let fail = 0
@@ -578,6 +602,457 @@ if (sid) {
   ok('pin hydrate 복원', s().isPinned('C:\\h', 'C:\\h\\x.txt'))
   ok('pin hydrate 빈배열 키 제외', s().pinnedByDir['C:\\empty'] === undefined)
   ok('pin hydrate 기존 맵 교체', s().pinnedByDir['C:\\p'] === undefined)
+}
+
+// ── computeVisible: query 필터·정렬·§O 상단고정 동치(프리셋 제거 후 회귀 0 고정) ──
+{
+  const { computeVisible } = await import('../src/renderer/app/usecases/selectors')
+  const { filterEntries } = await import('../src/renderer/domain/rules/filter')
+
+  // 깨끗한 패널 준비(새 탭·단일).
+  s().newTab('C:\\')
+  const cp = s().activePanelId()!
+
+  // 엔트리 주입(스트림 경로). 정렬/필터 적용 대상.
+  s().navigate(cp, 'D:\\cv', true)
+  await Promise.resolve()
+  await Promise.resolve()
+  const csid = s().panels[cp]!.directory.streamId!
+  const cmk = (name: string, isDir = false): {
+    name: string; path: string; isDir: boolean; size: number; mtime: number
+    ctime: number; ext: string; attrs: { hidden: boolean; readonly: boolean; system: boolean; symlink: boolean }
+  } => ({
+    name,
+    path: `D:\\cv\\${name}`,
+    isDir,
+    size: 1,
+    mtime: 0,
+    ctime: 0,
+    ext: isDir ? '' : (name.split('.').pop() as string).toLowerCase(),
+    attrs: { hidden: false, readonly: false, system: false, symlink: false }
+  })
+  s()._onChunk(cp, csid, [cmk('a.png'), cmk('b.jpg'), cmk('c.txt'), cmk('d.png'), cmk('sub', true)])
+  s()._onDone(cp, csid, 5, false)
+
+  // baseline(검색창 닫힘): 정렬 name asc 폴더우선 = 전부 표시(5개).
+  const baseVisible = computeVisible(s().panels[cp]!).map((e) => e.name)
+  ok('CV baseline 전부표시(필터없음)', baseVisible.length === 5)
+
+  // 검색창 닫힘이면 query 무시(open=false → 비활성·전부 표시).
+  s().setSearchQuery(cp, 'a')
+  ok('CV 검색창 닫힘이면 query 무시', computeVisible(s().panels[cp]!).length === 5)
+
+  // 검색창 열고 query='a' → computeVisible == filterEntries(entries,'a') 동치(이름 부분일치).
+  s().setSearchOpen(cp, true)
+  s().setSearchQuery(cp, 'a')
+  const entries = s().panels[cp]!.directory.entries
+  const expected = filterEntries(entries, 'a').map((e) => e.name).sort()
+  const qVisible = computeVisible(s().panels[cp]!).map((e) => e.name).sort()
+  ok('CV query 동치(filterEntries)', JSON.stringify(qVisible) === JSON.stringify(expected))
+  ok('CV query=a → a.png 만', JSON.stringify(qVisible) === JSON.stringify(['a.png']))
+
+  // 빈 쿼리(open=true, query 공백) → 원본 참조 그대로(전부 표시).
+  s().setSearchQuery(cp, '   ')
+  ok('CV 공백 query 전부표시', computeVisible(s().panels[cp]!).length === 5)
+
+  // §O 상단고정: 검색창 닫고 d.png 를 고정 → computeVisible 최상단으로 끌어올림(고정 보존).
+  s().setSearchOpen(cp, false)
+  s().togglePin('D:\\cv', 'D:\\cv\\d.png')
+  ok('CV §O 고정 항목 최상단', computeVisible(s().panels[cp]!)[0]!.name === 'd.png')
+  // 고정 해제 → 원래 정렬 순서 복귀(최상단이 d.png 가 아님).
+  s().togglePin('D:\\cv', 'D:\\cv\\d.png')
+  ok('CV §O 고정 해제 복귀', computeVisible(s().panels[cp]!)[0]!.name !== 'd.png')
+
+  // 세션 스냅샷: version 1(프리셋 제거 후 환원)·filterPresets 필드 없음.
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  const snapCv = buildSessionSnapshot()
+  ok('CV 스냅샷 version 1', snapCv.version === 1)
+  ok('CV 스냅샷 filterPresets 없음', !('filterPresets' in (snapCv as Record<string, unknown>)))
+}
+
+// ── R1: undoSlice batchRename 엔트리 push/pop(판별 유니온·묶음 items·dir) ─────
+{
+  s().clearUndo()
+  s().pushUndo({
+    kind: 'batchRename',
+    items: [
+      { newPath: 'C:\\d\\Photo_1.jpg', oldName: 'IMG_1.jpg', newName: 'Photo_1.jpg' },
+      { newPath: 'C:\\d\\Photo_2.jpg', oldName: 'IMG_2.jpg', newName: 'Photo_2.jpg' }
+    ],
+    dir: 'C:\\d'
+  })
+  ok('R1 batchRename push 1엔트리', s().undoStack.length === 1)
+  const e = s().popUndo()
+  ok(
+    'R1 batchRename 엔트리 보존',
+    !!e &&
+      e.kind === 'batchRename' &&
+      e.items.length === 2 &&
+      e.dir === 'C:\\d' &&
+      e.items[0]!.oldName === 'IMG_1.jpg' &&
+      e.items[0]!.newPath === 'C:\\d\\Photo_1.jpg'
+  )
+  ok('R1 batchRename pop 후 빈 스택', s().undoStack.length === 0)
+
+  // 부분 적용: 적용된 것만(items 1건) push 되는 형태도 유효.
+  s().pushUndo({ kind: 'batchRename', items: [{ newPath: 'C:\\d\\a2.txt', oldName: 'a.txt', newName: 'a2.txt' }], dir: 'C:\\d' })
+  const e2 = s().popUndo()
+  ok('R1 부분적용 items 1건', !!e2 && e2.kind === 'batchRename' && e2.items.length === 1)
+  s().clearUndo()
+}
+
+// ── P1: compareSlice(runCompare·결과·diffOnly·syncScroll·recompute·clear) ─────
+{
+  const mkE = (name: string, size = 10, mtime = 1000, isDir = false) => ({
+    name,
+    path: 'C:\\x\\' + name,
+    isDir,
+    size,
+    mtime,
+    ctime: 0,
+    ext: isDir ? '' : name.includes('.') ? name.split('.').pop()!.toLowerCase() : '',
+    attrs: { hidden: false, readonly: false, system: false, symlink: false }
+  })
+
+  // 초기 상태.
+  ok('P1 초기 compareActive false', s().compareActive === false)
+  ok('P1 초기 syncScroll true(기본)', s().syncScroll === true)
+
+  // runCompare: 양 패널 entries 로 분류·요약.
+  const left = [mkE('a.txt'), mkE('both.txt', 50, 2000), mkE('d.txt', 10, 1000)]
+  const right = [mkE('b.txt'), mkE('both.txt', 50, 2000), mkE('d.txt', 99, 1000)]
+  s().runCompare('pL', 'pR', left, right)
+  ok('P1 runCompare active', s().compareActive === true)
+  ok('P1 runCompare 패널 id', s().compareLeftPanelId === 'pL' && s().compareRightPanelId === 'pR')
+  ok('P1 runCompare 페어 4개(a/b/both/d)', s().comparePairs.length === 4)
+  ok(
+    'P1 runCompare 요약',
+    !!s().compareSummary &&
+      s().compareSummary!.leftOnly === 1 &&
+      s().compareSummary!.rightOnly === 1 &&
+      s().compareSummary!.diff === 1 &&
+      s().compareSummary!.same === 1
+  )
+
+  // diffOnly 토글(상태만 — 필터는 뷰에서 적용).
+  ok('P1 diffOnly 초기 false', s().compareDiffOnly === false)
+  s().toggleDiffOnly()
+  ok('P1 diffOnly 토글 true', s().compareDiffOnly === true)
+
+  // syncScroll 토글.
+  s().toggleSyncScroll()
+  ok('P1 syncScroll 토글 false', s().syncScroll === false)
+  s().toggleSyncScroll()
+  ok('P1 syncScroll 재토글 true', s().syncScroll === true)
+
+  // recompute: entries 변경 반영(b.txt 가 both 되도록).
+  s().recomputeCompare([mkE('a.txt'), mkE('both.txt', 50, 2000)], [mkE('a.txt'), mkE('both.txt', 50, 2000)])
+  ok('P1 recompute 후 same 2', s().compareSummary!.same === 2 && s().compareSummary!.total === 2)
+
+  // clear: 모드 종료·결과 비움·diffOnly 리셋.
+  s().clearCompare()
+  ok(
+    'P1 clearCompare',
+    s().compareActive === false &&
+      s().comparePairs.length === 0 &&
+      s().compareSummary === null &&
+      s().compareDiffOnly === false &&
+      s().compareLeftPanelId === null
+  )
+
+  // recompute 는 비활성이면 무동작.
+  s().recomputeCompare(left, right)
+  ok('P1 비활성 recompute 무동작', s().compareActive === false && s().comparePairs.length === 0)
+}
+
+// ── §P1 M7: compareSlice 해시/재귀 옵션·hash:compare 잡 미러(동치 보존) ──────
+{
+  const mkE = (name: string, size = 10, mtime = 1000, isDir = false) => ({
+    name,
+    path: 'C:\\x\\' + name,
+    isDir,
+    size,
+    mtime,
+    ctime: 0,
+    ext: isDir ? '' : name.includes('.') ? name.split('.').pop()!.toLowerCase() : '',
+    attrs: { hidden: false, readonly: false, system: false, symlink: false }
+  })
+
+  // 기본 옵션: useHash/recursive off(M6 동치).
+  ok('P1H 기본 useHash off', s().compareOptions.useHash === false)
+  ok('P1H 기본 recursive off', s().compareOptions.recursive === false)
+  ok('P1H 초기 hashStatus idle', s().compareHashStatus === 'idle')
+
+  // 옵션 토글(슬라이스 레벨).
+  s().setCompareOptions({ useHash: true })
+  ok('P1H setCompareOptions useHash true', s().compareOptions.useHash === true)
+  s().setCompareOptions({ recursive: true })
+  ok('P1H setCompareOptions recursive true', s().compareOptions.recursive === true)
+
+  // 비교 활성 + 해시 잡 시작 → running·jobId 보관·진행률 리셋.
+  s().runCompare('pL', 'pR', [mkE('a.txt')], [mkE('a.txt')])
+  s().beginCompareHash('job-cmp-1')
+  ok('P1H beginCompareHash running', s().compareHashStatus === 'running' && s().compareJobId === 'job-cmp-1')
+
+  // 진행률 미러(running 일 때만).
+  s()._compareHashProgress(42, 4096, 'C:\\x\\big')
+  ok('P1H progress 미러', s().compareScannedItems === 42 && s().compareScannedBytes === 4096)
+
+  // done: DTO 페어 → ComparePair 환산·요약·truncated·ready·jobId 해제.
+  s()._compareHashDone(
+    [
+      { name: 'a.txt', left: mkE('a.txt'), right: mkE('a.txt'), status: 'same', relPath: 'a.txt' },
+      { name: 'a.txt', left: mkE('a.txt'), right: null, status: 'left-only', relPath: 'sub\\a.txt' }
+    ],
+    true
+  )
+  ok('P1H done ready', s().compareHashStatus === 'ready' && s().compareJobId === null)
+  ok('P1H done 페어 2·relPath 보존', s().comparePairs.length === 2 && s().comparePairs[1]!.relPath === 'sub\\a.txt')
+  ok('P1H done truncated 표기', s().compareTruncated === true)
+  ok('P1H done 요약(same1·leftOnly1)', s().compareSummary!.same === 1 && s().compareSummary!.leftOnly === 1)
+
+  // 취소: running 이 아니면 무동작(이미 ready).
+  s().markCompareHashCanceling()
+  ok('P1H 취소 ready 일 때 무동작', s().compareHashStatus === 'ready')
+
+  // 새 잡 → running → 취소 → canceled.
+  s().beginCompareHash('job-cmp-2')
+  s().markCompareHashCanceling()
+  ok('P1H running 취소 canceled', s().compareHashStatus === 'canceled' && s().compareJobId === null)
+
+  // 오류.
+  s().beginCompareHash('job-cmp-3')
+  s()._compareHashError('boom')
+  ok('P1H error', s().compareHashStatus === 'error' && s().compareHashError === 'boom')
+
+  // 진행률은 running 아닐 때 미반영(상관 격리).
+  const prevItems = s().compareScannedItems
+  s()._compareHashProgress(999, 999, 'x')
+  ok('P1H 비running progress 무시', s().compareScannedItems === prevItems)
+
+  // clearCompare 가 해시 상태도 리셋(메타 경로 복귀).
+  s().clearCompare()
+  ok(
+    'P1H clearCompare 해시 리셋',
+    s().compareHashStatus === 'idle' && s().compareJobId === null && s().compareTruncated === false
+  )
+
+  // 옵션 원복(이후 테스트 영향 방지).
+  s().setCompareOptions({ useHash: false, recursive: false })
+}
+
+// ── §R4 M7: verifyOnCopy 설정 상태(applySettings·setter·기본 off) ────────────
+{
+  ok('R4 기본 verifyOnCopy off', s().verifyOnCopy === false)
+  s().setVerifyOnCopy(true)
+  ok('R4 setVerifyOnCopy true', s().verifyOnCopy === true)
+  // applySettings: 스냅샷 verifyOnCopy 반영.
+  s().applySettings(
+    {
+      version: 1,
+      theme: 'system',
+      startLocation: '',
+      showHidden: false,
+      showExtensions: true,
+      recentLimit: 10,
+      showDashboardOnStartup: true,
+      verifyOnCopy: true
+    },
+    false
+  )
+  ok('R4 applySettings verifyOnCopy=true 반영', s().verifyOnCopy === true)
+  // 구버전 스냅샷(verifyOnCopy 누락) → false 폴백.
+  s().applySettings(
+    {
+      version: 1,
+      theme: 'system',
+      startLocation: '',
+      showHidden: false,
+      showExtensions: true,
+      recentLimit: 10,
+      showDashboardOnStartup: true
+    },
+    false
+  )
+  ok('R4 applySettings 누락 → false 폴백', s().verifyOnCopy === false)
+}
+
+// ── P1: 미러 확인 모달 상태(open/close·inputContext) ──────────────────────────
+{
+  s().openCompareMirrorConfirm({ direction: 'l2r', copyCount: 3, overwriteCount: 1, deleteCount: 0, includeDeletes: false })
+  ok('P1 미러확인 open', !!s().compareMirrorConfirm && s().inputContext === 'dialog')
+  ok('P1 미러확인 값 보존', s().compareMirrorConfirm!.direction === 'l2r' && s().compareMirrorConfirm!.copyCount === 3)
+  s().closeCompareMirrorConfirm()
+  ok('P1 미러확인 close·list 복귀', s().compareMirrorConfirm === null && s().inputContext === 'list')
+}
+
+// ── §R2: dedupSlice(탐지 상태머신·그룹 수용·선택·정리 제거) ───────────────
+{
+  const mkDup = (path: string, mtime: number) => ({
+    path,
+    name: path.split('\\').pop() ?? path,
+    mtime
+  })
+  const groups = [
+    { hash: 'h1', size: 100, files: [mkDup('C:\\a.txt', 100), mkDup('C:\\b.txt', 200), mkDup('C:\\c.txt', 300)] },
+    { hash: 'h2', size: 50, files: [mkDup('C:\\d.txt', 100), mkDup('C:\\e.txt', 200)] }
+  ]
+
+  s().beginDedup('job-1', ['C:\\scope'])
+  ok('R2 beginDedup scanning', s().dedupStatus === 'scanning' && s().dedupJobId === 'job-1')
+  ok('R2 beginDedup roots 보관', s().dedupRoots[0] === 'C:\\scope')
+
+  s()._dedupProgress(10, 1024, 'C:\\scope\\x')
+  ok('R2 progress 미러', s().dedupScannedItems === 10 && s().dedupScannedBytes === 1024)
+
+  s()._dedupDone(groups, false)
+  ok('R2 done ready·그룹 2', s().dedupStatus === 'ready' && s().dedupGroups.length === 2)
+  // 추천 선택: 각 그룹 원본(가장 오래된) 외 전체 = (3-1)+(2-1)=3.
+  ok('R2 done 추천선택 3건', s().dedupSelected.size === 3)
+  ok('R2 done 보존(원본) 미선택', !s().dedupSelected.has('C:\\a.txt') && !s().dedupSelected.has('C:\\d.txt'))
+
+  s().toggleDedupSelect('C:\\a.txt')
+  ok('R2 toggle 추가', s().dedupSelected.has('C:\\a.txt'))
+  s().toggleDedupSelect('C:\\a.txt')
+  ok('R2 toggle 제거', !s().dedupSelected.has('C:\\a.txt'))
+
+  s().clearDedupSelection()
+  ok('R2 선택 전체해제', s().dedupSelected.size === 0)
+  s().selectRecommended()
+  ok('R2 추천선택 재적용 3건', s().dedupSelected.size === 3)
+
+  // 정리 후 제거: b/c 제거 → h1 그룹 1개남아 해소(드롭). h2 유지.
+  s().removeDedupPaths(['C:\\b.txt', 'C:\\c.txt'])
+  ok('R2 removeDedupPaths 그룹해소', s().dedupGroups.length === 1 && s().dedupGroups[0]!.hash === 'h2')
+  ok('R2 removeDedupPaths 선택정리', !s().dedupSelected.has('C:\\b.txt'))
+
+  // 취소.
+  s().beginDedup('job-2', ['C:\\scope'])
+  s().markDedupCanceling()
+  ok('R2 markDedupCanceling', s().dedupStatus === 'canceled' && s().dedupJobId === null)
+
+  // 오류.
+  s().beginDedup('job-3', ['C:\\scope'])
+  s()._dedupError('boom')
+  ok('R2 _dedupError', s().dedupStatus === 'error' && s().dedupError === 'boom')
+
+  // 다이얼로그 open/close · inputContext 게이트.
+  s().openDedup()
+  ok('R2 openDedup·dialog', s().dedupOpen === true && s().inputContext === 'dialog')
+  s().closeDedup()
+  ok('R2 closeDedup·list 복귀', s().dedupOpen === false && s().inputContext === 'list')
+}
+
+// ── §R3: operationsSlice 큐 미러 + queue usecase 동시성 미러 ─────────────────
+{
+  const item = (id: string, status: QueueItemDTO['status'], enqueuedAt: number): QueueItemDTO => ({
+    operationId: id,
+    kind: 'copy',
+    status,
+    sourcesSummary: '3개 항목',
+    destSummary: 'C:\\dst',
+    processedBytes: 50,
+    totalBytes: 100,
+    processedItems: 1,
+    totalItems: 3,
+    bytesPerSec: 1024,
+    etaSec: 10,
+    enqueuedAt
+  })
+  const items = [
+    item('op-1', 'running', 1),
+    item('op-2', 'pending', 2),
+    item('op-3', 'done', 3),
+    item('op-4', 'paused', 4),
+    item('op-5', 'failed', 5)
+  ]
+  s()._queueState(items)
+  ok('R3 _queueState 미러 5건', s().queueItems.length === 5)
+  // activeQueueItems = pending/running/paused = op-1,op-2,op-4.
+  ok('R3 activeQueueItems 3건', s().activeQueueItems().length === 3)
+  ok(
+    'R3 activeQueueItems 종료제외',
+    s().activeQueueItems().every((it) => it.status !== 'done' && it.status !== 'failed')
+  )
+  // 평탄 교체(불변): 새 배열.
+  s()._queueState([item('op-9', 'running', 9)])
+  ok('R3 _queueState 평탄교체', s().queueItems.length === 1 && s().queueItems[0]!.operationId === 'op-9')
+
+  // queue usecase: setConcurrency → 성공 시 _setMaxConcurrent 미러(모킹 ok:true).
+  s()._setMaxConcurrent(0)
+  await setConcurrency(4)
+  ok('R3 setConcurrency 미러 4', s().maxConcurrent === 4)
+  // 클램프(1~16): 99 → 16.
+  await setConcurrency(99)
+  ok('R3 setConcurrency 클램프 16', s().maxConcurrent === 16)
+  await setConcurrency(0)
+  ok('R3 setConcurrency 하한 1', s().maxConcurrent === 1)
+
+  // 큐 패널 open/close·inputContext.
+  s().openQueuePanel()
+  ok('R3 openQueuePanel·dialog', s().queuePanelOpen === true && s().inputContext === 'dialog')
+  s().closeQueuePanel()
+  ok('R3 closeQueuePanel·list 복귀', s().queuePanelOpen === false && s().inputContext === 'list')
+}
+
+// ── R3 옵션2: 활성 2건 이상으로 올라설 때만 큐 패널 자동 열기(단발은 안 띄움) ──────
+{
+  const qi = (operationId: string, status: 'pending' | 'running' | 'paused' | 'done'): {
+    operationId: string
+    kind: 'copy'
+    status: 'pending' | 'running' | 'paused' | 'done'
+    sourcesSummary: string
+    destSummary: string
+    processedBytes: number
+    totalBytes: number
+    processedItems: number
+    totalItems: number
+    bytesPerSec: number
+    etaSec: number | null
+    enqueuedAt: number
+  } => ({
+    operationId,
+    kind: 'copy',
+    status,
+    sourcesSummary: '1개 항목',
+    destSummary: 'D:\\',
+    processedBytes: 0,
+    totalBytes: 100,
+    processedItems: 0,
+    totalItems: 1,
+    bytesPerSec: 0,
+    etaSec: null,
+    enqueuedAt: 0
+  })
+
+  // 초기화: 패널 닫힘·큐 비움.
+  s().closeQueuePanel()
+  s()._queueState([])
+  ok('자동열기 초기 닫힘', s().queuePanelOpen === false)
+
+  // 단발 1건 → 자동으로 안 뜸.
+  s()._queueState([qi('a', 'running')])
+  ok('자동열기: 단발 1건 미표시', s().queuePanelOpen === false)
+
+  // 2건으로 올라섬(<2→≥2 엣지) → 자동 열림 + dialog.
+  s()._queueState([qi('a', 'running'), qi('b', 'pending')])
+  ok('자동열기: 2건 엣지에서 열림', s().queuePanelOpen === true && s().inputContext === 'dialog')
+
+  // 사용자가 닫음 → 여전히 2건이어도 재오픈 안 함(엣지 미발생).
+  s().closeQueuePanel()
+  s()._queueState([qi('a', 'running'), qi('b', 'running')])
+  ok('자동열기: 닫은 뒤 ≥2 유지면 재오픈 안 함', s().queuePanelOpen === false)
+
+  // 1건 이하로 내려갔다가 다시 2건 → 새 파동이라 재오픈.
+  s()._queueState([qi('a', 'done')]) // 활성 0
+  s()._queueState([qi('a', 'running'), qi('b', 'pending')]) // 다시 2
+  ok('자동열기: 새 파동(<2→≥2) 재오픈', s().queuePanelOpen === true)
+
+  // 이미 열려 있으면 그대로(중복 토글 없음).
+  s()._queueState([qi('a', 'running'), qi('b', 'running'), qi('c', 'pending')])
+  ok('자동열기: 이미 열림 유지', s().queuePanelOpen === true)
+  s().closeQueuePanel()
+  s()._queueState([])
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

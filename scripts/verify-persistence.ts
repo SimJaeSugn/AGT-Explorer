@@ -25,7 +25,12 @@ import type { SessionSnapshot, SettingsSnapshot } from '@shared/dto'
 import { SessionStore } from '../src/main/persistence/SessionStore'
 import { SettingsStore } from '../src/main/persistence/SettingsStore'
 import { persistencePaths } from '../src/main/persistence/paths'
-import { coerceSession, defaultSettings, defaultSidebar } from '../src/main/persistence/defaults'
+import {
+  coerceSession,
+  defaultSession,
+  defaultSettings,
+  defaultSidebar
+} from '../src/main/persistence/defaults'
 import { readJsonSafe, writeJsonAtomic } from '../src/main/persistence/atomic'
 import { fileSystemService } from '../src/main/fs/FileSystemService'
 
@@ -139,8 +144,20 @@ async function main(): Promise<void> {
   await fsp.writeFile(paths.settings, JSON.stringify({ version: 1, theme: 'light' }), 'utf8')
   const legacySettings = await new SettingsStore(paths).load()
   check('구버전 settings(showDashboardOnStartup 누락) → 기본 true 채움', legacySettings.showDashboardOnStartup === true)
+  // §R4: verifyOnCopy 기본 off·toggle 영속·구버전 누락 false 폴백.
+  check('기본 verifyOnCopy=false', loaded0.verifyOnCopy === false && d.verifyOnCopy === false)
+  const setVerify = await settings.set({ verifyOnCopy: true })
+  check('coerce: verifyOnCopy=true 저장', setVerify.verifyOnCopy === true)
+  const verifyReload = await new SettingsStore(paths).load()
+  check('재로드 후 verifyOnCopy=true 유지', verifyReload.verifyOnCopy === true)
+  // 비불리언(손상) → coerce 가 false 폴백.
+  await fsp.writeFile(paths.settings, JSON.stringify({ version: 1, theme: 'light', verifyOnCopy: 'yes' }), 'utf8')
+  const verifyCoerced = await new SettingsStore(paths).load()
+  check('coerce: 손상 verifyOnCopy(비불리언) → false 폴백', verifyCoerced.verifyOnCopy === false)
+  // 구버전(키 누락) → false 폴백.
+  check('구버전 settings(verifyOnCopy 누락) → false 폴백', legacySettings.verifyOnCopy === false)
   // 정상 상태로 복구(이후 테스트 영향 방지).
-  await settings.set({ theme: 'system', showDashboardOnStartup: true })
+  await settings.set({ theme: 'system', showDashboardOnStartup: true, verifyOnCopy: false })
 
   const set1 = await settings.set({ theme: 'dark', showHidden: true, recentLimit: 25 })
   check('set 후 theme=dark', set1.theme === 'dark')
@@ -206,7 +223,7 @@ async function main(): Promise<void> {
   const corruptSess = new SessionStore(paths, () => 10, 0)
   const csess = await corruptSess.load()
   check('손상 session.json → 빈 windows 안전 폴백', csess.windows.length === 0)
-  check('손상 폴백도 version 채워짐', csess.version === 1)
+  check('손상 폴백도 version 채워짐(v1)', csess.version === 1)
 
   // 구조 무효(필수 필드 누락) → 해당 항목 드롭
   await writeJsonAtomic(paths.session, {
@@ -241,7 +258,7 @@ async function main(): Promise<void> {
   await writeJsonAtomic(paths.session, tainted)
   const cleaned = await corruptSess.load()
   const cleanedKeys = Object.keys(cleaned as Record<string, unknown>).sort().join(',')
-  check('복원 스냅샷에 휘발 키 없음(version,windows,sidebar,ui 만)', cleanedKeys === 'sidebar,ui,version,windows')
+  check('복원 스냅샷에 휘발 키 없음(sidebar,ui,version,windows 만)', cleanedKeys === 'sidebar,ui,version,windows')
   check('closedHistory 직렬화/복원 안 됨', !('closedHistory' in (cleaned as Record<string, unknown>)))
   check('selection 직렬화/복원 안 됨', !('selection' in (cleaned as Record<string, unknown>)))
   check('activeOperation 직렬화/복원 안 됨', !('activeOperation' in (cleaned as Record<string, unknown>)))
@@ -459,6 +476,31 @@ async function main(): Promise<void> {
   const rYaml = await mkPrev('a.yaml', 'k: 1')
   check('.yaml → lang=yaml', rYaml.lang === 'yaml')
   await fsp.rm(jbase, { recursive: true, force: true }).catch(() => undefined)
+
+  // ── 11) 세션 version 1 + filterPresets 부재(프리셋 제거 후 환원) ───────────
+  line('== 11) 세션 version 1 환원 / filterPresets 필드 부재 ==')
+  const dsess = defaultSession()
+  check('defaultSession.version=1', dsess.version === 1)
+  check('defaultSession.filterPresets 필드 없음', !('filterPresets' in (dsess as Record<string, unknown>)))
+
+  // 구버전 raw(filterPresets 키가 섞여 들어와도) coerce 가 무시·복원 안 함.
+  const cs11 = (sessRaw: unknown): SessionSnapshot => coerceSession(sessRaw, 10)
+  const noPreset = cs11({
+    version: 1,
+    windows: [{ tabs: [{ id: 't', activePanelId: 'p', layout: 'single', panels: [{ id: 'p', path: 'C:\\ok' }] }], activeTabId: 't' }],
+    sidebar: { favorites: [], recent: [], width: 240, collapsed: false },
+    ui: { theme: 'system', previewOpen: false },
+    filterPresets: [{ id: 'x', name: '폐기' }]
+  })
+  check('coerce version 1 유지', noPreset.version === 1)
+  check('coerce 가 filterPresets 무시(필드 없음)', !('filterPresets' in (noPreset as Record<string, unknown>)))
+
+  // version 1 round-trip(SessionStore): sampleSession 저장→로드 동등.
+  const sessRt = new SessionStore(paths, () => 10, 0)
+  await sessRt.save(sampleSession())
+  const backRt = await sessRt.load()
+  check('round-trip version 1', backRt.version === 1)
+  check('round-trip 전체 동등(JSON)', JSON.stringify(backRt) === JSON.stringify(sampleSession()))
 
   // ── 정리 ──────────────────────────────────────────────────────────────
   await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)

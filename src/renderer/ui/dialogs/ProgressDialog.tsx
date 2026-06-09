@@ -9,13 +9,12 @@
  * 동시 다중 op 는 목록으로 묶어 표시(features E4). 각 op 에 취소 버튼.
  * done/partial-failed 작업은 요약 + 닫기 버튼으로 전환된다.
  */
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import type { Operation } from '@renderer/app/stores/operationsSlice'
 import { cancelOperation } from '@renderer/app/usecases/fileOps'
 import { tokens } from '@renderer/ui/theme/tokens'
-import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
-import { btn, overlayStyle, panelStyle, titleStyle } from './dialogStyles'
+import { btn, panelStyle, titleStyle } from './dialogStyles'
 
 const KIND_LABEL: Record<Operation['kind'], string> = {
   copy: '복사',
@@ -47,28 +46,36 @@ export function ProgressDialog(): JSX.Element | null {
   const order = useRootStore((s) => s.operationOrder)
   const dismiss = useRootStore((s) => s.dismissOperation)
 
-  const panelRef = useRef<HTMLDivElement | null>(null)
-
   const list = useMemo(
     () => order.map((id) => operations[id]).filter((o): o is Operation => !!o),
     [order, operations]
   )
 
-  // 포커스 트랩: 첫 포커스(첫 취소/닫기 버튼)·Tab 순환·opener 복귀(P7-A).
-  // 단, Esc 닫기는 두지 않는다(작업 진행 중 우발 취소 방지 — 취소는 명시적 버튼만).
-  useFocusTrap(list.length > 0, panelRef)
-
   if (list.length === 0) return null
 
+  // 비차단 플로팅 패널(우하단). 전체화면 오버레이·포커스트랩 없음 → 진행 중에도
+  // 파일 목록·다른 복사 시작 가능(전송 큐와 정합). 취소는 명시적 버튼만.
   return (
-    <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="파일 작업 진행률">
-      <div ref={panelRef} style={{ ...panelStyle, minWidth: 460 }}>
-        <div style={titleStyle}>파일 작업 {list.length > 1 ? `(${list.length}건)` : ''}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {list.map((op) => (
-            <OperationRow key={op.operationId} op={op} onDismiss={dismiss} />
-          ))}
-        </div>
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label="파일 작업 진행률"
+      style={{
+        position: 'fixed',
+        right: 16,
+        bottom: 16,
+        zIndex: 1100,
+        width: 'min(460px, calc(100vw - 32px))',
+        maxHeight: 'min(60vh, 560px)',
+        overflowY: 'auto',
+        ...panelStyle
+      }}
+    >
+      <div style={titleStyle}>파일 작업 {list.length > 1 ? `(${list.length}건)` : ''}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {list.map((op) => (
+          <OperationRow key={op.operationId} op={op} onDismiss={dismiss} />
+        ))}
       </div>
     </div>
   )
