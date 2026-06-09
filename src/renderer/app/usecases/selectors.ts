@@ -8,7 +8,7 @@
  */
 import type { FileEntryDTO } from '@shared/dto'
 import type { Panel } from '@renderer/domain/entities'
-import { sortEntries } from '@renderer/domain/rules/sort'
+import { applyPins, sortEntries } from '@renderer/domain/rules/sort'
 import { filterEntries } from '@renderer/domain/rules/filter'
 import { store } from '@renderer/app/stores/rootStore'
 
@@ -18,6 +18,8 @@ interface MemoSlot {
   sortDir: string
   folderFirst: boolean
   query: string
+  /** 이 패널 경로의 고정 항목 배열(참조 동일성으로 메모 무효화 판정). */
+  pinned: readonly string[]
   result: FileEntryDTO[]
 }
 
@@ -28,6 +30,8 @@ export function computeVisible(panel: Panel): FileEntryDTO[] {
   const { entries } = panel.directory
   const { sortKey, sortDir, folderFirst } = panel.view
   const query = panel.filter.open ? panel.filter.query : ''
+  // 이 패널 경로에 고정된 항목(상단 고정 기능). 변경 시에만 새 배열 참조 → 메모 무효화.
+  const pinned = store.getState().pinnedIn(panel.path)
 
   const slot = memo.get(panel.id)
   if (
@@ -36,14 +40,16 @@ export function computeVisible(panel: Panel): FileEntryDTO[] {
     slot.sortKey === sortKey &&
     slot.sortDir === sortDir &&
     slot.folderFirst === folderFirst &&
-    slot.query === query
+    slot.query === query &&
+    slot.pinned === pinned
   ) {
     return slot.result
   }
 
   const filtered = filterEntries(entries, query)
-  const result = sortEntries(filtered, sortKey, sortDir, folderFirst)
-  memo.set(panel.id, { entries, sortKey, sortDir, folderFirst, query, result })
+  const sorted = sortEntries(filtered, sortKey, sortDir, folderFirst)
+  const result = applyPins(sorted, new Set(pinned))
+  memo.set(panel.id, { entries, sortKey, sortDir, folderFirst, query, pinned, result })
   return result
 }
 

@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ViewMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
+import { isRemotePath, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -57,9 +58,14 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   const [pathError, setPathError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
+  // 원격 경로면 호스트 프리픽스(sftp://host)는 고정 표시하고, 입력은 경로만 받는다.
+  const remoteLoc = parseRemotePath(path)
+
   useEffect(() => {
     if (addressEditing) {
-      setEditValue(path)
+      // 원격: 호스트 제외 경로만(예: '/mnt/sub') 편집. 로컬: 전체 경로.
+      const loc = parseRemotePath(path)
+      setEditValue(loc ? loc.remotePath : path)
       setPathError(null)
       const t = setTimeout(() => inputRef.current?.select(), 0)
       return () => clearTimeout(t)
@@ -70,7 +76,16 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   const crumbs = breadcrumbs(path)
 
   async function commitEdit(): Promise<void> {
-    const target = normalizeDisplay(editValue)
+    let target: string
+    if (remoteLoc) {
+      const raw = editValue.trim()
+      // 사용자가 전체 URI 를 그대로 넣었으면 그대로, 아니면 호스트에 경로만 결합.
+      target = isRemotePath(raw)
+        ? raw
+        : makeRemotePath(remoteLoc.protocol, remoteLoc.host, raw === '' ? '/' : raw.startsWith('/') ? raw : `/${raw}`)
+    } else {
+      target = normalizeDisplay(editValue)
+    }
     const res = await validateAndNavigate(panelId, target)
     if (res.ok) {
       setAddressEditing(false)
@@ -140,9 +155,28 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
       <div style={{ flex: 1, minWidth: 0 }}>
         {addressEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <input
-              ref={inputRef}
-              value={editValue}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {remoteLoc && (
+                <span
+                  title="원격 호스트 — 경로만 입력하세요"
+                  style={{
+                    flex: '0 0 auto',
+                    maxWidth: '40%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: tokens.color.textMuted,
+                    fontSize: 12,
+                    fontFamily: tokens.font,
+                    userSelect: 'none'
+                  }}
+                >
+                  {remoteLoc.protocol}://{remoteLoc.host}
+                </span>
+              )}
+              <input
+                ref={inputRef}
+                value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void commitEdit()
@@ -152,7 +186,8 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
               spellCheck={false}
               aria-label="경로 입력"
               style={{
-                width: '100%',
+                flex: 1,
+                minWidth: 0,
                 height: 24,
                 boxSizing: 'border-box',
                 border: `1px solid ${pathError ? tokens.color.danger : tokens.color.accentBorder}`,
@@ -160,9 +195,10 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
                 padding: '0 8px',
                 fontSize: 13,
                 fontFamily: tokens.font
-                // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
-              }}
-            />
+                  // 키보드 포커스 가시성은 전역 :focus-visible(a11y CSS)에 위임.
+                }}
+              />
+            </div>
             {pathError && (
               <span style={{ color: tokens.color.danger, fontSize: 11, marginTop: 2 }}>{pathError}</span>
             )}

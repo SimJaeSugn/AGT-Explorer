@@ -312,6 +312,11 @@ export interface SidebarSnapshot {
    * 키는 favorites 에 존재하는 경로만 보존(coerce 가 고아 라벨 제거). 스키마 버전 미상향.
    */
   readonly favoriteLabels?: Record<string, string>
+  /**
+   * 디렉토리별 "상단 고정" 항목 맵(dirPath → 고정 항목 경로 배열). 비파괴 추가:
+   * 없으면 빈 맵(고정 없음). coerce 가 빈 배열 키·비문자열 항목을 정리. 스키마 버전 미상향.
+   */
+  readonly pinnedByDir?: Record<string, string[]>
   readonly recent: string[]
   readonly width: number
   readonly collapsed: boolean

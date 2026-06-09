@@ -8,6 +8,7 @@
  */
 import { fsApi, shellApi } from '@renderer/infra/api'
 import { isMyPc } from '@renderer/domain/paths'
+import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { store } from '@renderer/app/stores/rootStore'
 
 export interface NavOutcome {
@@ -24,6 +25,14 @@ export interface NavOutcome {
 export async function validateAndNavigate(panelId: string, target: string): Promise<NavOutcome> {
   if (isMyPc(target)) {
     store.getState().navigate(panelId, '', true)
+    return { ok: true, message: '' }
+  }
+
+  // 원격 URI(sftp://·ftp(s)://)는 로컬 fs:validate-path 대상이 아니다(원격 검증 채널
+  // 없음). 그대로 navigate → load 가 remote:list 로 탐색하며, 잘못된 경로는 패널
+  // 오류 상태로 표면화한다(인라인 검증 대신).
+  if (isRemotePath(target)) {
+    store.getState().navigate(panelId, target, true)
     return { ok: true, message: '' }
   }
 

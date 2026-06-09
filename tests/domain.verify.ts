@@ -1,5 +1,5 @@
 /* P2/P3 도메인 순수 로직 검증(임시 하니스). 정식 테스트는 P7 tests/ 로 이관. */
-import { sortEntries, naturalCompare } from '../src/renderer/domain/rules/sort'
+import { sortEntries, naturalCompare, applyPins } from '../src/renderer/domain/rules/sort'
 import {
   applySelect,
   emptySelection,
@@ -107,6 +107,44 @@ eq(
   breadcrumbs('C:\\a\\b').map((c) => c.path),
   ['', 'C:\\', 'C:\\a', 'C:\\a\\b']
 )
+
+// ── 원격 URI 경로 인식(§M M3 버그 수정: 더블클릭 ENOENT) ──────────────────
+eq('parentOf remote child', parentOf('sftp://h/mnt/sub'), 'sftp://h/mnt')
+eq('parentOf remote one-level', parentOf('sftp://h/mnt'), 'sftp://h/')
+eq('parentOf remote root = null', parentOf('sftp://h/'), null)
+eq('baseName remote child', baseName('sftp://h/mnt/sub'), 'sub')
+eq('baseName remote root', baseName('sftp://h/'), 'sftp://h')
+eq('normalizeDisplay remote keeps slashes', normalizeDisplay('sftp://h/mnt/sub'), 'sftp://h/mnt/sub')
+eq(
+  'breadcrumbs remote',
+  breadcrumbs('sftp://h/mnt/sub').map((c) => c.path),
+  ['sftp://h/', 'sftp://h/mnt', 'sftp://h/mnt/sub']
+)
+eq(
+  'breadcrumbs remote labels',
+  breadcrumbs('sftp://h/mnt/sub').map((c) => c.label),
+  ['sftp://h', 'mnt', 'sub']
+)
+
+// ── 상단 고정(applyPins) ─────────────────────────────────────────────────
+const pinList = [mk('a.txt', false), mk('b.txt', false), mk('c.txt', false), mk('d.txt', false)]
+eq('applyPins empty = unchanged order', applyPins(pinList, new Set()).map((e) => e.name), [
+  'a.txt',
+  'b.txt',
+  'c.txt',
+  'd.txt'
+])
+eq(
+  'applyPins hoists pinned to top (sorted order preserved within group)',
+  applyPins(pinList, new Set(['C:\\x\\c.txt', 'C:\\x\\a.txt'])).map((e) => e.name),
+  ['a.txt', 'c.txt', 'b.txt', 'd.txt']
+)
+eq('applyPins does not mutate input', pinList.map((e) => e.name), [
+  'a.txt',
+  'b.txt',
+  'c.txt',
+  'd.txt'
+])
 
 // ── 박스 선택(러버밴드, J1) ────────────────────────────────────────────
 eq('normalizeRect swaps', normalizeRect(30, 40, 10, 20), {

@@ -65,8 +65,12 @@ export function LayoutHost(): JSX.Element {
             <div
               key={pid}
               style={{
-                minWidth: 220,
-                minHeight: 160,
+                // fr 비율(gCol/gRow·0.15~0.85 클램프)이 셀 크기를 온전히 제어하도록
+                // 최소 크기를 0 으로 둔다. minWidth/minHeight 를 220/160 으로 두면 비율을
+                // 끝으로 내려도 셀이 그 값에 붙들려, 비율 %로 배치된 분할선과 실제 경계가
+                // 어긋나 "데드존"(끌어도 안 변함)이 생기고 핸들이 멈춘 듯 보였다.
+                minWidth: 0,
+                minHeight: 0,
                 display: 'flex',
                 overflow: 'hidden',
                 borderLeft: c > 0 ? `1px solid ${tokens.color.borderStrong}` : undefined,
@@ -150,8 +154,10 @@ export function LayoutHost(): JSX.Element {
           key={pid}
           style={{
             flex: isFirst ? first : 1 - first,
-            minWidth: horizontal ? 220 : 0,
-            minHeight: horizontal ? 0 : 160,
+            // 비율(first·0.15~0.85 클램프)이 크기를 온전히 제어하도록 최소 크기 0.
+            // (220/160 floor 는 비율과 충돌해 분할선이 멈춘 듯한 데드존을 만든다 — grid-4 동일.)
+            minWidth: 0,
+            minHeight: 0,
             display: 'flex',
             overflow: 'hidden'
           }}

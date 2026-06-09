@@ -97,6 +97,8 @@ function sampleSession(): SessionSnapshot {
     sidebar: {
       favorites: ['C:\\fav'],
       favoriteLabels: { 'C:\\fav': '즐겨찾기' },
+      // 상단 고정 맵 — coerce 가 비-빈 배열 키를 보존하므로 round-trip 포함.
+      pinnedByDir: { 'C:\\d': ['C:\\d\\pin.txt'] },
       recent: ['C:\\r1', 'C:\\r2'],
       width: 280,
       collapsed: false
@@ -174,6 +176,7 @@ async function main(): Promise<void> {
   check('history.back 복원', back.windows[0].tabs[0].panels[0].history.back[0] === 'C:\\Users\\me')
   check('sidebar.favorites 복원', back.sidebar.favorites[0] === 'C:\\fav')
   check('sidebar.favoriteLabels 복원(J8)', back.sidebar.favoriteLabels?.['C:\\fav'] === '즐겨찾기')
+  check('sidebar.pinnedByDir 복원(상단 고정)', back.sidebar.pinnedByDir?.['C:\\d']?.[0] === 'C:\\d\\pin.txt')
   check('ui.theme 복원', back.ui.theme === 'dark')
   check('ui.previewWidth 복원(J7)', back.ui.previewWidth === 360)
   check(
@@ -384,6 +387,20 @@ async function main(): Promise<void> {
   // favoriteLabels 가 비객체(배열/문자열) → {} 폴백(크래시 없음).
   const sbNonObj = cs8({ favorites: ['C:\\a'], favoriteLabels: ['x'] })
   check('favoriteLabels 비객체 → {}', JSON.stringify(sbNonObj.favoriteLabels) === '{}')
+
+  // ── 8b) 상단 고정(pinnedByDir) coerce(빈 배열 제거·비문자열 정리·구버전) ──
+  line('== 8b) pinnedByDir coerce(빈배열 제거/비문자열 정리/구버전 호환) ==')
+  check('defaultSidebar.pinnedByDir = {}', JSON.stringify(defSb.pinnedByDir) === '{}')
+  const sbPin = cs8({ favorites: [], pinnedByDir: { 'C:\\d': ['C:\\d\\a.txt', 'C:\\d\\b.txt'] } })
+  check('pinnedByDir 정상 보존', sbPin.pinnedByDir?.['C:\\d']?.length === 2)
+  const sbPinEmpty = cs8({ favorites: [], pinnedByDir: { 'C:\\d': [] } })
+  check('빈 배열 키 제거', sbPinEmpty.pinnedByDir?.['C:\\d'] === undefined)
+  const sbPinBad = cs8({ favorites: [], pinnedByDir: { 'C:\\d': ['C:\\d\\ok.txt', 123, null] } })
+  check('비문자열 항목 정리', JSON.stringify(sbPinBad.pinnedByDir?.['C:\\d']) === JSON.stringify(['C:\\d\\ok.txt']))
+  const sbPinLegacy = cs8({ favorites: ['C:\\a'] })
+  check('구버전(pinnedByDir 없음) → {}', JSON.stringify(sbPinLegacy.pinnedByDir) === '{}')
+  const sbPinNonObj = cs8({ favorites: [], pinnedByDir: ['x'] })
+  check('pinnedByDir 비객체 → {}', JSON.stringify(sbPinNonObj.pinnedByDir) === '{}')
 
   // ── 9) J7: coerceSession.ui.previewWidth(클램프 240~720·생략) ────────────
   line('== 9) J7 previewWidth coerce(클램프/누락생략/비유한수) ==')

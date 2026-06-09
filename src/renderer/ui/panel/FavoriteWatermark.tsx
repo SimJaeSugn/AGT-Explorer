@@ -56,7 +56,7 @@ export function FavoriteWatermark({ panelId }: Props): JSX.Element | null {
       <span
         style={{
           maxWidth: '100%',
-          fontSize: 'clamp(28px, 9vw, 96px)',
+          fontSize: 'clamp(14px, 3.2vw, 40px)',
           fontWeight: 800,
           letterSpacing: '0.02em',
           color: tokens.color.watermark,

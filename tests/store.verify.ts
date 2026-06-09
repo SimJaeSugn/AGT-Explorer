@@ -537,5 +537,48 @@ if (sid) {
   )
 }
 
+// ── 상단 고정(pin): togglePin·isPinned·pinnedIn·hydrate·세션 영속 ────────────
+{
+  // 초기 빈 상태에서 시작.
+  s().hydrateSidebar({ favorites: [], recent: [], width: 240, collapsed: false })
+  ok('pin 초기 빈 맵', JSON.stringify(s().pinnedByDir) === '{}')
+  ok('pin pinnedIn 빈배열', s().pinnedIn('C:\\d').length === 0)
+  ok('pin pinnedIn 안정참조', s().pinnedIn('C:\\d') === s().pinnedIn('C:\\z'))
+
+  // 고정 추가.
+  s().togglePin('C:\\d', 'C:\\d\\a.txt')
+  s().togglePin('C:\\d', 'C:\\d\\b.txt')
+  ok('pin 추가 2개', s().pinnedIn('C:\\d').join(',') === 'C:\\d\\a.txt,C:\\d\\b.txt')
+  ok('pin isPinned true', s().isPinned('C:\\d', 'C:\\d\\a.txt'))
+  ok('pin isPinned false(타항목)', !s().isPinned('C:\\d', 'C:\\d\\z.txt'))
+  ok('pin 디렉토리 격리', !s().isPinned('C:\\other', 'C:\\d\\a.txt'))
+
+  // 토글 해제(있으면 제거).
+  s().togglePin('C:\\d', 'C:\\d\\a.txt')
+  ok('pin 해제', !s().isPinned('C:\\d', 'C:\\d\\a.txt'))
+  ok('pin 나머지 보존', s().pinnedIn('C:\\d').join(',') === 'C:\\d\\b.txt')
+
+  // 마지막 항목 제거 시 디렉토리 키 자체 삭제(빈 배열 키 누적 방지).
+  s().togglePin('C:\\d', 'C:\\d\\b.txt')
+  ok('pin 빈 디렉토리 키 제거', s().pinnedByDir['C:\\d'] === undefined)
+
+  // 세션 영속(buildSessionSnapshot → pinnedByDir 직렬화) + hydrate 복원.
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  s().togglePin('C:\\p', 'C:\\p\\keep.txt')
+  const snapP = buildSessionSnapshot()
+  ok('pin 스냅샷 직렬화', snapP.sidebar.pinnedByDir?.['C:\\p']?.[0] === 'C:\\p\\keep.txt')
+
+  s().hydrateSidebar({
+    favorites: [],
+    pinnedByDir: { 'C:\\h': ['C:\\h\\x.txt'], 'C:\\empty': [] },
+    recent: [],
+    width: 240,
+    collapsed: false
+  })
+  ok('pin hydrate 복원', s().isPinned('C:\\h', 'C:\\h\\x.txt'))
+  ok('pin hydrate 빈배열 키 제외', s().pinnedByDir['C:\\empty'] === undefined)
+  ok('pin hydrate 기존 맵 교체', s().pinnedByDir['C:\\p'] === undefined)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

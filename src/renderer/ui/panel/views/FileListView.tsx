@@ -34,6 +34,7 @@ import {
   useDragSource,
   useExternalDragSource,
   useDropTarget,
+  useHtml5DropTarget,
   useDragState
 } from '@renderer/ui/dnd/useDrag'
 import { computeWindow } from './windowing'
@@ -83,6 +84,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const view = useRootStore((s) => s.panels[panelId]?.view)
   const filter = useRootStore((s) => s.panels[panelId]?.filter)
   const panelPath = useRootStore((s) => s.panels[panelId]?.path ?? '')
+  // 상단 고정: 이 패널 경로의 고정 항목 배열(변경 시 재렌더 + computeVisible 재계산).
+  const pinnedHere = useRootStore((s) => s.pinnedByDir[s.panels[panelId]?.path ?? ''])
   const selection = useRootStore((s) => s.selection[panelId])
   const showExtensions = useRootStore((s) => s.showExtensions)
   const renameTarget = useRootStore((s) => s.renameTarget)
@@ -101,6 +104,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   // D&D: 패널 빈영역 드롭 타겟 + 드래그 상태(하이라이트 판정).
   const drag = useDragState()
   const emptyAreaDrop = useDropTarget({ panelId, destDir: panelPath, overEntryPath: null })
+  // HTML5 드롭(드롭 즉시 이동 — OS 드래그가 포인터를 점유해도 동작): 빈영역=패널 폴더.
+  const emptyAreaHtml5 = useHtml5DropTarget({ panelId, destDir: panelPath, overEntryPath: null })
   const panelDropHighlight =
     drag.active &&
     drag.target?.panelId === panelId &&
@@ -145,7 +150,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const visible = useMemo(
     () => (panel ? computeVisible(panel) : []),
     // directory.entries/view/filter 가 바뀌면 panel 참조도 immer 로 갱신됨.
-    [panel, directory?.entries, view, filter]
+    // pinnedHere 는 고정 토글 시 참조가 바뀌어 재계산(applyPins)을 유발한다.
+    [panel, directory?.entries, view, filter, pinnedHere]
   )
   const visiblePaths = useMemo(() => visible.map((e) => e.path), [visible])
 
@@ -187,6 +193,22 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     count: visible.length,
     overscan: OVERSCAN
   })
+
+  // 상단 고정 sticky 밴드(§O 변경): 고정 항목을 스크롤해도 목록 최상단에 고정 표시한다.
+  // 목록/자세히(colCount=1) 전용 — 그리드는 wrapping 특성상 부분 행 점유로 레이아웃이
+  // 깨지므로 기존 "정렬 최상단 유지"만 적용(밴드 비활성). applyPins 가 고정 항목을 visible
+  // 앞쪽에 모으므로, 선두 연속 구간이 곧 고정 묶음이다(인덱스/선택/키보드 공간은 불변).
+  const pinnedSet = useMemo(() => new Set(pinnedHere ?? []), [pinnedHere])
+  const sticky = !isGrid && pinnedSet.size > 0
+  let stickyCount = 0
+  if (sticky) {
+    while (stickyCount < visible.length) {
+      const e = visible[stickyCount]
+      if (!e || !pinnedSet.has(e.path)) break
+      stickyCount++
+    }
+  }
+  const stickyBandH = stickyCount * cellH
 
   const onRowClick = useCallback(
     (index: number, e: React.MouseEvent) => {
@@ -261,7 +283,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         const el = scrollRef.current
         if (el) {
           const top = Math.floor(next / colCount) * cellH
-          if (top < el.scrollTop) el.scrollTop = top
+          // sticky 고정 밴드가 상단 stickyBandH 만큼을 가리므로, 위로 스크롤 시 그만큼
+          // 더 올려 대상 행이 밴드 뒤에 가리지 않게 한다(고정 행 자신은 max(0)로 0 → 밴드에 표시).
+          if (top < el.scrollTop + stickyBandH) el.scrollTop = Math.max(0, top - stickyBandH)
           else if (top + cellH > el.scrollTop + el.clientHeight) {
             el.scrollTop = top + cellH - el.clientHeight
           }
@@ -301,6 +325,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       cellH,
       cellW,
       colCount,
+      stickyBandH,
       selectAll,
       active,
       setActivePanel,
@@ -509,24 +534,21 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     )
   }
 
-  // 렌더 윈도(가시 + 오버스캔).
-  const rows: JSX.Element[] = []
-  for (let i = startIdx; i < endIdx; i++) {
-    const entry = visible[i]
-    if (!entry) continue
+  // FileRow 1개 생성(윈도 본문 + sticky 밴드 공용).
+  function renderRow(i: number, entry: FileEntryDTO): JSX.Element {
     const row = Math.floor(i / colCount)
     const col = i % colCount
     const top = row * cellH
     const selected = selection?.selectedPaths.has(entry.path) ?? false
+    const pinned = pinnedHere?.includes(entry.path) ?? false
     const renaming = renameTarget?.panelId === panelId && renameTarget.path === entry.path
-    // 폴더 항목 드롭 하이라이트: 드래그 중 이 폴더가 대상이고 허용일 때.
     const dropHi =
       drag.active &&
       entry.isDir &&
       drag.target?.panelId === panelId &&
       drag.target.overEntryPath === entry.path &&
       drag.allowed
-    rows.push(
+    return (
       <FileRow
         key={entry.path}
         entry={entry}
@@ -537,6 +559,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         width={gridCell ? gridCell.w : '100%'}
         height={cellH}
         selected={selected}
+        pinned={pinned}
         active={active}
         details={view.viewMode === 'details'}
         grid={gridCell ? { icon: gridCell.icon } : null}
@@ -555,6 +578,24 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     )
   }
 
+  // sticky 고정 밴드 행(목록/자세히 전용·colCount=1·top=i*cellH 로컬=글로벌).
+  const stickyRows: JSX.Element[] = []
+  if (sticky) {
+    for (let i = 0; i < stickyCount; i++) {
+      const entry = visible[i]
+      if (entry) stickyRows.push(renderRow(i, entry))
+    }
+  }
+
+  // 렌더 윈도(가시 + 오버스캔). 고정 행(i<stickyCount)은 sticky 밴드에서 렌더하므로 본문에서 제외.
+  const rows: JSX.Element[] = []
+  for (let i = startIdx; i < endIdx; i++) {
+    const entry = visible[i]
+    if (!entry) continue
+    if (sticky && i < stickyCount) continue
+    rows.push(renderRow(i, entry))
+  }
+
   return (
     <div
       ref={attachScroll}
@@ -564,6 +605,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       onPointerDown={onContainerPointerDown}
       onPointerEnter={emptyAreaDrop.onPointerEnter}
       onPointerLeave={emptyAreaDrop.onPointerLeave}
+      onDragOver={emptyAreaHtml5.onDragOver}
+      onDragLeave={emptyAreaHtml5.onDragLeave}
+      onDrop={emptyAreaHtml5.onDrop}
       tabIndex={0}
       role="grid"
       aria-label="파일 목록"
@@ -581,6 +625,22 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       }}
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
+        {sticky && stickyCount > 0 && (
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 3,
+              height: stickyBandH,
+              // 고정 영역을 본문과 구분되게: 대체 배경(bgAlt·헤더/툴바 색) + 강조 하단 구분선.
+              // 스크롤되는 본문을 가리도록 불투명해야 한다.
+              background: tokens.color.bgAlt,
+              boxShadow: `inset 0 -2px 0 ${tokens.color.borderStrong}`
+            }}
+          >
+            {stickyRows}
+          </div>
+        )}
         {rows}
         {boxRect && (
           <div
@@ -631,6 +691,8 @@ interface RowProps {
   width: number | string
   height: number
   selected: boolean
+  /** 상단 고정 여부(목록 최상단 배치 + 핀 표식). */
+  pinned: boolean
   active: boolean
   details: boolean
   /** 아이콘 그리드 셀 모드(J4). null 이면 list/details 행. icon=아이콘 px. */
@@ -657,6 +719,7 @@ function FileRow({
   width,
   height,
   selected,
+  pinned,
   active,
   details,
   grid,
@@ -684,9 +747,16 @@ function FileRow({
 
   // 드래그 소스(이 행에서 시작) + 폴더면 드롭 타겟(그 폴더 안).
   const dragSrc = useDragSource(panelId, panelPath, () => dragSourcesFor(entry))
-  // 외부(OS/타 앱) 드래그는 native HTML5 dragstart 로 시작(§M M1). 내부 pointer DnD 와 별개.
-  const extDrag = useExternalDragSource(() => dragSourcesFor(entry))
+  // 행 드래그는 native HTML5 dragstart 로 시작(§M M1: allLocal 은 OS 인계, 내부 드롭은
+  // onDrop 이 즉시 처리). 드래그 컨텍스트(출발 패널/폴더)도 여기서 등록한다.
+  const extDrag = useExternalDragSource(panelId, panelPath, () => dragSourcesFor(entry))
   const folderDrop = useDropTarget({
+    panelId,
+    destDir: entry.path,
+    overEntryPath: entry.isDir ? entry.path : null
+  })
+  // 폴더 행 HTML5 드롭(드롭 즉시 이동). 파일 행은 드롭 타겟 아님(컨테이너로 버블 → 현재 폴더).
+  const folderHtml5 = useHtml5DropTarget({
     panelId,
     destDir: entry.path,
     overEntryPath: entry.isDir ? entry.path : null
@@ -706,8 +776,12 @@ function FileRow({
         onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
         draggable={renaming ? false : extDrag.draggable}
         onDragStart={renaming ? undefined : extDrag.onDragStart}
+        onDragEnd={renaming ? undefined : extDrag.onDragEnd}
         onPointerEnter={entry.isDir ? folderDrop.onPointerEnter : undefined}
         onPointerLeave={entry.isDir ? folderDrop.onPointerLeave : undefined}
+        onDragOver={entry.isDir ? folderHtml5.onDragOver : undefined}
+        onDragLeave={entry.isDir ? folderHtml5.onDragLeave : undefined}
+        onDrop={entry.isDir ? folderHtml5.onDrop : undefined}
         onDoubleClick={() => onDouble(entry)}
         title={entry.path}
         style={{
@@ -735,6 +809,22 @@ function FileRow({
           textAlign: 'center'
         }}
       >
+        {pinned && (
+          <span
+            aria-label="상단 고정됨"
+            title="상단 고정됨"
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 4,
+              fontSize: 11,
+              lineHeight: 1,
+              pointerEvents: 'none'
+            }}
+          >
+            📌
+          </span>
+        )}
         <span
           style={{
             flex: '0 0 auto',
@@ -785,8 +875,12 @@ function FileRow({
       onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
       draggable={renaming ? false : extDrag.draggable}
       onDragStart={renaming ? undefined : extDrag.onDragStart}
+      onDragEnd={renaming ? undefined : extDrag.onDragEnd}
       onPointerEnter={entry.isDir ? folderDrop.onPointerEnter : undefined}
       onPointerLeave={entry.isDir ? folderDrop.onPointerLeave : undefined}
+      onDragOver={entry.isDir ? folderHtml5.onDragOver : undefined}
+      onDragLeave={entry.isDir ? folderHtml5.onDragLeave : undefined}
+      onDrop={entry.isDir ? folderHtml5.onDrop : undefined}
       onDoubleClick={() => onDouble(entry)}
       title={entry.path}
       style={{
@@ -823,6 +917,15 @@ function FileRow({
       >
         <OSIcon entry={entry} />
       </span>
+      {pinned && (
+        <span
+          aria-label="상단 고정됨"
+          title="상단 고정됨"
+          style={{ flex: '0 0 auto', fontSize: 11, lineHeight: 1, marginLeft: -2 }}
+        >
+          📌
+        </span>
+      )}
       {renaming ? (
         <RenameInput panelId={panelId} path={entry.path} initialName={initialName} />
       ) : (

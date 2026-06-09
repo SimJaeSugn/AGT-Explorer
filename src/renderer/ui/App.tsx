@@ -33,7 +33,6 @@ import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
 import { ConfirmDialog } from '@renderer/ui/dialogs/ConfirmDialog'
 import { ContextMenu } from '@renderer/ui/contextmenu/ContextMenu'
-import { DragOverlay } from '@renderer/ui/dnd/DragOverlay'
 import { useDragController } from '@renderer/ui/dnd/useDrag'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -122,7 +121,6 @@ export function App(): JSX.Element {
       <ConflictDialog />
       <ConfirmDialog />
       <ContextMenu />
-      <DragOverlay />
     </div>
   )
 }

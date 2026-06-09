@@ -79,7 +79,8 @@ export const DEFAULT_TELEMETRY_OPT_IN = false
 
 export function defaultSidebar(): SidebarSnapshot {
   // J8: favoriteLabels(별칭 맵)은 기본 빈 맵 — 별칭 없으면 UI 가 basename 폴백.
-  return { favorites: [], favoriteLabels: {}, recent: [], width: 240, collapsed: false }
+  // pinnedByDir(상단 고정 맵)도 기본 빈 맵.
+  return { favorites: [], favoriteLabels: {}, pinnedByDir: {}, recent: [], width: 240, collapsed: false }
 }
 
 /** 손상/미존재 시 부팅할 안전 폴백 세션("내 PC" 단일 탭, SA §5.3). */
@@ -222,6 +223,23 @@ function coerceFavoriteLabels(raw: unknown, favorites: readonly string[]): Recor
   return out
 }
 
+/**
+ * 상단 고정 맵(pinnedByDir) 정규화. dirPath → 문자열 경로 배열.
+ * - 입력이 객체가 아니면(구버전: 키 없음) 빈 맵.
+ * - 값이 배열이 아니거나 비면 제외(빈 배열 키는 무의미). 항목 중 문자열만 보존.
+ * 비파괴·구버전 호환.
+ */
+function coercePinnedByDir(raw: unknown): Record<string, string[]> {
+  const o = asObj(raw)
+  if (!o) return {}
+  const out: Record<string, string[]> = {}
+  for (const key of Object.keys(o)) {
+    const arr = asStrArray(o[key])
+    if (arr.length > 0) out[key] = arr
+  }
+  return out
+}
+
 function coerceSidebar(raw: unknown, recentLimit: number): SidebarSnapshot {
   const o = asObj(raw)
   const d = defaultSidebar()
@@ -230,6 +248,7 @@ function coerceSidebar(raw: unknown, recentLimit: number): SidebarSnapshot {
   return {
     favorites,
     favoriteLabels: coerceFavoriteLabels(o['favoriteLabels'], favorites),
+    pinnedByDir: coercePinnedByDir(o['pinnedByDir']),
     // recentLimit 적용(최신 우선이 앞에 있다고 가정 — 앞에서 자른다).
     recent: asStrArray(o['recent']).slice(0, Math.max(0, recentLimit)),
     width: Math.max(120, asNum(o['width'], d.width)),

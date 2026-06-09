@@ -5,7 +5,17 @@
  * 연산을 직접 구현한다. Main 의 normalizePath 와 의미가 일치하도록 유지한다.
  *
  * "내 PC"(드라이브 목록 루트)는 빈 문자열('')로 표현한다.
+ *
+ * 원격 경로(sftp://·ftp(s)://host/path, §M M3)는 로컬 win32 경로와 같은
+ * `Panel.path: string` 필드를 공유하므로, 표시명·상위·브레드크럼 연산은 원격 URI
+ * 를 백슬래시 경로로 오해하지 않도록 remoteLocation 규칙에 위임한다(POSIX 분해).
  */
+import {
+  isRemotePath,
+  makeRemotePath,
+  parseRemotePath,
+  remoteParentOf
+} from '@renderer/domain/rules/remoteLocation'
 
 /** "내 PC"(드라이브 루트 목록) 가상 경로. 빈 문자열로 약속. */
 export const MY_PC_PATH = ''
@@ -33,6 +43,15 @@ export function isMyPc(p: string): boolean {
  */
 export function baseName(p: string): string {
   if (isMyPc(p)) return MY_PC_LABEL
+  if (isRemotePath(p)) {
+    const loc = parseRemotePath(p)
+    if (loc) {
+      if (loc.remotePath === '/') return `${loc.protocol}://${loc.host}`
+      const seg = loc.remotePath.replace(/\/+$/, '')
+      const idx = seg.lastIndexOf('/')
+      return idx >= 0 ? seg.slice(idx + 1) : seg
+    }
+  }
   const norm = toBackslash(p).replace(/\\+$/, '')
   if (/^[A-Za-z]:$/.test(norm)) return norm + '\\'
   const idx = norm.lastIndexOf('\\')
@@ -45,6 +64,14 @@ export function baseName(p: string): string {
  */
 export function parentOf(p: string): string | null {
   if (isMyPc(p)) return null
+  if (isRemotePath(p)) {
+    const loc = parseRemotePath(p)
+    if (loc) {
+      // 원격 루트(sftp://host/)의 상위는 없음 → 로컬 "내 PC"로 새지 않도록 null.
+      if (loc.remotePath === '/') return null
+      return makeRemotePath(loc.protocol, loc.host, remoteParentOf(loc.remotePath))
+    }
+  }
   const norm = toBackslash(p).replace(/\\+$/, '')
   // UNC 루트(\\server\share)는 더 위로 올라가지 않음 → 내 PC.
   if (/^\\\\[^\\]+\\[^\\]+$/.test(norm)) return MY_PC_PATH
@@ -75,6 +102,23 @@ export interface Crumb {
 }
 
 export function breadcrumbs(p: string): Crumb[] {
+  // 원격 경로: 루트(protocol://host) → POSIX 세그먼트 누적. "내 PC"로 시작하지 않는다
+  // (원격에서 내 PC 로 새지 않도록 — 로컬↔원격 경계 보존).
+  if (isRemotePath(p)) {
+    const loc = parseRemotePath(p)
+    if (loc) {
+      const crumbs: Crumb[] = [
+        { label: `${loc.protocol}://${loc.host}`, path: makeRemotePath(loc.protocol, loc.host, '/') }
+      ]
+      let acc = ''
+      for (const seg of loc.remotePath.split('/').filter(Boolean)) {
+        acc = `${acc}/${seg}`
+        crumbs.push({ label: seg, path: makeRemotePath(loc.protocol, loc.host, acc) })
+      }
+      return crumbs
+    }
+  }
+
   const out: Crumb[] = [{ label: MY_PC_LABEL, path: MY_PC_PATH }]
   if (isMyPc(p)) return out
 
@@ -117,6 +161,13 @@ export function breadcrumbs(p: string): Crumb[] {
 /** 표시용 정규화(끝 슬래시 정리, 드라이브 루트 보존). 비교/저장용 키. */
 export function normalizeDisplay(p: string): string {
   if (isMyPc(p)) return MY_PC_PATH
+  // 원격 URI 는 백슬래시 변환 대상이 아님(스킴·POSIX 경로 보존). 끝 슬래시만 정리하되
+  // 루트(sftp://host/)는 보존한다.
+  const t = p.trim()
+  if (isRemotePath(t)) {
+    const loc = parseRemotePath(t)
+    return loc ? makeRemotePath(loc.protocol, loc.host, loc.remotePath) : t
+  }
   const b = toBackslash(p.trim())
   if (/^[A-Za-z]:\\?$/.test(b)) return b.replace(/\\?$/, '\\') // "C:" → "C:\"
   return b.replace(/\\+$/, '')

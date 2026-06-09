@@ -121,42 +121,145 @@ export function useDragSource(
 }
 
 /**
- * 외부 OS 드래그 소스 훅 — 파일 행에 native HTML5 draggable 로 연결(§M M1).
- *
- * 외부(바탕화면/탐색기/타 앱)로의 드래그-드롭은 OS 가 인계해야 하며,
- * Electron 의 webContents.startDrag 는 **native dragstart**(마우스 버튼이 눌린
- * 드래그 제스처 진행 중)에서 호출해야만 OS 드래그로 넘어간다. 따라서 행에
- * draggable=true 를 주고 onDragStart 에서 즉시 startExternalDrag 를 호출한다.
- *
- * - 드래그 소스(현재 선택 + 클릭 항목)가 **모두 로컬**일 때만 위임(원격 포함 시
- *   브라우저 기본 드래그를 막지 않고 그대로 둠 — externalDrag 도 2중 방어).
- * - e.preventDefault() 로 브라우저 기본 드래그(텍스트/이미지 ghost)를 막아
- *   main 의 startDrag 가 OS 드래그를 단독 인계하게 한다.
- * - 내부 패널 간 D&D(§A3)·박스 선택(J1)은 기존 pointer 경로가 계속 담당한다.
- *   native dragstart 는 외부 인계 전용이므로 내부 경로와 충돌하지 않는다.
- *
- * @param getDragSources 드래그할 경로 묶음을 만드는 콜백(useDragSource 와 동일 소스).
+ * 외부 OS 드래그로 핸드오프할 대기 컨텍스트(모듈 전역). 드래그가 **창을 벗어날 때**만
+ * useDragController 의 document dragleave 핸들러가 startExternalDrag 로 OS 드래그를
+ * 시작한다. allLocal 이 아니면 null(원격은 외부 드롭 불가).
  */
-export function useExternalDragSource(getDragSources: () => string[]): {
+let pendingExternal: { sources: string[]; anyFolder: boolean } | null = null
+let externalHandedOff = false
+
+/**
+ * 드래그 소스 훅 — 파일 행에 native HTML5 draggable 로 연결.
+ *
+ * **내부 D&D(§A3): native HTML5 드래그를 그대로 진행**시킨다(preventDefault 안 함).
+ * 그래야 앱 내부 드롭 타겟에서 dragover/drop 이 정상 발화해 onDrop(useHtml5DropTarget)이
+ * **마우스를 놓는 즉시** performDrop 한다(클릭 불필요). dragState 컨텍스트(소스·출발
+ * 패널/폴더)는 여기서 등록해 onDrop 이 읽는다.
+ *
+ * **외부(OS/타앱) 드롭(§M M1):** onDragStart 에서 webContents.startDrag 를 부르면(과거 방식)
+ * OS 드래그가 포인터/HTML5 이벤트를 점유해 자기 창으로의 self-drop 이 전달되지 않아 내부
+ * 드롭이 깨졌다(드롭해도 안 옮겨지고 클릭해야 옮겨짐). 그래서 OS 인계는 **커서가 창을 벗어날
+ * 때**(dragleave) 로 지연한다(아래 pendingExternal + useDragController). 창 안에서 드롭하면
+ * native onDrop 이, 창 밖으로 나가면 OS 드래그가 담당한다.
+ *
+ * @param getDragSources 드래그할 경로 묶음을 만드는 콜백(현재 선택 + 클릭 항목).
+ */
+export function useExternalDragSource(
+  panelId: string,
+  sourceDir: string,
+  getDragSources: () => string[]
+): {
   draggable: boolean
   onDragStart: (e: React.DragEvent) => void
+  onDragEnd: () => void
 } {
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
       const sources = getDragSources()
       if (sources.length === 0) return
-      // 모두 로컬일 때만 OS 드래그 인계. 원격 항목이 섞이면 외부 드래그 비활성(기본 동작 유지).
+      // 드래그 컨텍스트 등록(onDrop 이 읽는다). native 드래그는 유지(preventDefault 안 함).
+      beginDrag(sources, panelId, sourceDir, modsFromEvent(e), { x: e.clientX, y: e.clientY })
+      try {
+        // native 드래그가 유효하도록 데이터/효과 지정(없으면 Chromium 이 드래그를 취소할 수 있음).
+        e.dataTransfer.effectAllowed = 'copyMove'
+        e.dataTransfer.setData('text/plain', sources.join('\n'))
+      } catch {
+        /* dataTransfer 접근 불가 환경 — 무시(내부 드롭은 dragState 로 동작). */
+      }
+      // 외부 드롭 대비: 모두 로컬이면 창 이탈 시 OS 드래그로 핸드오프(useDragController).
       const allLocal = sources.every((p) => locationKindOf(p) === 'local')
-      if (!allLocal) return
-      // 브라우저 기본 드래그를 막고 webContents.startDrag(native dragstart 중)로 인계.
-      e.preventDefault()
-      const anyFolder = sources.some((p) => !/\.[^\\/.]+$/.test(p))
-      void startExternalDrag([...sources], anyFolder)
+      pendingExternal = allLocal
+        ? { sources: [...sources], anyFolder: sources.some((p) => !/\.[^\\/.]+$/.test(p)) }
+        : null
+      externalHandedOff = false
     },
-    [getDragSources]
+    [panelId, sourceDir, getDragSources]
   )
 
-  return { draggable: true, onDragStart }
+  // 드래그 종료(native dragend) 시 상태 정리. 드롭이 onDrop 에서 처리됐으면 idempotent.
+  const onDragEnd = useCallback(() => {
+    pendingExternal = null
+    externalHandedOff = false
+    endDrag()
+  }, [])
+
+  return { draggable: true, onDragEnd, onDragStart }
+}
+
+/**
+ * HTML5 드롭 대상 훅 — 패널 빈영역/폴더 항목에 연결(§A3 내부 D&D 즉시 드롭).
+ *
+ * §M M1 이후 행 드래그는 native HTML5 드래그(allLocal 은 webContents.startDrag 로 OS 인계)
+ * 로 시작된다. OS 드래그가 포인터 이벤트를 점유하므로 기존 pointer 기반 드롭(pointerup)이
+ * 발화하지 않아 "클릭해야 이동"·말풍선 잔존 문제가 있었다. 이를 해소하기 위해 드롭 타겟에서
+ * HTML5 dragover/drop 을 직접 받아 **드롭 즉시** performDrop 한다(OS 드래그를 앱 내부로
+ * 다시 드롭하면 dragover/drop 이 정상 발화한다).
+ *
+ * - onDragOver: preventDefault(드롭 허용) + dropEffect 표시 + 하이라이트용 target 갱신.
+ * - onDrop: 컨텍스트(dragState)로 decideDrop → 허용 시 performDrop, 그리고 endDrag.
+ * - onDragLeave: 이 대상이 현재 대상이면 해제(하이라이트 제거).
+ * 중첩(폴더 행 ⊂ 패널 빈영역) 이중 처리 방지를 위해 stopPropagation 한다.
+ */
+export function useHtml5DropTarget(target: DropTarget): {
+  onDragOver: (e: React.DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent) => void
+} {
+  const onDragOver = useCallback(
+    (e: React.DragEvent) => {
+      const s = getDragState()
+      // 우리(앱 내부) 드래그가 아니면(외부 파일 등 sources 없음) 무시 → 기본 동작.
+      if (s.sources.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      const mods = modsFromEvent(e)
+      const d = decideDrop(s.sources, s.sourceDir, target.destDir, mods)
+      e.dataTransfer.dropEffect = d.allowed ? (d.intent === 'copy' ? 'copy' : 'move') : 'none'
+      if (
+        s.target?.panelId !== target.panelId ||
+        s.target?.overEntryPath !== target.overEntryPath ||
+        s.allowed !== d.allowed
+      ) {
+        setDragState({ target, intent: d.intent, allowed: d.allowed, hint: d.message })
+      }
+    },
+    [target]
+  )
+
+  const onDragLeave = useCallback(() => {
+    const s = getDragState()
+    if (
+      s.target &&
+      s.target.panelId === target.panelId &&
+      s.target.overEntryPath === target.overEntryPath
+    ) {
+      setDragState({ target: null })
+    }
+  }, [target])
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      const s = getDragState()
+      if (s.sources.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      const mods = modsFromEvent(e)
+      const d = decideDrop(s.sources, s.sourceDir, target.destDir, mods)
+      if (d.allowed) {
+        void performDrop({
+          sources: s.sources,
+          sourcePanelId: s.sourcePanelId,
+          sourceDir: s.sourceDir,
+          destDir: target.destDir,
+          mods
+        })
+      }
+      endDrag()
+    },
+    [target]
+  )
+
+  return { onDragOver, onDragLeave, onDrop }
 }
 
 /**
@@ -208,11 +311,30 @@ export function useDragController(): void {
         recompute()
       }
     }
+    // 드래그가 창(뷰포트)을 벗어나면 OS 드래그로 핸드오프(외부 앱/탐색기 드롭, §M M1).
+    // 창 안에서는 native onDrop 이 처리하므로 호출하지 않는다(내부 즉시 드롭 보존).
+    function onDocDragLeave(e: DragEvent): void {
+      if (!pendingExternal || externalHandedOff) return
+      // relatedTarget 없음 + 좌표가 뷰포트 밖 = 실제로 창을 벗어남(자식 간 이동 제외).
+      const leftWindow =
+        e.relatedTarget === null &&
+        (e.clientX <= 0 ||
+          e.clientY <= 0 ||
+          e.clientX >= window.innerWidth ||
+          e.clientY >= window.innerHeight)
+      if (!leftWindow) return
+      externalHandedOff = true
+      const ctx = pendingExternal
+      pendingExternal = null
+      void startExternalDrag(ctx.sources, ctx.anyFolder)
+    }
     window.addEventListener('keydown', onKey)
     window.addEventListener('keyup', onKey)
+    document.addEventListener('dragleave', onDocDragLeave)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKey)
+      document.removeEventListener('dragleave', onDocDragLeave)
     }
   }, [])
 }

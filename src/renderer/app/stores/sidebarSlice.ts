@@ -10,6 +10,9 @@ import type { TreeNode } from '@renderer/domain/entities'
 import { fsApi } from '@renderer/infra/api'
 import type { SliceCreator } from './types'
 
+/** pinnedIn 미존재 시 반환할 안정 빈 배열(매 호출 새 배열 생성 방지 — 메모 안정). */
+const EMPTY_PINNED: string[] = []
+
 export interface SidebarSlice {
   /** path → TreeNode(평탄 맵). */
   readonly tree: Record<string, TreeNode>
@@ -23,6 +26,12 @@ export interface SidebarSlice {
   readonly favorites: string[]
   /** 즐겨찾기 별칭 맵(path → label, J8). 없으면 UI 가 basename 폴백. */
   readonly favoriteLabels: Record<string, string>
+  /**
+   * 디렉토리별 "상단 고정" 항목 맵(dirPath → 고정된 항목 경로 배열). 디렉토리 단위로
+   * 고정 항목을 목록 맨 위에 표시한다(domain/rules/sort applyPins). 즐겨찾기와 동일한
+   * per-위치 메타 패턴(favoriteLabels)을 따르고 세션에 영속한다.
+   */
+  readonly pinnedByDir: Record<string, string[]>
   /** 최근 방문 위치(최신 우선, recentLimit 적용, P5b). */
   readonly recent: string[]
 
@@ -54,6 +63,14 @@ export interface SidebarSlice {
   setFavoriteLabel(path: string, label: string): void
   /** 즐겨찾기 별칭 조회(없으면 undefined → UI 가 basename 폴백, J8). */
   favoriteLabelOf(path: string): string | undefined
+
+  // 상단 고정(pin) ──────────────────────────────────────────────────────────
+  /** dirPath 안에서 entryPath 의 고정 여부를 토글(없으면 추가·있으면 제거). */
+  togglePin(dirPath: string, entryPath: string): void
+  /** entryPath 가 dirPath 안에서 고정돼 있는지. */
+  isPinned(dirPath: string, entryPath: string): boolean
+  /** dirPath 의 고정 항목 경로 배열(없으면 빈 배열). 참조는 변경 시에만 새로 생성. */
+  pinnedIn(dirPath: string): string[]
   /**
    * 최근 방문 기록(맨 앞으로 이동·중복 제거·"내 PC" 제외).
    * recentLimit(uiSlice)로 잘라 보관한다.
@@ -63,10 +80,11 @@ export interface SidebarSlice {
   removeRecent(path: string): void
   /** 최근 전체 비우기. */
   clearRecent(): void
-  /** 세션 복원: 즐겨찾기·별칭·최근·폭·접힘 일괄 주입. */
+  /** 세션 복원: 즐겨찾기·별칭·고정·최근·폭·접힘 일괄 주입. */
   hydrateSidebar(data: {
     favorites: string[]
     favoriteLabels?: Record<string, string>
+    pinnedByDir?: Record<string, string[]>
     recent: string[]
     width: number
     collapsed: boolean
@@ -113,6 +131,7 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
     sidebarCollapsed: false,
     favorites: [],
     favoriteLabels: {},
+    pinnedByDir: {},
     recent: [],
 
     loadDrives() {
@@ -209,6 +228,27 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
       return get().favoriteLabels[path]
     },
 
+    togglePin(dirPath, entryPath) {
+      set((s) => {
+        const cur = s.pinnedByDir[dirPath]
+        if (cur && cur.includes(entryPath)) {
+          const next = cur.filter((p) => p !== entryPath)
+          if (next.length === 0) delete s.pinnedByDir[dirPath]
+          else s.pinnedByDir[dirPath] = next
+        } else {
+          s.pinnedByDir[dirPath] = cur ? [...cur, entryPath] : [entryPath]
+        }
+      })
+    },
+
+    isPinned(dirPath, entryPath) {
+      return get().pinnedByDir[dirPath]?.includes(entryPath) ?? false
+    },
+
+    pinnedIn(dirPath) {
+      return get().pinnedByDir[dirPath] ?? EMPTY_PINNED
+    },
+
     recordRecent(path) {
       if (path === '') return // "내 PC" 는 최근 기록 제외.
       const limit = Math.max(0, Math.trunc(get().recentLimit ?? 10))
@@ -243,6 +283,17 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
           }
         }
         s.favoriteLabels = labels
+        // 고정 맵: 값이 문자열 배열인 항목만 보존(빈 배열 키는 제외 — 무의미).
+        const pinned: Record<string, string[]> = {}
+        if (data.pinnedByDir) {
+          for (const [dir, arr] of Object.entries(data.pinnedByDir)) {
+            if (Array.isArray(arr)) {
+              const clean = arr.filter((x): x is string => typeof x === 'string')
+              if (clean.length > 0) pinned[dir] = clean
+            }
+          }
+        }
+        s.pinnedByDir = pinned
         s.recent = data.recent.slice(0, limit)
         s.sidebarWidth = Math.max(160, Math.min(560, data.width))
         s.sidebarCollapsed = data.collapsed

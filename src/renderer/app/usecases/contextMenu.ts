@@ -122,6 +122,14 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   items.push({ id: 'cut', label: '잘라내기', run: cmd('file.cut') })
   if (!multi && single) {
     items.push({ id: 'rename', label: '이름 바꾸기', run: cmd('file.rename') })
+    // 상단 고정(pin) 토글 — 현재 패널(디렉토리) 기준. 파일·폴더 단일 선택 모두 허용.
+    const dirPath = store.getState().panels[panelId]?.path ?? ''
+    const pinnedNow = store.getState().isPinned(dirPath, single.path)
+    items.push({
+      id: 'pin',
+      label: pinnedNow ? '상단 고정 해제' : '상단 고정',
+      run: () => store.getState().togglePin(dirPath, single.path)
+    })
   }
 
   // ── 삭제 그룹 ─────────────────────────────────────────────────────────

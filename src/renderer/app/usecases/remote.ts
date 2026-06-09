@@ -21,6 +21,7 @@ import { remoteApi, subscribeRemoteEvents } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import {
   isRemotePath,
+  makeRemotePath,
   parseRemotePath,
   type RemoteLocation
 } from '@renderer/domain/rules/remoteLocation'
@@ -185,7 +186,17 @@ export async function listRemoteDir(panelId: string, remoteUri: string): Promise
   s._remoteLoading(panelId, remoteUri)
   const res = await remoteApi.list(resolved.sessionId, resolved.loc.remotePath)
   if (res.ok) {
-    store.getState()._setRemoteEntries(panelId, remoteUri, res.value.entries)
+    // main(remote:list)은 POSIX 절대경로(/mnt 등)만 담아 보낸다. 패널 라우팅
+    // (panelsSlice.load)·항목 활성화(activateEntry)·원격 rename/delete/download 는
+    // 모두 원격 URI(sftp://host/path)를 기대하므로, 여기서 각 항목 path 를 URI 로
+    // 재구성해 주입한다. (이 재구성이 없으면 디렉토리 더블클릭 시 isRemotePath(/mnt)
+    // 가 false → 로컬 fs:list 로 잘못 라우팅돼 ENOENT(opendir 'D\\mnt')가 난다.)
+    const { protocol, host } = resolved.loc
+    const entries = res.value.entries.map((e) => ({
+      ...e,
+      path: makeRemotePath(protocol, host, e.path)
+    }))
+    store.getState()._setRemoteEntries(panelId, remoteUri, entries)
   } else {
     store
       .getState()

@@ -62,6 +62,7 @@ export function buildSessionSnapshot(): SessionSnapshot {
     sidebar: {
       favorites: [...s.favorites],
       favoriteLabels: { ...s.favoriteLabels },
+      pinnedByDir: { ...s.pinnedByDir },
       recent: [...s.recent],
       width: s.sidebarWidth,
       collapsed: s.sidebarCollapsed
@@ -84,6 +85,7 @@ export function applySnapshot(snap: SessionSnapshot): boolean {
   s.hydrateSidebar({
     favorites: snap.sidebar.favorites,
     ...(snap.sidebar.favoriteLabels ? { favoriteLabels: snap.sidebar.favoriteLabels } : {}),
+    ...(snap.sidebar.pinnedByDir ? { pinnedByDir: snap.sidebar.pinnedByDir } : {}),
     recent: snap.sidebar.recent,
     width: snap.sidebar.width,
     collapsed: snap.sidebar.collapsed

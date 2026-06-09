@@ -73,3 +73,25 @@ export function sortEntries(
   })
   return copy
 }
+
+/**
+ * 고정(pin)된 항목을 목록 맨 위로 올린 **새 배열**을 반환한다(원본 불변).
+ *
+ * 정렬 직후(sortEntries 결과)에 적용한다. 고정/비고정 두 그룹으로 분할하되 각
+ * 그룹 내부의 (정렬된) 상대 순서는 보존한다 → 고정 항목들도 현재 정렬 기준대로
+ * 정렬된 채 최상단에 모인다(폴더 우선보다도 위). `pinned` 가 비면 입력을 그대로
+ * 복사해 반환(불변·참조만 새로). 메모이즈 셀렉터에서 호출(호출부가 입력 동일성 책임).
+ */
+export function applyPins(
+  entries: readonly FileEntryDTO[],
+  pinned: ReadonlySet<string>
+): FileEntryDTO[] {
+  if (pinned.size === 0) return entries.slice()
+  const top: FileEntryDTO[] = []
+  const rest: FileEntryDTO[] = []
+  for (const e of entries) {
+    if (pinned.has(e.path)) top.push(e)
+    else rest.push(e)
+  }
+  return [...top, ...rest]
+}
