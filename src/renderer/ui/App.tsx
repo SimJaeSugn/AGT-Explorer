@@ -103,7 +103,7 @@ export function App(): JSX.Element {
       <TabBar />
       <IconBar />
       <div ref={bodyRef} style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <Sidebar />
+        <Sidebar containerRef={bodyRef} />
         <LayoutHost />
         <PreviewPanel containerRef={bodyRef} />
       </div>

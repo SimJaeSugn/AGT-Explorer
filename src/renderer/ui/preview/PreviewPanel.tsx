@@ -42,6 +42,7 @@ export function PreviewPanel({ containerRef }: Props): JSX.Element | null {
   const open = useRootStore((s) => s.previewOpen)
   const width = useRootStore((s) => s.previewWidth)
   const setPreviewWidth = useRootStore((s) => s.setPreviewWidth)
+  const setPreviewOpen = useRootStore((s) => s.setPreviewOpen)
   const path = useSingleSelectedPath()
 
   const [data, setData] = useState<PreviewData | null>(null)
@@ -83,7 +84,54 @@ export function PreviewPanel({ containerRef }: Props): JSX.Element | null {
     return () => clearTimeout(timer)
   }, [open, path])
 
-  if (!open) return null
+  // 접힘 상태: 우측 가장자리에 얇은 세로 스트립(펼치기 핸들)을 남겨 패널 자체에서
+  // 다시 펼 수 있게 한다(Ctrl+P·아이콘바 외에 발견 가능한 토글 제공).
+  if (!open) {
+    return (
+      <div
+        style={{
+          flex: '0 0 auto',
+          width: 26,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          borderLeft: `1px solid ${tokens.color.borderStrong}`,
+          background: tokens.color.bgAlt
+        }}
+        aria-label="미리보기(접힘)"
+      >
+        <button
+          onClick={() => setPreviewOpen(true)}
+          title="미리보기 펼치기 (Ctrl+P)"
+          aria-label="미리보기 펼치기"
+          aria-expanded={false}
+          style={{
+            width: '100%',
+            height: 28,
+            border: 'none',
+            borderBottom: `1px solid ${tokens.color.border}`,
+            background: 'transparent',
+            color: tokens.color.text,
+            cursor: 'pointer',
+            fontSize: 13
+          }}
+        >
+          ‹
+        </button>
+        <span
+          style={{
+            marginTop: 8,
+            writingMode: 'vertical-rl',
+            fontSize: 12,
+            color: tokens.color.textMuted,
+            userSelect: 'none'
+          }}
+        >
+          미리보기
+        </span>
+      </div>
+    )
+  }
 
   // J7: 좌측 경계 divider 드래그 → 컨테이너 폭 기준 비율(ratio)을 px 폭으로 환산.
   // 미리보기는 컨테이너 우측에 붙으므로 우측 폭 = (1-ratio) * containerWidth.
@@ -118,14 +166,38 @@ export function PreviewPanel({ containerRef }: Props): JSX.Element | null {
         <div
           style={{
             flex: '0 0 auto',
-            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+            padding: '4px 6px 4px 12px',
             fontSize: 12,
             fontWeight: 600,
             color: tokens.color.textMuted,
             borderBottom: `1px solid ${tokens.color.border}`
           }}
         >
-          미리보기
+          <span>미리보기</span>
+          <button
+            onClick={() => setPreviewOpen(false)}
+            title="미리보기 접기 (Ctrl+P)"
+            aria-label="미리보기 접기"
+            aria-expanded={true}
+            style={{
+              flex: '0 0 auto',
+              width: 22,
+              height: 22,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: tokens.color.text,
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1
+            }}
+          >
+            ›
+          </button>
         </div>
         {/* 상단: 파일 정보 카드 (J6) */}
         <PreviewInfoCard data={data} path={path} />

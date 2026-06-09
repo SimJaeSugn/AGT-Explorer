@@ -10,8 +10,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { execCommand } from '@renderer/app/usecases/commandBus'
-import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
+import { baseName, isDriveRoot, MY_PC_LABEL } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
 import {
   beginFavoriteReorder,
   endFavoriteReorder,
@@ -29,35 +30,134 @@ const sectionHeader: React.CSSProperties = {
   alignItems: 'center'
 }
 
-export function Sidebar(): JSX.Element | null {
+interface SidebarProps {
+  /** 폭 조절(SplitDivider)의 비율→px 환산 기준(App 본문 row 컨테이너). */
+  readonly containerRef: React.RefObject<HTMLElement>
+}
+
+/** 사이드바 기본 폭(접기 핸들 더블클릭 복귀값·setSidebarWidth 클램프 160~560 내). */
+const DEFAULT_SIDEBAR_WIDTH = 240
+
+export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
   const collapsed = useRootStore((s) => s.sidebarCollapsed)
   const width = useRootStore((s) => s.sidebarWidth)
   const treeRoots = useRootStore((s) => s.treeRoots)
   const loadDrives = useRootStore((s) => s.loadDrives)
   const favorites = useRootStore((s) => s.favorites)
   const recent = useRootStore((s) => s.recent)
+  const toggleSidebar = useRootStore((s) => s.toggleSidebar)
+  const setSidebarWidth = useRootStore((s) => s.setSidebarWidth)
 
   useEffect(() => {
     if (treeRoots.length === 0) loadDrives()
   }, [treeRoots.length, loadDrives])
 
-  if (collapsed) return null
+  // 접힘 상태: 좌측 가장자리에 얇은 세로 스트립(펼치기 핸들)을 남겨 패널 자체에서
+  // 다시 펼 수 있게 한다(Ctrl+B·아이콘바 외 발견 가능한 토글 제공).
+  if (collapsed) {
+    return (
+      <div
+        style={{
+          flex: '0 0 auto',
+          width: 26,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          borderRight: `1px solid ${tokens.color.borderStrong}`,
+          background: tokens.color.bgAlt
+        }}
+        aria-label="사이드바(접힘)"
+      >
+        <button
+          onClick={toggleSidebar}
+          title="사이드바 펼치기 (Ctrl+B)"
+          aria-label="사이드바 펼치기"
+          aria-expanded={false}
+          style={{
+            width: '100%',
+            height: 28,
+            border: 'none',
+            borderBottom: `1px solid ${tokens.color.border}`,
+            background: 'transparent',
+            color: tokens.color.text,
+            cursor: 'pointer',
+            fontSize: 13
+          }}
+        >
+          ›
+        </button>
+        <span
+          style={{
+            marginTop: 8,
+            writingMode: 'vertical-rl',
+            fontSize: 12,
+            color: tokens.color.textMuted,
+            userSelect: 'none'
+          }}
+        >
+          탐색기
+        </span>
+      </div>
+    )
+  }
+
+  // 폭 조절(SplitDivider, 우측 경계): 컨테이너 폭 기준 비율 → 사이드바는 좌측이므로 폭 = ratio*cw.
+  function onDividerDrag(ratio: number): void {
+    const el = containerRef.current
+    const cw = el ? el.getBoundingClientRect().width : 0
+    if (cw <= 0) return
+    setSidebarWidth(ratio * cw)
+  }
 
   return (
-    <div
-      style={{
-        width,
-        flex: `0 0 ${width}px`,
-        borderRight: `1px solid ${tokens.color.border}`,
-        background: tokens.color.bgAlt,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        userSelect: 'none',
-        fontSize: 13
-      }}
-      aria-label="사이드바"
-    >
-      {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
+    <>
+      <div
+        style={{
+          width,
+          flex: `0 0 ${width}px`,
+          borderRight: `1px solid ${tokens.color.border}`,
+          background: tokens.color.bgAlt,
+          display: 'flex',
+          flexDirection: 'column',
+          userSelect: 'none',
+          fontSize: 13
+        }}
+        aria-label="사이드바"
+      >
+        {/* 상단 바: 접기 버튼(우측 정렬). 스크롤되지 않게 콘텐츠와 분리. */}
+        <div
+          style={{
+            flex: '0 0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            padding: '2px 4px',
+            borderBottom: `1px solid ${tokens.color.border}`
+          }}
+        >
+          <button
+            onClick={toggleSidebar}
+            title="사이드바 접기 (Ctrl+B)"
+            aria-label="사이드바 접기"
+            aria-expanded={true}
+            style={{
+              width: 22,
+              height: 22,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: tokens.color.text,
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1
+            }}
+          >
+            ‹
+          </button>
+        </div>
+        {/* 스크롤 콘텐츠 */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
 
       {recent.length > 0 && (
         <div aria-label="최근">
@@ -84,12 +184,20 @@ export function Sidebar(): JSX.Element | null {
         <TreeNodeView key={root} path={root} depth={1} />
       ))}
 
-      <div style={sectionHeader}>원격</div>
-      <RemoteSection />
+          <div style={sectionHeader}>원격</div>
+          <RemoteSection />
 
-      <div style={sectionHeader}>도구</div>
-      <TrashNode />
-    </div>
+          <div style={sectionHeader}>도구</div>
+          <TrashNode />
+        </div>
+      </div>
+      <SplitDivider
+        orientation="vertical"
+        containerRef={containerRef}
+        onDrag={onDividerDrag}
+        onReset={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+      />
+    </>
   )
 }
 
@@ -417,10 +525,14 @@ function RecentRow({ path }: { path: string }): JSX.Element {
   const removeRecent = useRootStore((s) => s.removeRecent)
   const activePath = useActivePanelPath()
   const selected = activePath === path
+  // 드라이브 루트(C:\)는 볼륨 라벨("Windows (C:)")로 표시 — 트리 드라이브 노드의 label 재사용
+  // (드라이브 열거 시 fs:drives 가 채움). 미로드/비-드라이브면 baseName 폴백.
+  const driveLabel = useRootStore((s) => (isDriveRoot(path) ? s.tree[path]?.label : undefined))
+  const label = driveLabel ?? baseName(path)
   return (
     <PinnedRow
       icon="🕘"
-      label={baseName(path)}
+      label={label}
       fullPath={path}
       selected={selected}
       onClick={() => navigateActive(path)}

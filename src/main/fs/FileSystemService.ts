@@ -16,6 +16,7 @@
  */
 import { constants as fsConstants } from 'node:fs'
 import * as fsp from 'node:fs/promises'
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { win32 } from 'node:path'
 import type {
@@ -31,6 +32,80 @@ import { err, ok } from '@shared/ipc/contracts'
 import { fileOpError, toFileOpError } from './errors'
 import { extOf, joinWin, validateEntryName } from './paths'
 import { resolveAttributes } from './winAttributes'
+
+// ── 드라이브 볼륨 라벨 조회(Windows) ───────────────────────────────────────
+// 드라이브를 "C:\" 가 아니라 "Windows (C:)" 처럼 볼륨 라벨과 함께 노출하기 위해
+// PowerShell CIM(Win32_LogicalDisk DeviceID|VolumeName)을 execFile(셸 미경유·고정
+// 인자·windowsHide·timeout)로 1회 조회한다(driveType.ts 와 동일 보안 패턴, ADR-005).
+// 실패/비-Windows/타임아웃 → 빈 맵(라벨 없이 기존 "X:\" 폴백). throw 0.
+
+/**
+ * 고정 상수 스크립트 — 사용자 입력 미주입. "C:|Windows" 형식 줄 출력(라벨 없으면 "D:|").
+ * 선두에 콘솔 출력 인코딩을 UTF-8 로 강제한다 — Windows PowerShell 5.1 은 기본 콘솔
+ * 코드페이지(한국어=CP949)로 출력해, Node 가 stdout 을 UTF-8 로 디코드하면 한글 볼륨명이
+ * 깨진다. UTF-8 로 맞춰 한글 라벨이 정상 전달되게 한다(BOM 은 파싱에서 제거).
+ */
+const VOLUME_LABEL_SCRIPT =
+  '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; ' +
+  'Get-CimInstance Win32_LogicalDisk | ForEach-Object { "$($_.DeviceID)|$($_.VolumeName)" }'
+const VOLUME_LABEL_ARGS = ['-NoProfile', '-NonInteractive', '-Command', VOLUME_LABEL_SCRIPT] as const
+/** PowerShell execFile timeout(ms). */
+const VOLUME_LABEL_TIMEOUT_MS = 5000
+/** 라벨 캐시 TTL(ms) — 내 PC 재방문마다 PowerShell 남발 방지(볼륨명은 거의 안 바뀜). */
+const VOLUME_LABEL_TTL_MS = 30_000
+/** "C:|Windows" 한 줄 화이트리스트(letter, 나머지=라벨). */
+const VOLUME_LABEL_LINE = /^([A-Za-z]):\|(.*)$/
+
+let volumeLabelCache: { at: number; map: Map<string, string> } | null = null
+
+/** PowerShell CIM 으로 raw stdout 조회. 비-Windows/실패/타임아웃 → 빈 문자열. throw 0. */
+function queryVolumeLabelsRaw(): Promise<string> {
+  if (process.platform !== 'win32') return Promise.resolve('')
+  return new Promise<string>((resolve) => {
+    try {
+      execFile(
+        'powershell.exe',
+        [...VOLUME_LABEL_ARGS],
+        { windowsHide: true, timeout: VOLUME_LABEL_TIMEOUT_MS },
+        (error, stdout) => resolve(error ? '' : String(stdout))
+      )
+    } catch {
+      resolve('')
+    }
+  })
+}
+
+/** raw stdout → { 'C' → 'Windows' } 맵. 빈 라벨/형식 불일치 줄은 제외. */
+function parseVolumeLabels(stdout: string): Map<string, string> {
+  const map = new Map<string, string>()
+  if (typeof stdout !== 'string' || stdout.length === 0) return map
+  // 선두 BOM(U+FEFF) 제거 — 첫 줄 매칭이 깨지지 않게.
+  const clean = stdout.charCodeAt(0) === 0xfeff ? stdout.slice(1) : stdout
+  for (const rawLine of clean.split(/\r?\n/)) {
+    const m = VOLUME_LABEL_LINE.exec(rawLine.trim())
+    if (!m) continue
+    const letter = (m[1] as string).toUpperCase()
+    const label = (m[2] as string).trim()
+    if (label) map.set(letter, label)
+  }
+  return map
+}
+
+/** 볼륨 라벨 맵(TTL 캐시). 실패해도 빈 맵(폴백)·throw 0. */
+async function getVolumeLabels(): Promise<Map<string, string>> {
+  const now = Date.now()
+  if (volumeLabelCache && now - volumeLabelCache.at < VOLUME_LABEL_TTL_MS) {
+    return volumeLabelCache.map
+  }
+  const map = parseVolumeLabels(await queryVolumeLabelsRaw())
+  volumeLabelCache = { at: now, map }
+  return map
+}
+
+/** 표시 라벨 조합: 볼륨명 있으면 "Windows (C:)", 없으면 기존 "C:\". */
+function formatDriveLabel(letter: string, volumeName: string | undefined): string {
+  return volumeName ? `${volumeName} (${letter}:)` : `${letter}:\\`
+}
 
 /** 단발 목록 상한(안전장치). 초과 시 truncated=true. */
 const SINGLE_LIST_CAP = 50_000
@@ -556,6 +631,8 @@ export class FileSystemService {
   async drives(): Promise<Result<DriveDTO[]>> {
     try {
       const out: DriveDTO[] = []
+      // 볼륨 라벨 맵(TTL 캐시·실패 시 빈 맵). 드라이브를 "Windows (C:)" 처럼 식별 가능하게.
+      const labels = await getVolumeLabels()
       // A:~Z: 루트를 프로빙(접근 가능한 것만).
       for (let c = 67 /* 'C' */; c <= 90 /* 'Z' */; c++) {
         const letter = String.fromCharCode(c)
@@ -570,7 +647,7 @@ export class FileSystemService {
         const space = await this.diskSpace(root)
         out.push({
           path: root,
-          label: `${letter}:\\`,
+          label: formatDriveLabel(letter, labels.get(letter)),
           letter,
           kind: this.guessDriveKind(root),
           totalBytes: space.total,
@@ -586,7 +663,7 @@ export class FileSystemService {
           const space = await this.diskSpace(root)
           out.unshift({
             path: root,
-            label: `${letter}:\\`,
+            label: formatDriveLabel(letter, labels.get(letter)),
             letter,
             kind: 'removable',
             totalBytes: space.total,
