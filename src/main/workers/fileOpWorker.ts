@@ -118,7 +118,7 @@ if (!port) {
       const concurrency = pickConcurrency()
       const result =
         job.kind === 'copy'
-          ? await runCopy(job.sources, job.destDir ?? '', hooks, concurrency)
+          ? await runCopy(job.sources, job.destDir ?? '', hooks, concurrency, job.baseDir)
           : job.kind === 'move'
             ? await runMove(job.sources, job.destDir ?? '', hooks, concurrency)
             : await runDelete(job.sources, hooks)
@@ -128,7 +128,8 @@ if (!port) {
         succeededItems: result.succeededItems,
         failedItems: result.failedItems,
         canceled: result.canceled,
-        failures: result.failures
+        failures: result.failures,
+        inUse: result.inUse
       })
     } catch (e) {
       post({

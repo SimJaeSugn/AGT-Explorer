@@ -118,6 +118,12 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     // 1차로 활성 패널 폴더 기준(메뉴는 진입점만 제공·계획서 §4.1 "현재 패널 폴더").
     if (single.isDir) {
       items.push({ id: 'dedup', label: '중복 찾기', run: cmd('dedup.open') })
+      // §V10 자동링크: 이 폴더를 다른 위치로 복사 + 원본자리에 정션(원본은 백업으로 보존).
+      items.push({
+        id: 'autoLink',
+        label: '자동링크…',
+        run: () => store.getState().openAutoLink(single.path)
+      })
     }
     if (!single.isDir) {
       items.push({

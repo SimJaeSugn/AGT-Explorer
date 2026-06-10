@@ -76,6 +76,8 @@ export interface EngineResult {
   failedItems: number
   canceled: boolean
   failures: OpFailure[]
+  /** 사용 중(잠김)으로 건너뛴 항목(EPERM/EBUSY — 오류 아님·failedItems 미포함). */
+  inUse: OpFailure[]
 }
 
 interface Counters {
@@ -358,7 +360,7 @@ async function copyEntry(
     }
     // move: 자식까지 복사 끝났으면 원본 폴더 제거(견고 삭제·못 지운 항목만 보고).
     if (isMove && !result.canceled) {
-      await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
+      await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
     }
   } else {
     // 파일: 덮어쓰기면 기존 제거 후 복사(크기별 하이브리드 — copyFile/스트림).
@@ -372,7 +374,7 @@ async function copyEntry(
       result.succeededItems++
       hooks.onProgress(counters.bytes, counters.items, name)
       if (isMove) {
-        await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
+        await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
       }
     } catch (e) {
       // 취소로 인한 중단: 부분 파일 정리.
@@ -396,28 +398,34 @@ async function chmodWritable(p: string): Promise<void> {
   }
 }
 
-/** EPERM/EBUSY 면 읽기전용 해제 후 1회 재시도하는 rmdir/unlink. ENOENT(이미 없음)는 성공 취급. */
-// rmdir/unlink 1회(+EPERM/EBUSY/EACCES 시 chmod 후 1회 재시도). 성공/ENOENT(이미 없음)면
-// null, 실패면 마지막 오류를 반환(throw 안 함 — 호출부가 보고/계속 결정).
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * rmdir/unlink 시도. 성공/ENOENT(이미 없음)면 null, 실패면 마지막 오류 반환(throw 안 함).
+ * EPERM/EBUSY/EACCES(읽기전용·**일시적 잠금**: 백신 스캔·인덱서 등)는 chmod 해제 후 짧은
+ * 지연을 두고 최대 3회 재시도한다 — 일시적 잠금을 흡수한다. 다른 프로그램이 **계속 사용 중**인
+ * 파일은 끝내 실패하며, 그 오류를 반환해 호출부가 사용자에게 안내한다.
+ */
 async function tryRemove(p: string, dir: boolean): Promise<unknown | null> {
   const remove = (): Promise<void> => (dir ? fsp.rmdir(p) : fsp.unlink(p))
-  try {
-    await remove()
-    return null
-  } catch (e) {
-    const code = (e as { code?: string }).code
-    if (code === 'ENOENT') return null
-    if (code === 'EPERM' || code === 'EBUSY' || code === 'EACCES') {
-      await chmodWritable(p)
-      try {
-        await remove()
-        return null
-      } catch (e2) {
-        return (e2 as { code?: string }).code === 'ENOENT' ? null : e2
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await remove()
+      return null
+    } catch (e) {
+      const code = (e as { code?: string }).code
+      if (code === 'ENOENT') return null
+      lastErr = e
+      if (code === 'EPERM' || code === 'EBUSY' || code === 'EACCES') {
+        await chmodWritable(p)
+        if (attempt < 2) await sleep(80 * (attempt + 1)) // 80ms, 160ms 후 재시도(일시적 잠금 흡수).
+        continue
       }
+      return e // 기타 코드는 즉시 실패.
     }
-    return e
   }
+  return lastErr
 }
 
 /**
@@ -492,10 +500,42 @@ async function forceRemove(
 function pushFailure(result: EngineResult, hooks: EngineHooks, path: string, e: unknown): void {
   const fe = toFileOpError(e, path)
   const code: FileOpErrorCode = fe.code
-  const failure: OpFailure = { path, code, message: fe.message }
+  // 잠금/사용중·권한 오류는 원시 영문 메시지(예: "EPERM: operation not permitted, unlink ...")
+  // 대신 실행 가능한 한국어 안내로 바꾼다(파일/폴더 작업 공통).
+  let message = fe.message
+  if (code === 'EPERM' || code === 'EBUSY') {
+    message =
+      '다른 프로그램이 사용 중이거나 잠긴 항목이라 처리할 수 없습니다. 사용 중인 프로그램을 닫고 다시 시도하세요.'
+  } else if (code === 'EACCES') {
+    message = '접근 권한이 없습니다.'
+  }
+  const failure: OpFailure = { path, code, message }
   result.failures.push(failure)
   result.failedItems++
   hooks.onFailure(failure)
+}
+
+/**
+ * 삭제/이동(원본 제거) 실패 분류 — **사용 중/잠김(EPERM/EBUSY)은 오류가 아니라 inUse 로** 모은다
+ * (failedItems 미증가·작업 실패 아님). 그 외 코드는 일반 실패(pushFailure)로 처리한다.
+ * 사용자 의도: "사용 중인 파일은 오류 말고 사용 중으로 별도 처리".
+ */
+function pushRemoveFailure(
+  result: EngineResult,
+  hooks: EngineHooks,
+  path: string,
+  e: unknown
+): void {
+  const fe = toFileOpError(e, path)
+  if (fe.code === 'EPERM' || fe.code === 'EBUSY') {
+    result.inUse.push({
+      path,
+      code: fe.code,
+      message: '다른 프로그램이 사용 중이거나 잠긴 항목이라 건너뛰었습니다(사용 중인 프로그램을 닫고 다시 시도).'
+    })
+    return // 오류 아님 — failedItems 미증가, onFailure 미호출.
+  }
+  pushFailure(result, hooks, path, e)
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -511,9 +551,10 @@ export async function runCopy(
   sources: string[],
   destDir: string,
   hooks: EngineHooks,
-  concurrency = 1
+  concurrency = 1,
+  baseDir?: string
 ): Promise<EngineResult> {
-  return runCopyOrMove(sources, destDir, false, hooks, concurrency)
+  return runCopyOrMove(sources, destDir, false, hooks, concurrency, baseDir)
 }
 
 /** move: 같은 볼륨 rename, 다른 볼륨 copy+delete. concurrency 는 copy 폴백 경로에만 적용. */
@@ -523,7 +564,7 @@ export async function runMove(
   hooks: EngineHooks,
   concurrency = 1
 ): Promise<EngineResult> {
-  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [] }
+  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [], inUse: [] }
   const totals = await aggregate(sources)
   hooks.onTotals(totals.items, totals.bytes)
   const counters: Counters = { bytes: 0, items: 0 }
@@ -571,9 +612,10 @@ async function runCopyOrMove(
   destDir: string,
   isMove: boolean,
   hooks: EngineHooks,
-  concurrency = 1
+  concurrency = 1,
+  baseDir?: string
 ): Promise<EngineResult> {
-  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [] }
+  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [], inUse: [] }
   const totals = await aggregate(sources)
   hooks.onTotals(totals.items, totals.bytes)
   const counters: Counters = { bytes: 0, items: 0 }
@@ -585,7 +627,22 @@ async function runCopyOrMove(
       result.canceled = true
       break
     }
-    await copyEntry(src, destDir, win32.basename(src), isMove, counters, result, hooks, par)
+    // baseDir 지정 시(미러 재귀 복사) relative(baseDir, src) 의 상위 폴더를 destDir 아래
+    // 재현해 구조를 보존한다(아니면 destDir/basename — 기존 평탄 복사). traversal 이탈('..')은 무시.
+    let targetDir = destDir
+    if (baseDir) {
+      const rel = win32.relative(baseDir, src)
+      const relDir = win32.dirname(rel)
+      if (rel && !rel.startsWith('..') && relDir && relDir !== '.') {
+        targetDir = win32.join(destDir, relDir)
+        try {
+          await fsp.mkdir(targetDir, { recursive: true })
+        } catch {
+          /* 이미 있거나 충돌 — copyEntry 가 처리 */
+        }
+      }
+    }
+    await copyEntry(src, targetDir, win32.basename(src), isMove, counters, result, hooks, par)
   }
   return result
 }
@@ -597,7 +654,7 @@ async function aggregateOne(p: string): Promise<{ items: number; bytes: number }
 
 /** delete: 영구 삭제(재귀). 휴지통이 아니라 실제 제거. */
 export async function runDelete(sources: string[], hooks: EngineHooks): Promise<EngineResult> {
-  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [] }
+  const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [], inUse: [] }
   const totals = await aggregate(sources)
   hooks.onTotals(totals.items, totals.bytes)
   const counters: Counters = { bytes: 0, items: 0 }
@@ -613,9 +670,8 @@ export async function runDelete(sources: string[], hooks: EngineHooks): Promise<
     // 견고한 best-effort 재귀 삭제: 삭제 가능한 건 모두 지우고, 못 지운 항목(소켓·사용중·
     // 권한·정션 등)만 failures 로 보고한다(한 항목 실패가 전체를 중단시키지 않음). 읽기전용
     // 해제·정션 비재귀·EPERM/EACCES 재시도·lstat 실패 시도는 forceRemove 가 처리한다.
-    const before = result.failures.length
-    const fullyRemoved = await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
-    if (fullyRemoved && result.failures.length === before) {
+    const fullyRemoved = await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
+    if (fullyRemoved) {
       counters.items++
       result.succeededItems++
     }

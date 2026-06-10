@@ -30,6 +30,8 @@ export interface WorkerJob {
   readonly sources: string[]
   /** copy/move 대상 디렉토리(delete 는 미사용). */
   readonly destDir?: string
+  /** 구조 보존 기준 디렉토리(copy 전용·선택). 지정 시 source 를 relative(baseDir, source) 위치로 복사(미러 재귀). */
+  readonly baseDir?: string
   /** 사전 일괄 충돌 정책(없으면 충돌 시 질의). */
   readonly conflictPolicy?: ConflictResolution
   /**
@@ -84,6 +86,8 @@ export interface WorkerDoneMsg {
   readonly failedItems: number
   readonly canceled: boolean
   readonly failures: OpFailure[]
+  /** 사용 중(잠김)으로 건너뛴 항목(EPERM/EBUSY — 오류 아님). */
+  readonly inUse: OpFailure[]
 }
 
 /** 치명적 오류(작업 자체 시작 불가 등). */

@@ -120,6 +120,10 @@ export interface UiSlice {
   readonly remoteDialogOpen: boolean
   /** 고급 일괄 이름변경 다이얼로그 열림 여부(§R1·다중선택). */
   readonly batchRenameOpen: boolean
+  /** 자동링크 다이얼로그 대상 폴더 경로(열려 있으면 set, 아니면 null). V10. */
+  readonly autoLinkSource: string | null
+  /** 새 탭 시작 위치 피커 열림(기본 시작 위치 미설정 + 워크스페이스 존재 시). I6. */
+  readonly newTabPickerOpen: boolean
   /** 폴더 비교 미러 확인 모달(파괴적 동기화 확정 전·없으면 null, §P1). */
   readonly compareMirrorConfirm: CompareMirrorConfirmState | null
   /** 중복 파일 찾기 다이얼로그 열림 여부(§R2·US-17.2). */
@@ -195,6 +199,13 @@ export interface UiSlice {
   closeRemoteDialog(): void
   /** 고급 일괄 이름변경 다이얼로그 열기(inputContext='dialog', §R1). */
   openBatchRename(): void
+  /** 자동링크 다이얼로그 열기(대상 폴더 경로). V10. */
+  openAutoLink(sourceDir: string): void
+  /** 자동링크 다이얼로그 닫기. */
+  closeAutoLink(): void
+  /** 새 탭 시작 위치 피커 열기/닫기(I6). */
+  openNewTabPicker(): void
+  closeNewTabPicker(): void
   /** 일괄 이름변경 다이얼로그 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
   closeBatchRename(): void
   /** 폴더 비교 미러 확인 모달 열기(inputContext='dialog', §P1). */
@@ -263,6 +274,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   trashOpen: false,
   remoteDialogOpen: false,
   batchRenameOpen: false,
+  autoLinkSource: null,
+  newTabPickerOpen: false,
   compareMirrorConfirm: null,
   dedupOpen: false,
   queuePanelOpen: false,
@@ -418,6 +431,57 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     set((s) => {
       s.batchRenameOpen = true
       s.inputContext = 'dialog'
+    })
+  },
+
+  openAutoLink(sourceDir) {
+    set((s) => {
+      s.autoLinkSource = sourceDir
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeAutoLink() {
+    set((s) => {
+      s.autoLinkSource = null
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openNewTabPicker() {
+    set((s) => {
+      s.newTabPickerOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeNewTabPicker() {
+    set((s) => {
+      s.newTabPickerOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.autoLinkSource
+      ) {
+        s.inputContext = 'list'
+      }
     })
   },
 

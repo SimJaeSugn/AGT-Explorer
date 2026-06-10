@@ -160,6 +160,11 @@ export interface OpSummary {
   readonly canceled: boolean
   /** 실패 항목 상세(없으면 빈 배열). */
   readonly failures: OpFailure[]
+  /**
+   * 사용 중(잠긴) 등으로 **건너뛴** 항목(오류 아님 — 삭제/이동에서 EPERM/EBUSY). failedItems 에
+   * 포함되지 않으며 작업은 실패로 취급하지 않는다. 없으면 생략/빈 배열.
+   */
+  readonly inUse?: OpFailure[]
 }
 
 // ────────────────────────────────────────────────────────────────────────

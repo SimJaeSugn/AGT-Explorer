@@ -9,12 +9,12 @@ import { useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
+import { requestNewTab } from '@renderer/app/usecases/newTab'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 export function TabBar(): JSX.Element {
   const tabOrder = useRootStore((s) => s.tabOrder)
   const activeTabId = useRootStore((s) => s.activeTabId)
-  const newTab = useRootStore((s) => s.newTab)
   const openSettings = useRootStore((s) => s.openSettings)
   const [dragId, setDragId] = useState<string | null>(null)
 
@@ -42,7 +42,7 @@ export function TabBar(): JSX.Element {
         />
       ))}
       <button
-        onClick={() => newTab()}
+        onClick={() => void requestNewTab()}
         title="새 탭 (Ctrl+T)"
         aria-label="새 탭"
         style={{

@@ -214,7 +214,8 @@ export class OperationManager {
     sources: string[],
     destDir: string | undefined,
     conflictPolicy: ConflictResolution | undefined,
-    wc: WebContents
+    wc: WebContents,
+    baseDir?: string
   ): Promise<Result<{ operationId: string }>> {
     // ── 사전 선검증 ────────────────────────────────────────────────
     if (sources.length === 0) {
@@ -259,7 +260,7 @@ export class OperationManager {
       return this.startWorker(operationId, 'delete', existing, undefined, conflictPolicy, wc)
     }
     // copy / move.
-    return this.startWorker(operationId, kind, existing, destDir, conflictPolicy, wc)
+    return this.startWorker(operationId, kind, existing, destDir, conflictPolicy, wc, baseDir)
   }
 
   /** 동일 폴더로의 이동 무시·조상→자손(순환) 이동 차단. */
@@ -294,7 +295,8 @@ export class OperationManager {
     sources: string[],
     destDir: string | undefined,
     conflictPolicy: ConflictResolution | undefined,
-    wc: WebContents
+    wc: WebContents,
+    baseDir?: string
   ): Result<{ operationId: string }> {
     // 협조 플래그 버퍼 2워드(=cancel + pause, M7). 단발 경로는 pause(1) 미사용 → 동치.
     const cancelBuffer = new SharedArrayBuffer(
@@ -324,6 +326,7 @@ export class OperationManager {
       sources,
       ...(destDir !== undefined ? { destDir } : {}),
       ...(conflictPolicy !== undefined ? { conflictPolicy } : {}),
+      ...(baseDir !== undefined ? { baseDir } : {}),
       cancelBuffer
     }
 
@@ -469,7 +472,8 @@ export class OperationManager {
           succeededItems: msg.succeededItems,
           failedItems: msg.failedItems,
           canceled: msg.canceled,
-          failures: msg.failures
+          failures: msg.failures,
+          inUse: msg.inUse
         })
         break
       case 'fatal':

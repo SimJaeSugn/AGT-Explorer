@@ -21,6 +21,9 @@ import type {
   ClipboardWriteFilesReq,
   DialogConfirmPermanentDeleteReq,
   DialogConfirmRes,
+  DialogPickDirectoryReq,
+  DialogPickDirectoryRes,
+  FsLinkFinalizeReq,
   DndStartDragReq,
   DndStartDragRes,
   FsCreateFileReq,
@@ -174,6 +177,7 @@ export interface ExplorerApi {
     mkdir(req: FsMkdirReq): Promise<Result<FileEntryDTO>>
     createFile(req: FsCreateFileReq): Promise<Result<FileEntryDTO>>
     rename(req: FsRenameReq): Promise<Result<FileEntryDTO>>
+    linkFinalize(req: FsLinkFinalizeReq): Promise<Result<void>>
 
     // ── fs:watch:* 디렉토리 실시간 감시 (타입만 노출, 핸들러 impl: J장 다음 단계) ─
     watchStart(req: FsWatchStartReq): Promise<Result<FsWatchStartRes>>
@@ -244,11 +248,12 @@ export interface ExplorerApi {
     onSessionError(cb: (evt: RemoteSessionErrorEvt) => void): Unsubscribe
   }
 
-  // ── dialog:* (타입만 노출, impl: P4) ───────────────────────────
+  // ── dialog:* (타입만 노출, impl: P4 / V10) ─────────────────────
   readonly dialog: {
     confirmPermanentDelete(
       req: DialogConfirmPermanentDeleteReq
     ): Promise<Result<DialogConfirmRes>>
+    pickDirectory(req: DialogPickDirectoryReq): Promise<Result<DialogPickDirectoryRes>>
   }
 
   // ── session:* / settings:* (타입만 노출, impl: P5) ─────────────
@@ -345,6 +350,7 @@ export const api: ExplorerApi = {
     mkdir: (req) => invoke(CHANNELS.FS_MKDIR, req),
     createFile: (req) => invoke(CHANNELS.FS_CREATE_FILE, req),
     rename: (req) => invoke(CHANNELS.FS_RENAME, req),
+    linkFinalize: (req) => invoke(CHANNELS.FS_LINK_FINALIZE, req),
 
     watchStart: (req) => invoke(CHANNELS.FS_WATCH_START, req),
     watchStop: (req) => invoke(CHANNELS.FS_WATCH_STOP, req),
@@ -406,7 +412,8 @@ export const api: ExplorerApi = {
   },
 
   dialog: {
-    confirmPermanentDelete: (req) => invoke(CHANNELS.DIALOG_CONFIRM_PERMANENT_DELETE, req)
+    confirmPermanentDelete: (req) => invoke(CHANNELS.DIALOG_CONFIRM_PERMANENT_DELETE, req),
+    pickDirectory: (req) => invoke(CHANNELS.DIALOG_PICK_DIRECTORY, req)
   },
 
   session: {

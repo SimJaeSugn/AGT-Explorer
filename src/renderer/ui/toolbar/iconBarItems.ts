@@ -262,6 +262,14 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     group: 'tool'
   },
   {
+    // 단축키 도움말(F1 과 동일). 설정에서 분리해 별도 ? 아이콘으로 노출(I7).
+    id: 'help.shortcuts',
+    label: '단축키 도움말',
+    icon: '❓',
+    group: 'tool',
+    active: (s) => s.shortcutHelpOpen
+  },
+  {
     id: 'workspace.manage',
     label: '워크스페이스',
     icon: '🗂',

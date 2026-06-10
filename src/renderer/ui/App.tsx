@@ -41,6 +41,8 @@ import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
 import { ConfirmDialog } from '@renderer/ui/dialogs/ConfirmDialog'
+import { AutoLinkDialog } from '@renderer/ui/dialogs/AutoLinkDialog'
+import { NewTabPickerDialog } from '@renderer/ui/tabbar/NewTabPickerDialog'
 import { ContextMenu } from '@renderer/ui/contextmenu/ContextMenu'
 import { useDragController } from '@renderer/ui/dnd/useDrag'
 import { tokens } from '@renderer/ui/theme/tokens'
@@ -143,6 +145,8 @@ export function App(): JSX.Element {
       <ProgressDialog />
       <ConflictDialog />
       <ConfirmDialog />
+      <AutoLinkDialog />
+      <NewTabPickerDialog />
       <ContextMenu />
     </div>
   )

@@ -72,6 +72,13 @@ interface PreserveSnapshot {
 }
 const preserveSnapshots = new Map<string, PreserveSnapshot>()
 
+/**
+ * 보존 재-list(워처발/수동 갱신)용 수신 버퍼(streamId→새 entries). 깜빡임 제거: 보존 모드에서는
+ * 옛 목록을 화면에 둔 채 들어오는 청크를 이 버퍼에 모으고, _onDone 에서 directory.entries 로
+ * **한 번에 교체**한다(빈 화면 플래시 없음). 비보존(새 경로 진입)은 버퍼 미사용(기존 스트림).
+ */
+const reloadBuffers = new Map<string, import('@shared/dto').FileEntryDTO[]>()
+
 export interface PanelsSlice {
   /** panelId → Panel. */
   readonly panels: Record<string, Panel>
@@ -156,7 +163,10 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
       streamDisposers.delete(panelId)
     }
     const sid = get().panels[panelId]?.directory.streamId
-    if (sid) void fsApi.listCancel(sid)
+    if (sid) {
+      void fsApi.listCancel(sid)
+      reloadBuffers.delete(sid) // 진행 중 보존 재-list 버퍼 폐기(중단 시 누수 방지).
+    }
   }
 
   /**
@@ -229,23 +239,30 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     })
   }
 
-  /** 실제 디렉토리를 스트리밍으로 적재한다. preserve=true 면 선택/스크롤을 _onDone 에서 복원. */
+  /**
+   * 실제 디렉토리를 스트리밍으로 적재한다. preserve=true 면 선택/스크롤을 _onDone 에서 복원.
+   * 보존 모드(워처발/수동 갱신)는 **옛 목록을 비우지 않고** 청크를 reloadBuffers 에 모아
+   * _onDone 에서 한 번에 교체한다(깜빡임 제거). 비보존(새 경로)은 기존처럼 비우고 스트리밍.
+   */
   async function startStream(panelId: string, path: string, preserve: boolean): Promise<void> {
     // 재-list 가 directory 를 리셋하기 직전에 보존 스냅샷 캡처(보존 모드만).
     if (preserve) capturePreserve(panelId)
-    set((s) => {
-      const p = s.panels[panelId]
-      if (p) {
-        p.directory = {
-          status: 'loading',
-          entries: [],
-          streamId: null,
-          total: 0,
-          truncated: false,
-          error: null
+    // 비보존만 즉시 비움(loading). 보존은 옛 entries 유지 → 새 목록 완성 시 교체.
+    if (!preserve) {
+      set((s) => {
+        const p = s.panels[panelId]
+        if (p) {
+          p.directory = {
+            status: 'loading',
+            entries: [],
+            streamId: null,
+            total: 0,
+            truncated: false,
+            error: null
+          }
         }
-      }
-    })
+      })
+    }
 
     // 숨김 파일 표시는 사용자 설정(uiSlice.showHidden)을 따른다(P5, F장).
     const startRes = await fsApi.listStart({ path, showHidden: get().showHidden })
@@ -274,11 +291,14 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     }
 
     const streamId = startRes.value.streamId
+    // 보존 모드: 새 청크를 모을 버퍼를 연다(옛 목록은 화면에 유지). 비보존: 기존 동작.
+    if (preserve) reloadBuffers.set(streamId, [])
     set((s) => {
       const p = s.panels[panelId]
       if (p) {
         p.directory.streamId = streamId
-        p.directory.status = 'streaming'
+        // 보존 모드는 옛 status(ready/empty)를 유지해 깜빡임을 막는다. 비보존만 streaming 표시.
+        if (!preserve) p.directory.status = 'streaming'
       }
     })
 
@@ -528,6 +548,15 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     },
 
     _onChunk(panelId, streamId, entries) {
+      // 보존 재-list: 옛 목록을 건드리지 않고 버퍼에만 누적(깜빡임 없음). 현재 패널 스트림과
+      // 일치할 때만(폐기 스트림 무시). _onDone 에서 한 번에 교체된다.
+      const buf = reloadBuffers.get(streamId)
+      if (buf) {
+        if (get().panels[panelId]?.directory.streamId === streamId) {
+          for (const e of entries) buf.push(e)
+        }
+        return
+      }
       set((s) => {
         const p = s.panels[panelId]
         if (!p || p.directory.streamId !== streamId) return
@@ -541,6 +570,27 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
       streamDisposers.get(panelId)?.()
       streamDisposers.delete(panelId)
       let applied = false
+      // 보존 재-list: 버퍼에 모은 새 목록을 옛 목록과 **원자 교체**(여기서 처음 화면이 바뀜).
+      const buf = reloadBuffers.get(streamId)
+      if (buf) {
+        reloadBuffers.delete(streamId)
+        set((s) => {
+          const p = s.panels[panelId]
+          if (!p || p.directory.streamId !== streamId) return
+          p.directory.streamId = null
+          p.directory.entries = buf
+          p.directory.total = total
+          p.directory.truncated = truncated
+          p.directory.status = total === 0 ? 'empty' : 'ready'
+          applied = true
+        })
+        const snap = preserveSnapshots.get(panelId)
+        if (snap) {
+          preserveSnapshots.delete(panelId)
+          if (applied) get()._applyPreserve(panelId, snap)
+        }
+        return
+      }
       set((s) => {
         const p = s.panels[panelId]
         if (!p || p.directory.streamId !== streamId) return
@@ -586,6 +636,7 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     _onError(panelId, streamId, code, message) {
       streamDisposers.get(panelId)?.()
       streamDisposers.delete(panelId)
+      reloadBuffers.delete(streamId) // 보존 재-list 버퍼 폐기(에러 시).
       // 에러 시 보존 스냅샷 폐기(복원 시도 안 함 — 안전). pendingScrollRestore 도 set 안 함.
       preserveSnapshots.delete(panelId)
       set((s) => {

@@ -35,6 +35,7 @@ export const CHANNELS = {
   FS_MKDIR: 'fs:mkdir', // impl: P4
   FS_CREATE_FILE: 'fs:create-file', // impl: P4
   FS_RENAME: 'fs:rename', // impl: P4
+  FS_LINK_FINALIZE: 'fs:link-finalize', // impl: V10 (자동링크 — 원본 rename + 원본자리 정션 생성, 롤백)
 
   // ── shell:* 쉘/OS 통합 ─ 계약만 동결 ─────────────────────────────────
   SHELL_OPEN: 'shell:open', // impl: P2
@@ -61,6 +62,7 @@ export const CHANNELS = {
 
   // ── dialog:* Main 모달 ─ 계약만 동결, impl: P4 ───────────────────────
   DIALOG_CONFIRM_PERMANENT_DELETE: 'dialog:confirm-permanent-delete', // impl: P4
+  DIALOG_PICK_DIRECTORY: 'dialog:pick-directory', // impl: V10 (네이티브 폴더 선택 — 자동링크 목표 디렉토리)
 
   // ── session:* / settings:* 영속화 ─ 계약만 동결, impl: P5 ────────────
   SESSION_LOAD: 'session:load', // impl: P5

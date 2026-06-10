@@ -106,7 +106,8 @@ export async function startOperation(
   sources: string[],
   destDir: string | undefined,
   refreshDirs: string[],
-  undoMeta?: OperationUndoMeta
+  undoMeta?: OperationUndoMeta,
+  baseDir?: string
 ): Promise<string | null> {
   const s = store.getState()
   if (sources.length === 0) {
@@ -114,9 +115,13 @@ export async function startOperation(
     return null
   }
 
-  const res = await opApi.start(
-    destDir !== undefined ? { kind, sources, destDir } : { kind, sources }
-  )
+  const res = await opApi.start({
+    kind,
+    sources,
+    ...(destDir !== undefined ? { destDir } : {}),
+    // baseDir(구조 보존 기준): 미러 재귀 복사가 하위 폴더 구조를 보존하도록 전달(copy 전용).
+    ...(baseDir !== undefined ? { baseDir } : {})
+  })
   if (!res.ok) {
     s.pushToast('error', `작업을 시작할 수 없습니다: ${res.error.message}`)
     return null

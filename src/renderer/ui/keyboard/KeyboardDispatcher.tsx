@@ -23,31 +23,56 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return false
 }
 
+/** 개발 모드 여부(devtools·리로드 등은 dev 에서 허용). */
+const IS_DEV = import.meta.env.DEV
+
+/**
+ * 앱이 쓰지 않는 **브라우저 기본 단축키**(전체화면·개발자도구·리로드·인쇄·줌·찾기)인지.
+ * 앱 명령으로 매핑된 chord 는 호출부에서 먼저 처리하므로 여기 도달하지 않는다(= 앱 우선).
+ * dev 에서는 개발자도구/리로드를 허용해 디버깅을 방해하지 않는다.
+ */
+function isBrowserDefaultToBlock(e: KeyboardEvent): boolean {
+  const k = e.key
+  const ctrl = e.ctrlKey || e.metaKey
+  if (k === 'F11') return true // 전체화면
+  if (k === 'F3') return true // 브라우저 찾기(다음)
+  if (ctrl && (k === 'p' || k === 'P')) return true // 인쇄
+  if (ctrl && (k === '+' || k === '=' || k === '-' || k === '_' || k === '0')) return true // 줌
+  if (!IS_DEV) {
+    if (k === 'F5' || (ctrl && (k === 'r' || k === 'R'))) return true // 리로드(상태 손실 방지)
+    if (k === 'F12') return true // 개발자도구
+    if (ctrl && e.shiftKey && 'IiJjCc'.includes(k)) return true // 개발자도구(Ctrl+Shift+I/J/C)
+  }
+  return false
+}
+
 export function KeyboardDispatcher(): null {
   const inputContext = useRootStore((s) => s.inputContext)
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       const chord = chordFromEvent(e)
-      if (!chord) return
-
-      // 활성 컨텍스트 결정: 스토어 inputContext 우선, DOM 포커스가 입력이면 텍스트.
-      let ctx: KeyContext = inputContext
-      if (isEditableTarget(e.target) && ctx === 'list') {
-        // 입력 요소에 포커스가 있는데 컨텍스트가 list 면(브레드크럼 input 등),
-        // 전역 단축키 대부분을 막되 일부 글로벌(Ctrl+T 등)은 허용한다.
-        // 단순화: 입력 요소면 escape/tab 외 전역 차단 → 텍스트 컨텍스트로.
-        ctx = 'addressEdit'
+      if (chord) {
+        // 활성 컨텍스트 결정: 스토어 inputContext 우선, DOM 포커스가 입력이면 텍스트.
+        let ctx: KeyContext = inputContext
+        if (isEditableTarget(e.target) && ctx === 'list') {
+          // 입력 요소에 포커스가 있는데 컨텍스트가 list 면(브레드크럼 input 등),
+          // 전역 단축키 대부분을 막되 일부 글로벌(Ctrl+T 등)은 허용한다.
+          // 단순화: 입력 요소면 escape/tab 외 전역 차단 → 텍스트 컨텍스트로.
+          ctx = 'addressEdit'
+        }
+        const commandId = keyBindingRegistry.resolve(ctx, chord)
+        if (commandId) {
+          // 앱이 쓰는 단축키 → 앱이 처리(브라우저 기본은 자동으로 막힘).
+          if (execCommand(commandId)) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+          return
+        }
       }
-
-      const commandId = keyBindingRegistry.resolve(ctx, chord)
-      if (!commandId) return
-
-      const handled = execCommand(commandId)
-      if (handled) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
+      // 앱이 쓰지 않는 브라우저 기본 단축키(F11/F12/리로드/인쇄/줌/찾기) 차단.
+      if (isBrowserDefaultToBlock(e)) e.preventDefault()
     }
 
     window.addEventListener('keydown', onKeyDown, { capture: true })

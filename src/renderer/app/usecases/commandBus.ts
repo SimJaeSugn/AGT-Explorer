@@ -29,6 +29,7 @@ import { performUndo } from './undo'
 import { openBatchRename } from './batchRename'
 import { startCompare } from './compare'
 import { startDedup } from './dedup'
+import { requestNewTab } from './newTab'
 
 /** 현재 활성 패널 id 헬퍼. */
 function activePanel(): string | undefined {
@@ -54,7 +55,7 @@ export function execCommand(commandId: string): boolean {
   switch (commandId) {
     // ── 탭 ───────────────────────────────────────────────────────────
     case 'tab.new':
-      s.newTab()
+      void requestNewTab()
       return true
     case 'tab.close':
       s.closeTab()
@@ -140,6 +141,11 @@ export function execCommand(commandId: string): boolean {
     // ── 설정 ─────────────────────────────────────────────────────────
     case 'app.settings':
       s.openSettings()
+      return true
+
+    // ── 단축키 도움말(I7 — F1 과 동일, ? 아이콘에서도 호출) ─────────────
+    case 'help.shortcuts':
+      s.toggleShortcutHelp()
       return true
 
     // ── 사용량 대시보드(I장) ──────────────────────────────────────────

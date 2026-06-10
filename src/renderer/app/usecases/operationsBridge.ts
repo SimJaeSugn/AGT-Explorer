@@ -14,6 +14,7 @@ import type { OperationUndoMeta } from '@renderer/app/stores/operationsSlice'
 import type { UndoEntry } from '@renderer/app/stores/undoSlice'
 import { baseName, joinPath } from '@renderer/domain/paths'
 import { verifyAfterCopy } from './checksum'
+import { notifyOperationComplete } from './opCompletion'
 import type { OpSummary } from '@shared/dto'
 
 let disposer: (() => void) | null = null
@@ -26,7 +27,7 @@ let disposer: (() => void) | null = null
  *    부정확 가능 → 실패 0 인 경우만 생성).
  */
 function deriveUndoEntry(meta: OperationUndoMeta, summary: OpSummary): UndoEntry | undefined {
-  if (summary.canceled || summary.failedItems > 0) return undefined
+  if (summary.canceled || summary.failedItems > 0 || (summary.inUse?.length ?? 0) > 0) return undefined
   switch (meta.kind) {
     case 'move':
       return { kind: 'move', sources: [...meta.sources], fromDir: meta.fromDir, toDir: meta.toDir }
@@ -70,6 +71,8 @@ export function initOperationsBridge(): void {
         }
       }
       s._opDone(evt.operationId, evt.summary)
+      // op 완료 대기자(예: 자동링크 복사 단계) resolve — 후속 단계 진행.
+      notifyOperationComplete(evt.operationId, evt.summary)
       // 결과를 목록에 반영: 등록된 패널 새로고침.
       for (const pid of refreshPanels) {
         if (s.panels[pid]) s.refresh(pid)
@@ -82,16 +85,29 @@ export function initOperationsBridge(): void {
           ? evt.summary.failures.map((f) => f.path).filter((p): p is string => !!p)
           : []
       if (trashFailedPaths.length > 0) {
+        // 폴백 제안 = 정상 흐름이므로, 실패로 표시된 trash op 를 작업패널에서 즉시 제거해
+        // "오류처럼 보이는" 실패 로그를 남기지 않는다(영구삭제 확인 모달이 상황을 대신 안내).
+        s.dismissOperation(evt.operationId)
         s.openConfirmDelete(
           trashFailedPaths,
           `${trashFailedPaths.length}개 항목을 휴지통으로 보내지 못했습니다(사용 중이거나 보호된 항목일 수 있습니다). 영구 삭제할까요?`
         )
-      } else if (evt.summary.failedItems > 0) {
-        // 그 외(copy/move/delete) 부분 실패는 요약 토스트(다이얼로그도 표시되지만 즉시 안내).
-        s.pushToast(
-          'error',
-          `${evt.summary.succeededItems}개 완료, ${evt.summary.failedItems}개 실패.`
-        )
+      } else {
+        // 사용 중(잠김)으로 건너뛴 항목은 오류가 아니라 별도 안내(info). 실패가 있을 때만 error.
+        const inUseCount = evt.summary.inUse?.length ?? 0
+        if (evt.summary.failedItems > 0) {
+          s.pushToast(
+            'error',
+            `${evt.summary.succeededItems}개 완료, ${evt.summary.failedItems}개 실패` +
+              (inUseCount > 0 ? `, ${inUseCount}개 사용 중(건너뜀)` : '') +
+              '.'
+          )
+        } else if (inUseCount > 0) {
+          s.pushToast(
+            'info',
+            `${evt.summary.succeededItems}개 완료 · ${inUseCount}개는 사용 중이라 건너뛰었습니다(해당 프로그램을 닫고 다시 시도).`
+          )
+        }
       }
     }
   })

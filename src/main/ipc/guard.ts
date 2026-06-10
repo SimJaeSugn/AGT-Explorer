@@ -84,13 +84,24 @@ export const zFsCreateFileReq = z.object({
 })
 export const zFsRenameReq = z.object({ path: zPath, newName: z.string().min(1) })
 
+// ── V10: fs:link-finalize / dialog:pick-directory (자동링크) ───────────────
+// backupName 은 경로 분리자·금지문자 없는 단일 폴더명(핸들러가 추가 검증). sourceDir/linkTarget
+// 은 형태만 1차 검증 후 핸들러가 guardPath·존재·종류 재검증.
+export const zFsLinkFinalizeReq = z.object({
+  sourceDir: zPath,
+  backupName: z.string().min(1).max(255),
+  linkTarget: zPath
+})
+export const zDialogPickDirectoryReq = z.object({ defaultPath: zPath.optional() })
+
 const zOpKind = z.enum(['copy', 'move', 'delete', 'trash'])
 const zConflictResolution = z.enum(['overwrite', 'skip', 'rename', 'merge'])
 export const zOpStartReq = z.object({
   kind: zOpKind,
   sources: z.array(zPath).min(1),
   destDir: zPath.optional(),
-  conflictPolicy: zConflictResolution.optional()
+  conflictPolicy: zConflictResolution.optional(),
+  baseDir: zPath.optional()
 })
 export const zOpResolveReq = z.object({
   operationId: z.string().min(1),

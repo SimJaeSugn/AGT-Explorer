@@ -157,6 +157,7 @@ function OperationRow({
         <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
           성공 {op.summary.succeededItems}개
           {op.summary.failedItems > 0 ? `, 실패 ${op.summary.failedItems}개` : ''}
+          {(op.summary.inUse?.length ?? 0) > 0 ? `, 사용 중 ${op.summary.inUse!.length}개` : ''}
           {op.summary.canceled ? ' (취소됨)' : ''}
           {op.summary.failures.length > 0 && (
             <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
@@ -169,6 +170,21 @@ function OperationRow({
                 <li>외 {op.summary.failures.length - 5}건…</li>
               )}
             </ul>
+          )}
+          {(op.summary.inUse?.length ?? 0) > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ color: 'rgba(245,124,0,0.95)' }}>
+                사용 중이라 건너뛴 항목(오류 아님 — 프로그램 닫고 재시도):
+              </div>
+              <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+                {op.summary.inUse!.slice(0, 5).map((f) => (
+                  <li key={f.path} style={{ color: 'rgba(245,124,0,0.95)' }}>
+                    {f.path}
+                  </li>
+                ))}
+                {op.summary.inUse!.length > 5 && <li>외 {op.summary.inUse!.length - 5}건…</li>}
+              </ul>
+            </div>
           )}
         </div>
       )}

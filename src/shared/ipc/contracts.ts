@@ -123,6 +123,15 @@ export interface FsRenameReq {
   readonly path: string
   readonly newName: string
 }
+// ── fs:link-finalize (자동링크 마무리 — 원본 rename + 원본자리 정션, V10) ──────
+export interface FsLinkFinalizeReq {
+  /** 원본 디렉토리(정션으로 대체될 자리). */
+  readonly sourceDir: string
+  /** 원본을 보존할 백업 이름(원본 부모 폴더 안의 새 이름·경로 분리자 불가). */
+  readonly backupName: string
+  /** 정션이 가리킬 대상(이미 복사된 목적지 디렉토리, 절대경로). */
+  readonly linkTarget: string
+}
 
 // ── shell:* (계약만 동결) ─────────────────────────────────────────────
 export interface ShellOpenReq {
@@ -168,6 +177,12 @@ export interface OpStartReq {
   readonly destDir?: string
   /** 사전 일괄 충돌 규칙(없으면 충돌 시 op:conflict 질의). */
   readonly conflictPolicy?: ConflictPolicy
+  /**
+   * 구조 보존 기준 디렉토리(copy 전용, 선택). 지정 시 각 source 를 destDir 의
+   * relative(baseDir, source) 위치에 복사한다(하위 폴더 구조 보존 — 미러 재귀 복사). 미지정이면
+   * destDir/basename(source) 로 복사(기존 동작). 예: baseDir=D:\left, src=D:\left\sub\x.txt → destDir\sub\x.txt.
+   */
+  readonly baseDir?: string
 }
 export interface OpStartRes {
   readonly operationId: string
@@ -202,6 +217,15 @@ export interface DialogConfirmPermanentDeleteReq {
 }
 export interface DialogConfirmRes {
   readonly confirmed: boolean
+}
+// ── dialog:pick-directory (네이티브 폴더 선택, V10) ────────────────────────
+export interface DialogPickDirectoryReq {
+  /** 초기 경로(선택). */
+  readonly defaultPath?: string
+}
+export interface DialogPickDirectoryRes {
+  /** 선택한 폴더 절대경로. 취소면 null. */
+  readonly path: string | null
 }
 
 // ── session:* / settings:* (계약만 동결, impl: P5) ────────────────────
@@ -482,6 +506,7 @@ export interface IpcRequestMap {
   [CHANNELS.FS_MKDIR]: { req: FsMkdirReq; res: Result<FileEntryDTO> }
   [CHANNELS.FS_CREATE_FILE]: { req: FsCreateFileReq; res: Result<FileEntryDTO> }
   [CHANNELS.FS_RENAME]: { req: FsRenameReq; res: Result<FileEntryDTO> }
+  [CHANNELS.FS_LINK_FINALIZE]: { req: FsLinkFinalizeReq; res: Result<void> }
 
   // shell:* (P2/P4/P6)
   [CHANNELS.SHELL_OPEN]: { req: ShellOpenReq; res: Result<void> }
@@ -511,6 +536,7 @@ export interface IpcRequestMap {
     req: DialogConfirmPermanentDeleteReq
     res: Result<DialogConfirmRes>
   }
+  [CHANNELS.DIALOG_PICK_DIRECTORY]: { req: DialogPickDirectoryReq; res: Result<DialogPickDirectoryRes> }
 
   // session:* / settings:* (P5)
   [CHANNELS.SESSION_LOAD]: { req: void; res: Result<SessionSnapshot> }

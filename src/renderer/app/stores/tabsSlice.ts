@@ -13,7 +13,7 @@
 import type { ClosedTabRecord, Tab } from '@renderer/domain/entities'
 import { SPLIT_MIN_RATIO } from '@renderer/domain/entities'
 import type { LayoutKind, WindowSnapshot } from '@shared/dto'
-import { MY_PC_PATH } from '@renderer/domain/paths'
+import { MY_PC_PATH, isMyPc, normalizeDisplay } from '@renderer/domain/paths'
 import type { SliceCreator } from './types'
 
 let idCounter = 0
@@ -208,8 +208,12 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       return true
     },
 
-    newTab(path = MY_PC_PATH) {
-      const tab = buildTab('single', [path], 0)
+    newTab(path) {
+      // 인자 없이 호출(새 탭 버튼·Ctrl+T)되면 설정된 기본 시작 위치를 쓴다(없으면 내 PC).
+      // "E:" 같은 드라이브 루트 입력은 normalizeDisplay 로 "E:\\" 보정해 load 가 인식하게 한다.
+      const raw = path !== undefined ? path : get().startLocation || MY_PC_PATH
+      const target = raw && !isMyPc(raw) ? normalizeDisplay(raw) : MY_PC_PATH
+      const tab = buildTab('single', [target], 0)
       insertTab(tab, true)
     },
 

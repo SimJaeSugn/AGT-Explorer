@@ -29,6 +29,8 @@ import type {
   ClipboardHasFilesRes,
   ClipboardReadRes,
   DialogConfirmRes,
+  DialogPickDirectoryRes,
+  FsLinkFinalizeReq,
   FileOpError,
   RemoteConnectReq,
   RemoteConnectRes,
@@ -114,6 +116,8 @@ export const fsApi = {
   createFile: (req: FsCreateFileReq): Promise<Result<FileEntryDTO>> =>
     bridge().fs.createFile(req),
   rename: (req: FsRenameReq): Promise<Result<FileEntryDTO>> => bridge().fs.rename(req),
+  /** fs:link-finalize — 자동링크 마무리(원본 rename + 원본자리 정션, V10). */
+  linkFinalize: (req: FsLinkFinalizeReq): Promise<Result<void>> => bridge().fs.linkFinalize(req),
 
   // ── fs:watch:* 디렉토리 실시간 감시 (J2 — 핸들러 impl: J장 다음 단계) ──────
   /** fs:watch:start — 현재 디렉토리 1개 non-recursive 감시 시작(watchId 발급). */
@@ -471,7 +475,10 @@ export function subscribeQueueStream(cb: (evt: QueueStateEvt) => void): Unsubscr
 // ── dialog:* 어댑터 (P4: 영구삭제 확인 모달) ────────────────────────────
 export const dialogApi = {
   confirmPermanentDelete: (paths: string[]): Promise<Result<DialogConfirmRes>> =>
-    bridge().dialog.confirmPermanentDelete({ paths })
+    bridge().dialog.confirmPermanentDelete({ paths }),
+  /** dialog:pick-directory — 네이티브 폴더 선택(자동링크 목표 디렉토리, V10). */
+  pickDirectory: (defaultPath?: string): Promise<Result<DialogPickDirectoryRes>> =>
+    bridge().dialog.pickDirectory(defaultPath ? { defaultPath } : {})
 }
 
 // ── session:* / settings:* / telemetry 어댑터 (P5) ──────────────────────

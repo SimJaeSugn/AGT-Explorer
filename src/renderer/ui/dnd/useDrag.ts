@@ -14,6 +14,7 @@ import { decideDrop, type DragModifiers } from '@renderer/domain/rules/dragInten
 import { performDrop } from '@renderer/app/usecases/fileOps'
 import { startExternalDrag } from '@renderer/app/usecases/externalDrag'
 import { locationKindOf } from '@renderer/domain/rules/remoteLocation'
+import { baseName } from '@renderer/domain/paths'
 import {
   beginDrag,
   endDrag,
@@ -26,6 +27,52 @@ import {
 
 /** 드래그 시작 임계 이동량(px) — 클릭과 구분. */
 const DRAG_THRESHOLD = 5
+
+/**
+ * 커스텀 HTML5 드래그 고스트 생성 — native 기본 행 스냅샷 대신 사용.
+ * 다중 선택이면 **2줄 카드**("N개 항목" + "대표명 외 M개")에 뒤로 겹친 카드 2장을 더해
+ * "여러 장 쌓인" 느낌을 준다. 단일이면 한 줄("📄 이름"). 화면 밖(off-screen)에 잠깐 붙였다가
+ * setDragImage 동기 스냅샷 직후 제거한다. 반환 요소는 호출부가 setTimeout 으로 제거.
+ */
+function buildDragGhost(sources: string[]): HTMLElement {
+  const count = sources.length
+  const multi = count > 1
+  const rep = sources[0] ? baseName(sources[0]) : ''
+  const wrap = document.createElement('div')
+  wrap.style.cssText = 'position:fixed;top:-1000px;left:-1000px;pointer-events:none;'
+
+  const cardCss =
+    'border-radius:6px;background:#475569;box-shadow:0 4px 14px rgba(0,0,0,.28);'
+  if (multi) {
+    const b1 = document.createElement('div')
+    b1.style.cssText = cardCss + 'position:absolute;left:6px;top:8px;right:-6px;bottom:-8px;opacity:.35;'
+    const b2 = document.createElement('div')
+    b2.style.cssText = cardCss + 'position:absolute;left:3px;top:4px;right:-3px;bottom:-4px;opacity:.6;'
+    wrap.appendChild(b1)
+    wrap.appendChild(b2)
+  }
+  const card = document.createElement('div')
+  card.style.cssText =
+    cardCss +
+    'position:relative;min-width:120px;max-width:260px;padding:5px 10px;color:#fff;font:12px/1.35 system-ui,sans-serif;'
+  if (multi) {
+    const l1 = document.createElement('div')
+    l1.style.cssText = 'font-weight:600;white-space:nowrap;'
+    l1.textContent = `🗐 ${count}개 항목`
+    const l2 = document.createElement('div')
+    l2.style.cssText = 'margin-top:2px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+    l2.textContent = `${rep} 외 ${count - 1}개`
+    card.appendChild(l1)
+    card.appendChild(l2)
+  } else {
+    const l1 = document.createElement('div')
+    l1.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+    l1.textContent = `📄 ${rep}`
+    card.appendChild(l1)
+  }
+  wrap.appendChild(card)
+  return wrap
+}
 
 /** 전체 드래그 상태 구독(컴포넌트용). */
 export function useDragState(): DragState {
@@ -163,6 +210,13 @@ export function useExternalDragSource(
         // native 드래그가 유효하도록 데이터/효과 지정(없으면 Chromium 이 드래그를 취소할 수 있음).
         e.dataTransfer.effectAllowed = 'copyMove'
         e.dataTransfer.setData('text/plain', sources.join('\n'))
+        // 커서를 따라다니는 native 고스트를 커스텀 2줄 이미지로 교체(다중 시 스택 카드).
+        // 기본 행 스냅샷 대신 "N개 항목 / 대표명 외 M개"를 보여준다.
+        const ghost = buildDragGhost(sources)
+        document.body.appendChild(ghost)
+        e.dataTransfer.setDragImage(ghost, 16, 12)
+        // setDragImage 는 동기 스냅샷 — 다음 틱에 제거(잔여 DOM 누수 방지).
+        setTimeout(() => ghost.remove(), 0)
       } catch {
         /* dataTransfer 접근 불가 환경 — 무시(내부 드롭은 dragState 로 동작). */
       }

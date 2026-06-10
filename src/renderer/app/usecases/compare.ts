@@ -273,11 +273,16 @@ export async function applyMirrorConfirmed(): Promise<void> {
         sourceDir
       ])
     } else {
-      await startOperation('copy', plan.copyPaths, plan.destDir, [plan.destDir, sourceDir ?? ''], {
-        kind: 'copy',
-        sources: [...plan.copyPaths],
-        destDir: plan.destDir
-      })
+      // baseDir=sourceDir: 미러 복사가 하위 폴더 구조를 보존하도록(재귀 비교 시 nested 파일이
+      // destDir 루트로 평탄화되던 버그 수정 — relative(sourceDir, src) 위치로 복사).
+      await startOperation(
+        'copy',
+        plan.copyPaths,
+        plan.destDir,
+        [plan.destDir, sourceDir ?? ''],
+        { kind: 'copy', sources: [...plan.copyPaths], destDir: plan.destDir },
+        sourceDir
+      )
     }
   }
   // 삭제 동기화(명시 선택 시): 기준에 없는 dest 항목 → 휴지통(K1 undo 자동 적재).

@@ -22,7 +22,6 @@ import {
   changeTheme,
   changeVerifyOnCopy
 } from '@renderer/app/usecases/settings'
-import { listShortcutGroups, prettyChord } from '@renderer/ui/keyboard/shortcuts'
 import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/dialogStyles'
 import { tokens } from '@renderer/ui/theme/tokens'
@@ -71,8 +70,6 @@ export function SettingsDialog(): JSX.Element | null {
   }, [open, close])
 
   if (!open) return null
-
-  const groups = listShortcutGroups()
 
   return (
     <div style={overlayStyle} onClick={close} role="dialog" aria-modal="true" aria-label="설정">
@@ -201,7 +198,9 @@ export function SettingsDialog(): JSX.Element | null {
             aria-label="텔레메트리 옵트인"
           />
           <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
-            기본 꺼짐. 동의 시에만 익명 통계를 수집합니다.
+            앱 개선을 위한 익명 사용 통계(실행 횟수·기능 사용 빈도 등) 수집에 동의하는
+            설정입니다. 파일 경로·이름·내용 등 개인정보는 수집하지 않습니다. 기본 꺼짐이며,
+            이 앱은 로컬 전용이라 현재 외부로 전송하는 데이터는 없습니다.
           </span>
         </label>
 
@@ -231,33 +230,21 @@ export function SettingsDialog(): JSX.Element | null {
           </span>
         </div>
 
-        {/* 단축키 목록(KeyBindingRegistry → PRD §8) */}
+        {/* 단축키 목록은 별도 도움말로 분리(I7) — 도움말(❓) 아이콘 또는 F1 로 표시. */}
         <div style={{ marginTop: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>단축키</h3>
-          {groups.map((g) => (
-            <div key={g.group} style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, color: tokens.color.textMuted, marginBottom: 4, fontSize: 12 }}>
-                {g.group}
-              </div>
-              {g.items.map((b) => (
-                <div key={`${b.context}-${b.chord}`} style={{ display: 'flex', padding: '2px 0', alignItems: 'center' }}>
-                  <span style={{ flex: 1 }}>{b.label}</span>
-                  <kbd
-                    style={{
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      background: tokens.color.bgAlt,
-                      border: `1px solid ${tokens.color.border}`,
-                      borderRadius: 4,
-                      padding: '1px 6px'
-                    }}
-                  >
-                    {prettyChord(b.chord)}
-                  </kbd>
-                </div>
-              ))}
-            </div>
-          ))}
+          <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
+            단축키 목록은 상단 도구모음의 도움말(❓) 아이콘 또는 <kbd
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 12,
+                background: tokens.color.bgAlt,
+                border: `1px solid ${tokens.color.border}`,
+                borderRadius: 4,
+                padding: '1px 6px'
+              }}
+            >F1</kbd> 로 확인할 수 있습니다.
+          </span>
         </div>
       </div>
     </div>
