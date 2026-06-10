@@ -217,13 +217,25 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
       ? (o['activePanelId'] as string)
       : panels[0].id
   const splitRatios = coerceSplitRatios(o['splitRatios'])
+  // 탭 메타(Feature A 이름 · US-20.3 색상/잠금) 정규화 — 비파괴·구버전 호환(스키마 미상향).
+  //  - customName: 비-빈 문자열만(trim 후 빈값/비문자열 생략 → 자동 제목 복귀).
+  //  - color: 유효 팔레트 키(TAG_KEYS)만 보존(미러), 외 값 생략.
+  //  - locked: true 일 때만 보존(false/비불리언 생략 = 미잠금).
+  const rawName = o['customName']
+  const customName = typeof rawName === 'string' && rawName.trim() !== '' ? rawName.trim() : undefined
+  const rawColor = o['color']
+  const color = typeof rawColor === 'string' && TAG_KEYS.has(rawColor) ? rawColor : undefined
+  const locked = o['locked'] === true
   return {
     id,
     activePanelId,
     layout: typeof layout === 'string' && LAYOUTS.has(layout) ? (layout as TabSnapshot['layout']) : 'single',
     panels,
     // 누락/비객체면 생략(undefined) — 복원 측 균등 폴백(§3.4). 구버전 호환.
-    ...(splitRatios ? { splitRatios } : {})
+    ...(splitRatios ? { splitRatios } : {}),
+    ...(customName ? { customName } : {}),
+    ...(color ? { color } : {}),
+    ...(locked ? { locked: true } : {})
   }
 }
 

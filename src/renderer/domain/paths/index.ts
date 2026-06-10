@@ -16,6 +16,12 @@ import {
   parseRemotePath,
   remoteParentOf
 } from '@renderer/domain/rules/remoteLocation'
+import {
+  innerParentOf,
+  isArchivePath,
+  makeArchivePath,
+  parseArchivePath
+} from '@renderer/domain/rules/archiveLocation'
 
 /** "내 PC"(드라이브 루트 목록) 가상 경로. 빈 문자열로 약속. */
 export const MY_PC_PATH = ''
@@ -43,6 +49,16 @@ export function isMyPc(p: string): boolean {
  */
 export function baseName(p: string): string {
   if (isMyPc(p)) return MY_PC_LABEL
+  if (isArchivePath(p)) {
+    const loc = parseArchivePath(p)
+    if (loc) {
+      // 압축 루트(innerPath='')는 zip 파일명, 내부는 마지막 POSIX 세그먼트.
+      if (loc.innerPath === '') return baseName(loc.archivePath)
+      const seg = loc.innerPath.replace(/\/+$/, '')
+      const idx = seg.lastIndexOf('/')
+      return idx >= 0 ? seg.slice(idx + 1) : seg
+    }
+  }
   if (isRemotePath(p)) {
     const loc = parseRemotePath(p)
     if (loc) {
@@ -64,6 +80,15 @@ export function baseName(p: string): string {
  */
 export function parentOf(p: string): string | null {
   if (isMyPc(p)) return null
+  if (isArchivePath(p)) {
+    const loc = parseArchivePath(p)
+    if (loc) {
+      // 압축 내부에서 위로: innerPath 상위. 압축 루트(innerPath='')에서 위로는 zip 을 벗어나
+      // zip 이 들어있는 로컬 폴더로 복귀한다(세션은 panelsSlice.load 가 close).
+      if (loc.innerPath === '') return parentOf(loc.archivePath)
+      return makeArchivePath(loc.archivePath, innerParentOf(loc.innerPath))
+    }
+  }
   if (isRemotePath(p)) {
     const loc = parseRemotePath(p)
     if (loc) {
@@ -102,6 +127,23 @@ export interface Crumb {
 }
 
 export function breadcrumbs(p: string): Crumb[] {
+  // 압축 경로(archive://zip!/inner): zip 이 들어있는 로컬 폴더 크럼 + zip 루트(파일명) +
+  // 내부 POSIX 세그먼트 누적. zip 루트로 올라가면 로컬로, 더 위로 가면 로컬 폴더로 복귀한다.
+  if (isArchivePath(p)) {
+    const loc = parseArchivePath(p)
+    if (loc) {
+      // zip 을 담은 로컬 폴더까지의 크럼(로컬 규칙) + zip 루트 크럼.
+      const localParent = parentOf(loc.archivePath)
+      const out: Crumb[] = localParent !== null ? breadcrumbs(localParent) : []
+      out.push({ label: baseName(loc.archivePath), path: makeArchivePath(loc.archivePath, '') })
+      let acc = ''
+      for (const seg of loc.innerPath.split('/').filter(Boolean)) {
+        acc = acc === '' ? seg : `${acc}/${seg}`
+        out.push({ label: seg, path: makeArchivePath(loc.archivePath, acc) })
+      }
+      return out
+    }
+  }
   // 원격 경로: 루트(protocol://host) → POSIX 세그먼트 누적. "내 PC"로 시작하지 않는다
   // (원격에서 내 PC 로 새지 않도록 — 로컬↔원격 경계 보존).
   if (isRemotePath(p)) {
@@ -164,6 +206,11 @@ export function normalizeDisplay(p: string): string {
   // 원격 URI 는 백슬래시 변환 대상이 아님(스킴·POSIX 경로 보존). 끝 슬래시만 정리하되
   // 루트(sftp://host/)는 보존한다.
   const t = p.trim()
+  // 압축 URI 는 백슬래시 변환 대상이 아님(스킴·zip 절대경로·POSIX 내부경로 보존).
+  if (isArchivePath(t)) {
+    const loc = parseArchivePath(t)
+    return loc ? makeArchivePath(loc.archivePath, loc.innerPath) : t
+  }
   if (isRemotePath(t)) {
     const loc = parseRemotePath(t)
     return loc ? makeRemotePath(loc.protocol, loc.host, loc.remotePath) : t

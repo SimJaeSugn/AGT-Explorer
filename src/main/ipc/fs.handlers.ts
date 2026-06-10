@@ -9,7 +9,7 @@
  *
  * fs:mkdir/create-file/rename(impl: P4), op:*(impl: P4)는 본 파일에 추가하지 않는다.
  */
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
 import type { Result } from '@shared/ipc/contracts'
@@ -18,6 +18,7 @@ import type {
   DirListResult,
   DriveDTO,
   FileEntryDTO,
+  KnownFoldersDTO,
   ListStreamStart,
   PathValidation
 } from '@shared/dto'
@@ -88,6 +89,25 @@ export function registerFsHandlers(): void {
   ipcMain.handle(CHANNELS.FS_DRIVES, async (event): Promise<Result<DriveDTO[]>> => {
     if (!isTrustedSender(event)) return err(untrustedSenderError())
     return fileSystemService.drives()
+  })
+
+  // ── fs:known-folders (인자 없음 → sender 검증만) — 빠른 위치(다운로드 등) ──
+  // OS 알려진 폴더 경로(app.getPath)를 렌더러에 제공. 조회 실패 항목은 빈 문자열(throw 0).
+  ipcMain.handle(CHANNELS.FS_KNOWN_FOLDERS, async (event): Promise<Result<KnownFoldersDTO>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+    const pathOf = (name: 'downloads' | 'desktop' | 'documents' | 'home'): string => {
+      try {
+        return app.getPath(name)
+      } catch {
+        return '' // 일부 환경에서 미정의 가능 → 빈 문자열(UI 가 비표시 폴백).
+      }
+    }
+    return ok({
+      downloads: pathOf('downloads'),
+      desktop: pathOf('desktop'),
+      documents: pathOf('documents'),
+      home: pathOf('home')
+    })
   })
 
   // ── fs:list:start (스트리밍 시작) ───────────────────────────────

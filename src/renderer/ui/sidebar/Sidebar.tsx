@@ -49,10 +49,17 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
   const recent = useRootStore((s) => s.recent)
   const toggleSidebar = useRootStore((s) => s.toggleSidebar)
   const setSidebarWidth = useRootStore((s) => s.setSidebarWidth)
+  // 빠른 위치(다운로드 등 OS 알려진 폴더) — 부팅 시 1회 로드.
+  const knownFolders = useRootStore((s) => s.knownFolders)
+  const loadKnownFolders = useRootStore((s) => s.loadKnownFolders)
 
   useEffect(() => {
     if (treeRoots.length === 0) loadDrives()
   }, [treeRoots.length, loadDrives])
+
+  useEffect(() => {
+    if (!knownFolders) loadKnownFolders()
+  }, [knownFolders, loadKnownFolders])
 
   // 접힘 상태: 좌측 가장자리에 얇은 세로 스트립(펼치기 핸들)을 남겨 패널 자체에서
   // 다시 펼 수 있게 한다(Ctrl+B·아이콘바 외 발견 가능한 토글 제공).
@@ -160,6 +167,13 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
         {/* 스크롤 콘텐츠 */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
+
+          {knownFolders?.downloads && (
+            <div aria-label="빠른 위치">
+              <div style={sectionHeader}>빠른 위치</div>
+              <QuickFolderNode icon="⬇️" label="다운로드" path={knownFolders.downloads} />
+            </div>
+          )}
 
       {recent.length > 0 && (
         <div aria-label="최근">
@@ -623,6 +637,40 @@ function PinnedRow({
       >
         ✕
       </button>
+    </div>
+  )
+}
+
+/** 빠른 위치 노드 1개(다운로드 등). 클릭 = 활성 패널을 그 폴더로 이동. */
+function QuickFolderNode({
+  icon,
+  label,
+  path
+}: {
+  icon: string
+  label: string
+  path: string
+}): JSX.Element {
+  const navigateActive = useNavigateActive()
+  const activePath = useActivePanelPath()
+  const selected = activePath === path
+  return (
+    <div
+      onClick={() => navigateActive(path)}
+      title={path}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        cursor: 'pointer',
+        background: selected ? tokens.color.bgSelected : 'transparent'
+      }}
+    >
+      <span style={{ width: 14, textAlign: 'center' }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
     </div>
   )
 }

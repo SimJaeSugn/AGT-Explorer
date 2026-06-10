@@ -21,7 +21,9 @@ export default defineConfig({
           // M7 W1: 공용 해시·비교 Worker(별도 청크 out/main/hashWorker.js).
           hashWorker: resolve('src/main/workers/hashWorker.ts'),
           // M8 S1: 내용 검색 grep Worker(별도 청크 out/main/grepWorker.js — ADR-010).
-          grepWorker: resolve('src/main/workers/grepWorker.ts')
+          grepWorker: resolve('src/main/workers/grepWorker.ts'),
+          // M9 Q1: 압축 추출/추가 Worker(별도 청크 out/main/archiveWorker.js — ADR-008).
+          archiveWorker: resolve('src/main/workers/archiveWorker.ts')
         },
         output: {
           entryFileNames: '[name].js'

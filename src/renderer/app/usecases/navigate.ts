@@ -8,7 +8,7 @@
  */
 import { fsApi, shellApi } from '@renderer/infra/api'
 import { isMyPc } from '@renderer/domain/paths'
-import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
+import { isRemotePath, locationKindOf } from '@renderer/domain/rules/remoteLocation'
 import { store } from '@renderer/app/stores/rootStore'
 
 export interface NavOutcome {
@@ -32,6 +32,14 @@ export async function validateAndNavigate(panelId: string, target: string): Prom
   // 없음). 그대로 navigate → load 가 remote:list 로 탐색하며, 잘못된 경로는 패널
   // 오류 상태로 표면화한다(인라인 검증 대신).
   if (isRemotePath(target)) {
+    store.getState().navigate(panelId, target, true)
+    return { ok: true, message: '' }
+  }
+
+  // 압축 URI(archive://zip!/inner)도 로컬 fs:validate-path 대상이 아니다(§Q1). 그대로
+  // navigate → load 가 'archive' 분기로 archive:list(세션 없으면 archive:open 자기치유)로
+  // 탐색하며, 손상/암호 zip 은 패널 오류 상태로 표면화한다.
+  if (locationKindOf(target) === 'archive') {
     store.getState().navigate(panelId, target, true)
     return { ok: true, message: '' }
   }

@@ -163,6 +163,20 @@ export const zSettingsSetReq = z.object({
 })
 export const zTelemetrySetOptInReq = z.object({ enabled: z.boolean() })
 
+// ── U3: window:split-tab (탭 분리 → 새 창) ────────────────────────────────
+// TabSnapshot 은 세션과 동형의 깊은 직렬화 객체이므로(zSessionSaveReq 정책 동일)
+// 형태 1차만 통과시키고(id 존재·panels 배열), 본문 정규화·경로 검증은 분리 핸들러가
+// coerceTab + restoreWindows 경로(렌더러)로 위임한다. 패널 경로는 새 창 렌더러가
+// fs:list 로 다시 검증하므로 여기서 guardPath 까지 강제하지 않는다(세션 복원과 동일).
+export const zWindowSplitTabReq = z.object({
+  tab: z
+    .object({
+      id: z.string().min(1),
+      panels: z.array(z.unknown()).min(1)
+    })
+    .passthrough()
+})
+
 // ── P6: preview:* / workspace:* ──────────────────────────────────────────
 // preview:read 는 단일 경로만(가드가 guardPath 로 정규화·상위이탈 차단).
 export const zPreviewReadReq = z.object({ path: zPath })
@@ -339,3 +353,23 @@ export const zSearchContentStartReq = z.object({
   maxFileBytes: z.number().int().positive().optional()
 })
 export const zSearchContentCancelReq = z.object({ jobId: z.string().min(1) })
+
+// ── archive:* 압축파일 어댑터 (M9 — ADR-008) ──────────────────────────────
+export const zArchiveOpenReq = z.object({ archivePath: zPath })
+export const zArchiveListReq = z.object({
+  sessionId: z.string().min(1),
+  innerPath: z.string().max(4096)
+})
+export const zArchiveCloseReq = z.object({ sessionId: z.string().min(1) })
+export const zArchiveExtractReq = z.object({
+  sessionId: z.string().min(1),
+  innerPaths: z.array(z.string().min(1)).min(1).max(100_000),
+  destDir: zPath,
+  conflictPolicy: zConflictPolicy.optional()
+})
+export const zArchiveAddReq = z.object({
+  sessionId: z.string().min(1),
+  localPaths: z.array(zPath).min(1).max(100_000),
+  innerDir: z.string().max(4096),
+  conflictPolicy: zConflictPolicy.optional()
+})

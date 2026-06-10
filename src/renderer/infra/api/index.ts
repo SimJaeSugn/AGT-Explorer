@@ -9,9 +9,11 @@
  */
 import type { ExplorerApi, Unsubscribe } from '../../../preload/api'
 import type {
+  ConflictPolicy,
   DirListResult,
   DriveDTO,
   FileEntryDTO,
+  KnownFoldersDTO,
   ListStreamChunk,
   ListStreamDone,
   ListStreamStart,
@@ -20,6 +22,7 @@ import type {
   RemoteProfileDTO,
   SessionSnapshot,
   SettingsSnapshot,
+  TabSnapshot,
   TrashItemDTO,
   WorkspaceInfo
 } from '@shared/dto'
@@ -86,6 +89,10 @@ import type {
   SearchContentProgressEvt,
   SearchContentMatchEvt,
   SearchContentDoneEvt,
+  ArchiveOpenRes,
+  ArchiveListRes,
+  ArchiveTransferRes,
+  WindowInitRes,
   Result,
   ShellIconReq,
   ShellIconRes,
@@ -107,6 +114,7 @@ export const fsApi = {
   list: (req: FsListReq): Promise<Result<DirListResult>> => bridge().fs.list(req),
   stat: (req: FsStatReq): Promise<Result<FileEntryDTO>> => bridge().fs.stat(req),
   drives: (): Promise<Result<DriveDTO[]>> => bridge().fs.drives(),
+  knownFolders: (): Promise<Result<KnownFoldersDTO>> => bridge().fs.knownFolders(),
   treeChildren: (req: FsTreeChildrenReq): Promise<Result<FileEntryDTO[]>> =>
     bridge().fs.treeChildren(req),
   validatePath: (req: FsValidatePathReq): Promise<Result<PathValidation>> =>
@@ -269,6 +277,14 @@ export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
 /** Main 이 argv/second-instance 로 받은 경로를 푸시하면 콜백. 반환값으로 구독 해제. */
 export function subscribeOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe {
   return bridge().app.onOpenPath(cb)
+}
+
+// ── window:* 어댑터 (U3: 멀티 윈도우 — 탭 분리(새 창), US-20.3) ──────────
+export const windowApi = {
+  /** window:split-tab — 탭 1개(TabSnapshot)를 새 창으로 분리한다. */
+  splitTab: (tab: TabSnapshot): Promise<Result<void>> => bridge().window.splitTab({ tab }),
+  /** window:get-init — 부팅 시 이 창의 초기 상태({primary, initialTab})를 끌어온다. */
+  getInit: (): Promise<Result<WindowInitRes>> => bridge().window.getInit()
 }
 
 // ── trash:* 어댑터 (K장 K2: 휴지통 관리 — 핸들러/recycleBin impl: K장 다음 단계) ──
@@ -508,6 +524,46 @@ export function subscribeContentSearchStream(h: ContentSearchStreamHandlers): Un
     offM()
     offD()
   }
+}
+
+// ── archive:* 어댑터 (M9 — ADR-008: 압축파일 archive:// 어댑터) ───────────
+// remoteApi 동형 — invoke 래퍼. 신규 진행률 채널 없음(extract/add 는 operationId 만
+// 반환하고 진행률/충돌/완료/취소는 기존 op:* 스트림 재사용). 모든 경로는 main 이 검증한다.
+export const archiveApi = {
+  /** archive:open — zip central directory 열기·세션 발급. 암호 zip 이면 EUNSUPPORTED. */
+  open: (archivePath: string): Promise<Result<ArchiveOpenRes>> =>
+    bridge().archive.open({ archivePath }),
+  /** archive:list — innerPath 디렉토리의 직속 엔트리(정규화 FileEntryDTO). */
+  list: (sessionId: string, innerPath: string): Promise<Result<ArchiveListRes>> =>
+    bridge().archive.list({ sessionId, innerPath }),
+  /** archive:close — 세션·임시물 정리(패널 이탈/탭 닫기). */
+  close: (sessionId: string): Promise<Result<void>> => bridge().archive.close({ sessionId }),
+  /** archive:extract — 압축→로컬 추출(operationId 반환, 진행률은 op:* 재사용·Zip Slip 차단). */
+  extract: (
+    sessionId: string,
+    innerPaths: string[],
+    destDir: string,
+    conflictPolicy?: ConflictPolicy
+  ): Promise<Result<ArchiveTransferRes>> =>
+    bridge().archive.extract({
+      sessionId,
+      innerPaths,
+      destDir,
+      ...(conflictPolicy ? { conflictPolicy } : {})
+    }),
+  /** archive:add — 로컬→압축 추가(재작성·operationId 반환, 진행률은 op:* 재사용). */
+  add: (
+    sessionId: string,
+    localPaths: string[],
+    innerDir: string,
+    conflictPolicy?: ConflictPolicy
+  ): Promise<Result<ArchiveTransferRes>> =>
+    bridge().archive.add({
+      sessionId,
+      localPaths,
+      innerDir,
+      ...(conflictPolicy ? { conflictPolicy } : {})
+    })
 }
 
 // ── dialog:* 어댑터 (P4: 영구삭제 확인 모달) ────────────────────────────

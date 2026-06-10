@@ -1124,5 +1124,154 @@ if (sid) {
   s().hydrateTags({})
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Feature A(탭 사용자 지정 이름) · US-20.3(탭 색상/잠금) — tabsSlice 액션·닫기 가드·영속.
+//   신규 채널 0·세션 메타(customName/color/locked) 영속·스키마 미상향(비파괴).
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  // 깨끗한 단일 탭 준비.
+  s().resetWorkspace()
+  s().initDefaultTab()
+  const tid = s().activeTabId
+
+  // ── Feature A: setTabName / clearTabName ──────────────────────────────
+  ok('TAB 초기 customName 없음', s().tabs[tid]!.customName === undefined)
+  s().setTabName(tid, '작업 폴더')
+  ok('TAB setTabName 설정', s().tabs[tid]!.customName === '작업 폴더')
+  // 공백 패딩은 trim.
+  s().setTabName(tid, '  trimmed  ')
+  ok('TAB setTabName trim', s().tabs[tid]!.customName === 'trimmed')
+  // 빈/공백 입력은 자동 제목 복귀(키 삭제).
+  s().setTabName(tid, '   ')
+  ok('TAB setTabName 공백→clear', s().tabs[tid]!.customName === undefined)
+  s().setTabName(tid, '다시')
+  s().clearTabName(tid)
+  ok('TAB clearTabName', s().tabs[tid]!.customName === undefined)
+
+  // ── US-20.3: setTabColor(TAG_PALETTE 키·undefined 제거) ───────────────
+  ok('TAB 초기 color 없음', s().tabs[tid]!.color === undefined)
+  s().setTabColor(tid, 'blue')
+  ok('TAB setTabColor 설정', s().tabs[tid]!.color === 'blue')
+  s().setTabColor(tid, undefined)
+  ok('TAB setTabColor undefined→제거', s().tabs[tid]!.color === undefined)
+
+  // ── US-20.3: toggleTabLock + 닫기 가드(잠긴 탭은 거부) ─────────────────
+  ok('TAB 초기 locked 없음', s().tabs[tid]!.locked === undefined)
+  s().toggleTabLock(tid)
+  ok('TAB toggleTabLock → 잠금', s().tabs[tid]!.locked === true)
+
+  // 잠긴 탭 닫기 가드: 두 번째 탭을 만들고 잠근 뒤 닫기 시도 → 탭 수 불변·안내 토스트.
+  s().newTab('C:\\')
+  const lockTab = s().activeTabId
+  s().toggleTabLock(lockTab)
+  const beforeCount = s().tabOrder.length
+  const beforeToasts = s().toasts.length
+  s().closeTab(lockTab)
+  ok('TAB 잠긴 탭 닫기 거부(탭 수 불변)', s().tabOrder.length === beforeCount)
+  ok('TAB 잠긴 탭 닫기 안내 토스트', s().toasts.length === beforeToasts + 1)
+  ok('TAB 잠긴 탭 가운데클릭 닫기도 거부', (s().closeTab(lockTab), s().tabOrder.length === beforeCount))
+
+  // 잠금 해제 후 닫기 성공.
+  s().toggleTabLock(lockTab)
+  ok('TAB toggleTabLock 재토글 → 해제', s().tabs[lockTab]!.locked === undefined)
+  s().closeTab(lockTab)
+  ok('TAB 잠금 해제 후 닫기 성공', s().tabOrder.length === beforeCount - 1)
+
+  // ── 세션 영속(buildSessionSnapshot → TabSnapshot 직렬화) + 복원 ──────────
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  const ptab = s().activeTabId
+  // 선행 테스트 잔여 메타 정리(결정적 시작 상태).
+  s().clearTabName(ptab)
+  s().setTabColor(ptab, undefined)
+  if (s().tabs[ptab]!.locked) s().toggleTabLock(ptab)
+  s().setTabName(ptab, '내 작업')
+  s().setTabColor(ptab, 'green')
+  s().toggleTabLock(ptab)
+  const tabSnap = buildSessionSnapshot()
+  const persistedTab = tabSnap.windows[0]!.tabs.find((t) => t.id === ptab)!
+  ok('TAB 스냅샷 customName 직렬화', persistedTab.customName === '내 작업')
+  ok('TAB 스냅샷 color 직렬화', persistedTab.color === 'green')
+  ok('TAB 스냅샷 locked 직렬화', persistedTab.locked === true)
+
+  // 미설정 탭은 메타 키 생략(직렬화 안정).
+  s().setTabName(ptab, '   ')
+  s().setTabColor(ptab, undefined)
+  s().toggleTabLock(ptab)
+  const tabSnap2 = buildSessionSnapshot()
+  const cleanTab = tabSnap2.windows[0]!.tabs.find((t) => t.id === ptab)!
+  ok('TAB 스냅샷 미설정 customName 생략', !('customName' in (cleanTab as Record<string, unknown>)))
+  ok('TAB 스냅샷 미설정 color 생략', !('color' in (cleanTab as Record<string, unknown>)))
+  ok('TAB 스냅샷 미잠금 locked 생략', !('locked' in (cleanTab as Record<string, unknown>)))
+
+  // restoreWindows 복원(메타 주입).
+  const restoreSnap: WindowSnapshot[] = [
+    {
+      activeTabId: 'mt1',
+      tabs: [
+        {
+          id: 'mt1',
+          activePanelId: 'mp1',
+          layout: 'single',
+          customName: '복원된 탭',
+          color: 'purple',
+          locked: true,
+          panels: [
+            {
+              id: 'mp1',
+              path: 'C:\\',
+              sortKey: 'name',
+              sortDir: 'asc',
+              viewMode: 'details',
+              history: { back: [], forward: [] },
+              scrollTop: 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+  s().restoreWindows(restoreSnap)
+  const rt = s().activeTab()!
+  ok('TAB restoreWindows customName 복원', rt.customName === '복원된 탭')
+  ok('TAB restoreWindows color 복원', rt.color === 'purple')
+  ok('TAB restoreWindows locked 복원', rt.locked === true)
+
+  // ── U3: 탭 분리(새 창) 스냅샷 추출 + 분리 창 어돕트(restoreWindows 단일 탭) ──
+  const { buildTabSnapshot } = await import('../src/renderer/app/usecases/session')
+  // 분리할 소스 탭 구성(이름/색/뷰/히스토리 메타 포함 — split 핸드오프 보존 검증).
+  s().newTab('C:\\split-src')
+  const srcId = s().activeTabId
+  s().setTabName(srcId, '분리될 탭')
+  s().setTabColor(srcId, 'cyan')
+  const srcPanel = s().tabs[srcId]!.activePanelId
+  s().setViewMode(srcPanel, 'list')
+
+  const splitSnap = buildTabSnapshot(srcId)
+  ok('U3 buildTabSnapshot 추출 성공', splitSnap !== null)
+  ok('U3 분리 스냅샷 customName 보존', splitSnap!.customName === '분리될 탭')
+  ok('U3 분리 스냅샷 color 보존', splitSnap!.color === 'cyan')
+  ok('U3 분리 스냅샷 경로 보존', splitSnap!.panels[0]!.path === 'C:\\split-src')
+  ok('U3 분리 스냅샷 viewMode 보존', splitSnap!.panels[0]!.viewMode === 'list')
+  // 분리 스냅샷은 잠금 상태를 그대로 직렬화(잠긴 탭은 UI 가드가 분리 차단 — 별도).
+  ok('U3 분리 스냅샷 미잠금 locked 생략', !('locked' in (splitSnap! as Record<string, unknown>)))
+
+  // 존재하지 않는 탭은 null(분리 불가).
+  ok('U3 buildTabSnapshot 미존재 null', buildTabSnapshot('no-such-tab') === null)
+
+  // 분리 창 부팅 모사: 빈 스토어(새 창)에서 단일 탭 어돕트 경로 검증.
+  // (windowInit.bootWindow 가 restoreWindows([{tabs:[initialTab],...}]) 로 어돕트한다.)
+  // 새 창은 빈 상태라 resetWorkspace 로 깨끗이 비운 뒤 어돕트(부팅 전제 모사).
+  s().resetWorkspace()
+  const adopted = s().restoreWindows([{ tabs: [splitSnap!], activeTabId: splitSnap!.id }])
+  ok('U3 분리 창 어돕트 성공', adopted)
+  const adoptedTab = s().activeTab()!
+  ok('U3 어돕트 탭 단일', s().tabOrder.length === 1 && adoptedTab.layout === 'single')
+  ok('U3 어돕트 customName 복원', adoptedTab.customName === '분리될 탭')
+  ok('U3 어돕트 경로 복원', s().panels[adoptedTab.panelIds[0]!]!.path === 'C:\\split-src')
+
+  // 빈 windows 어돕트는 실패(폴백 트리거 신호) — bootWindow 의 폴백 분기 보장.
+  ok('U3 빈 어돕트 실패→폴백', s().restoreWindows([]) === false)
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

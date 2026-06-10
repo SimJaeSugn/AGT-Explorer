@@ -79,6 +79,18 @@ export interface DriveDTO {
   readonly ready: boolean
 }
 
+/** 빠른 위치(알려진 폴더) 경로 (fs:known-folders). 조회 불가 항목은 빈 문자열. */
+export interface KnownFoldersDTO {
+  /** 다운로드 폴더 절대경로. */
+  readonly downloads: string
+  /** 바탕화면. */
+  readonly desktop: string
+  /** 문서. */
+  readonly documents: string
+  /** 홈(사용자 프로필). */
+  readonly home: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 디렉토리 목록 결과 (단발 + 스트리밍 청크)
 // ────────────────────────────────────────────────────────────────────────
@@ -301,6 +313,15 @@ export interface TabSnapshot {
   readonly panels: PanelSnapshot[]
   /** 분할 패널 크기 비율(feat-H3). 없으면 균등(0.5/0.5)으로 폴백. */
   readonly splitRatios?: SplitRatios
+  /**
+   * 사용자 지정 탭 이름(Feature A). 비파괴-optional — 없으면 자동 제목(폴더명) 복귀.
+   * 스키마 미상향(splitRatios 선례). coerce 가 빈/비문자열을 생략한다.
+   */
+  readonly customName?: string
+  /** 탭 색상 라벨 키(US-20.3·TAG_PALETTE 키). 미설정이면 생략. */
+  readonly color?: string
+  /** 탭 잠금(US-20.3). true 일 때만 직렬화(false/누락은 미잠금). */
+  readonly locked?: boolean
 }
 
 /** 창 1개의 직렬화 상태. closedHistory(닫은 탭 복원 스택)는 휘발 → 제외(SA §5.1). */

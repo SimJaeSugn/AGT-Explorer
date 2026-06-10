@@ -10,9 +10,15 @@
  * shared/dto 의 타입(RemoteProtocol)만 import 한다.
  */
 import type { RemoteProtocol } from '@shared/dto'
+import { isArchivePath } from './archiveLocation'
 
-/** 위치 종류(전송 라우팅 판정 입력). */
-export type LocationKind = 'local' | 'remote'
+/**
+ * 위치 종류(전송 라우팅 판정 입력).
+ *  - 'local'   : 로컬 Windows FS(`C:\...`)·내 PC.
+ *  - 'remote'  : 원격 URI(`sftp://`·`ftp(s)://` · §M M3).
+ *  - 'archive' : 압축 URI(`archive://...!/...` · §Q1 ADR-008). 압축↔로컬 전송만 1차 지원.
+ */
+export type LocationKind = 'local' | 'remote' | 'archive'
 
 /** 원격 URI 스킴 prefix(software-architecture §11). */
 const REMOTE_SCHEMES: readonly RemoteProtocol[] = ['sftp', 'ftp', 'ftps']
@@ -31,8 +37,12 @@ export function isRemotePath(path: string): boolean {
   return REMOTE_SCHEMES.some((s) => path.startsWith(`${s}://`))
 }
 
-/** 경로의 위치 종류. 원격 URI 면 'remote', 그 외(로컬·내 PC)는 'local'. */
+/**
+ * 경로의 위치 종류. 압축 URI(`archive://`)면 'archive', 원격 URI 면 'remote', 그 외
+ * (로컬·내 PC)는 'local'. 압축이 원격보다 먼저 판정된다(스킴 prefix 비중첩 — 상호배타).
+ */
 export function locationKindOf(path: string): LocationKind {
+  if (isArchivePath(path)) return 'archive'
   return isRemotePath(path) ? 'remote' : 'local'
 }
 

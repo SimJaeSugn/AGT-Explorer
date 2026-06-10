@@ -20,7 +20,7 @@ import {
   type ListStreamHandlers
 } from '@renderer/infra/api'
 import { isMyPc, parentOf } from '@renderer/domain/paths'
-import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
+import { isRemotePath, locationKindOf } from '@renderer/domain/rules/remoteLocation'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import type { SliceCreator } from './types'
 
@@ -314,11 +314,19 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
   /** 경로 적재 디스패치(내 PC vs 실제 디렉토리). preserve=true 면 선택/스크롤 보존. */
   function load(panelId: string, path: string, opts?: { preserve?: boolean }): void {
     disposeStream(panelId)
+    // §Q1: 압축 세션 수명 관리 — 이 패널이 압축을 벗어나면(다른 zip/비압축으로 이동) close.
+    // 압축 안 같은 zip 이동(폴더 진입/위로/뒤로)은 세션 유지(usecases/archive 가 판정).
+    void import('@renderer/app/usecases/archive').then((m) => m.leaveArchiveIfNeeded(panelId, path))
     const preserve = opts?.preserve ?? false
     if (isMyPc(path)) {
       // 내 PC(드라이브 목록)는 _onDone 경로를 타지 않으므로 보존 스냅샷을 남기지 않는다(누수 방지).
       preserveSnapshots.delete(panelId)
       void loadMyPc(panelId)
+    } else if (locationKindOf(path) === 'archive') {
+      // 압축 경로(archive://zip!/inner): 로컬 스트림 대신 archive:list 로 탐색(§Q1 ADR-008).
+      // 보존 스냅샷은 _onDone 경로를 타지 않으므로 남기지 않는다(누수 방지).
+      preserveSnapshots.delete(panelId)
+      void import('@renderer/app/usecases/archive').then((m) => m.listArchiveDir(panelId, path))
     } else if (isRemotePath(path)) {
       // 원격 경로(sftp://·ftp(s)://): 로컬 스트림 대신 remote:list 로 탐색(§M M3).
       // 보존 스냅샷은 _onDone 경로를 타지 않으므로 남기지 않는다(누수 방지).
@@ -341,6 +349,8 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
 
     removePanel(id) {
       disposeStream(id)
+      // §Q1: 패널이 압축을 보고 있었다면 세션 close(다른 패널이 같은 zip 을 공유하면 유지).
+      void import('@renderer/app/usecases/archive').then((m) => m.closeArchiveOnRemove(id))
       set((s) => {
         delete s.panels[id]
       })

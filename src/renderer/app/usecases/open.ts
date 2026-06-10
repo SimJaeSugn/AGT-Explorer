@@ -11,6 +11,9 @@ import type { FileEntryDTO } from '@shared/dto'
 import { shellApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import { baseName } from '@renderer/domain/paths'
+import { locationKindOf } from '@renderer/domain/rules/remoteLocation'
+import { isZipFile } from '@renderer/domain/rules/archiveSession'
+import { openArchiveAsFolder } from './archive'
 
 /** 메시지 친화화: FileOpError 코드 → 사용자 안내. */
 function openErrorMessage(code: string, name: string): string {
@@ -66,6 +69,12 @@ export async function activateEntry(panelId: string, entry: FileEntryDTO): Promi
   const s = store.getState()
   if (entry.isDir) {
     s.navigate(panelId, entry.path, true)
+    return
+  }
+  // §Q1: 로컬 .zip 더블클릭 → "폴더처럼 열기"(archive:open → archive://zip!/ 이동).
+  // 압축 내부의 .zip(중첩)·원격 .zip 은 1차 범위 밖 → 일반 파일로 shell:open 한다.
+  if (isZipFile(entry.name) && locationKindOf(entry.path) === 'local') {
+    await openArchiveAsFolder(panelId, entry.path)
     return
   }
   const res = await shellApi.open(entry.path)

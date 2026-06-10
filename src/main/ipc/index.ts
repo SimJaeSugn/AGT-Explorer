@@ -9,6 +9,7 @@
  *   - registerWorkspaceHandlers() // P6
  */
 import { registerAnalyzeHandlers } from './analyze.handlers'
+import { registerArchiveHandlers } from './archive.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
 import { registerDndHandlers } from './dnd.handlers'
 import { registerFsHandlers } from './fs.handlers'
@@ -22,6 +23,7 @@ import { registerSessionHandlers } from './session.handlers'
 import { registerShellHandlers } from './shell.handlers'
 import { registerTrashHandlers } from './trash.handlers'
 import { registerWatchHandlers } from './watch.handlers'
+import { registerWindowHandlers } from './window.handlers'
 import { registerWorkspaceHandlers } from './workspace.handlers'
 
 export function registerIpcHandlers(): void {
@@ -38,6 +40,8 @@ export function registerIpcHandlers(): void {
   registerHashHandlers() // M7 W1: hash:compare/dup/verify:start + cancel (+ progress/done/error 푸시)
   registerQueueHandlers() // M7 W2: queue:list/pause/resume/retry/set-concurrency (+ queue:state 푸시)
   registerSearchHandlers() // M8 S1: search:content:start/cancel (+ progress/match/done 푸시 — ADR-010)
+  registerWindowHandlers() // U3: window:split-tab/get-init (멀티 윈도우 — 탭 분리, US-20.3)
+  registerArchiveHandlers() // M9 Q1: archive:open/list/close/extract/add (압축 어댑터 — ADR-008)
   registerClipboardHdropAndDndRemote()
 }
 

@@ -68,6 +68,19 @@ export interface TabsSlice {
   /** 탭 순서 이동(드래그). */
   moveTab(tabId: string, toIndex: number): void
 
+  // 탭 메타(Feature A 이름 · US-20.3 색상/잠금) ─────────────────────────────
+  /**
+   * 사용자 지정 탭 이름 설정(Feature A). trim 후 빈 문자열이면 clearTabName 과
+   * 동일하게 자동 제목(폴더명)으로 복귀시킨다. 신규 채널 0(렌더러 store 전용).
+   */
+  setTabName(tabId: string, name: string): void
+  /** 사용자 지정 이름 제거 → 자동 제목 복귀. */
+  clearTabName(tabId: string): void
+  /** 탭 색상 라벨 설정(TAG_PALETTE 키). undefined 면 색상 제거. */
+  setTabColor(tabId: string, key: string | undefined): void
+  /** 탭 잠금 토글(US-20.3). 잠긴 탭은 closeTab 가드. */
+  toggleTabLock(tabId: string): void
+
   // 레이아웃 / 포커스 ────────────────────────────────────────────────────
   /** 2분할 토글(single ↔ split-2-h). */
   toggleSplit2(tabId?: string): void
@@ -195,7 +208,11 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
           panelIds,
           activePanelId: panelIds[Math.min(activeIdx, panelIds.length - 1)] as string,
           // H-6: 분할 비율 복원(있으면). 누락/손상은 main coerce 가 1차 정규화.
-          ...(tabSnap.splitRatios ? { splitRatios: tabSnap.splitRatios } : {})
+          ...(tabSnap.splitRatios ? { splitRatios: tabSnap.splitRatios } : {}),
+          // 탭 메타 복원(Feature A 이름 · US-20.3 색상/잠금). 누락은 main coerce 가 생략.
+          ...(tabSnap.customName ? { customName: tabSnap.customName } : {}),
+          ...(tabSnap.color ? { color: tabSnap.color } : {}),
+          ...(tabSnap.locked ? { locked: true } : {})
         }
         insertTab(tab, false)
         if (tabSnap.id === win.activeTabId) activeTabId = tabId
@@ -221,6 +238,13 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       const id = tabId ?? get().activeTabId
       const tab = get().tabs[id]
       if (!tab) return
+
+      // US-20.3 닫기 가드: 잠긴 탭은 실수 닫기 방지(거부 + 안내 토스트).
+      // 먼저 잠금을 해제해야 닫을 수 있다(가운데클릭·×·Ctrl+W·close others 공통 경로).
+      if (tab.locked) {
+        get().pushToast('info', '잠긴 탭입니다. 먼저 잠금을 해제하세요.')
+        return
+      }
 
       // 닫은 탭 스냅샷을 복원 스택에 적재(휘발).
       const panels = get().panels
@@ -347,6 +371,45 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
         s.tabOrder.splice(from, 1)
         const clamped = Math.max(0, Math.min(toIndex, s.tabOrder.length))
         s.tabOrder.splice(clamped, 0, tabId)
+      })
+    },
+
+    setTabName(tabId, name) {
+      const trimmed = name.trim()
+      set((s) => {
+        const t = s.tabs[tabId]
+        if (!t) return
+        // 빈/공백 입력은 사용자 지정 이름 제거(자동 제목 복귀).
+        if (trimmed === '') delete t.customName
+        else t.customName = trimmed
+      })
+    },
+
+    clearTabName(tabId) {
+      set((s) => {
+        const t = s.tabs[tabId]
+        if (!t) return
+        delete t.customName
+      })
+    },
+
+    setTabColor(tabId, key) {
+      set((s) => {
+        const t = s.tabs[tabId]
+        if (!t) return
+        // undefined/빈값이면 색상 제거(키 자체 삭제 — 직렬화 안정).
+        if (!key) delete t.color
+        else t.color = key
+      })
+    },
+
+    toggleTabLock(tabId) {
+      set((s) => {
+        const t = s.tabs[tabId]
+        if (!t) return
+        // true 일 때만 보관(false 는 키 삭제 → 직렬화 안정·미잠금 동치).
+        if (t.locked) delete t.locked
+        else t.locked = true
       })
     },
 

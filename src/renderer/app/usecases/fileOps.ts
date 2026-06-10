@@ -13,6 +13,7 @@ import { clipboardApi, fsApi, opApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import type { OperationUndoMeta } from '@renderer/app/stores/operationsSlice'
 import { decideDrop, type DragModifiers } from '@renderer/domain/rules/dragIntent'
+import { locationKindOf } from '@renderer/domain/rules/remoteLocation'
 import { baseName, isMyPc, joinPath, parentOf } from '@renderer/domain/paths'
 import { visibleEntries } from './selectors'
 
@@ -450,6 +451,15 @@ export interface DropRequest {
  */
 export async function performDrop(req: DropRequest): Promise<boolean> {
   const s = store.getState()
+  // §Q1: 압축↔로컬 드롭은 transferRoute(extract/add)로 분기한다(local↔local 만 decideDrop).
+  // routeArchiveTransfer 는 압축 무관 조합이면 false 를 반환하므로, 그때만 아래 로컬 경로로 폴백.
+  if (locationKindOf(req.sourceDir) === 'archive' || locationKindOf(req.destDir) === 'archive') {
+    const { routeArchiveTransfer } = await import('./archive')
+    const handled = await routeArchiveTransfer(req.sources, req.sourceDir, req.destDir, req.mods)
+    if (handled) return true
+    // 압축이 끼었는데 처리 못함(unsupported 등) → 로컬 경로로 폴백하지 않는다(잘못된 op 방지).
+    return false
+  }
   const decision = decideDrop(req.sources, req.sourceDir, req.destDir, req.mods)
   if (!decision.allowed) {
     if (decision.reason === 'into-descendant') s.pushToast('error', decision.message)

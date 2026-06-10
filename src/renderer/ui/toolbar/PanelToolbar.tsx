@@ -12,7 +12,7 @@ import type { ViewMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
-import { isRemotePath, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
+import { isRemotePath, locationKindOf, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
 import { BreadcrumbDropdown } from '@renderer/ui/toolbar/BreadcrumbDropdown'
 import { tokens } from '@renderer/ui/theme/tokens'
@@ -76,6 +76,8 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   }, [addressEditing, path])
 
   const crumbs = breadcrumbs(path)
+  // §Q1: 패널이 압축(zip) 내부면 주소창에 📦 배지를 표시한다(로컬/원격과 시각 구분).
+  const inArchive = locationKindOf(path) === 'archive'
   // 드라이브 루트 세그먼트는 볼륨 라벨 포함 표기("Windows (C:)")로 — 트리 드라이브 노드
   // label 재사용(미로드/비-드라이브 세그먼트는 기존 라벨 유지).
   const tree = useRootStore((s) => s.tree)
@@ -234,12 +236,26 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
               fontSize: 13
             }}
           >
+            {inArchive && (
+              <span
+                title="압축(zip) 내부를 보고 있습니다"
+                aria-label="압축 파일 내부"
+                style={{
+                  flex: '0 0 auto',
+                  marginRight: 4,
+                  fontSize: 13,
+                  userSelect: 'none'
+                }}
+              >
+                📦
+              </span>
+            )}
             {crumbs.map((c, i) => {
               // ▾ 형제 드롭다운(U2): 로컬 경로 + 마지막(현재) 세그먼트가 아닐 때만.
-              // 원격(sftp://·ftp://)은 로컬 fs:tree-children 대상이 아니므로 비표시.
+              // 원격(sftp://·ftp://)·압축(archive://)은 로컬 fs:tree-children 대상이 아니므로 비표시.
               // currentChildPath = 다음 세그먼트(사용자가 실제 거쳐온 자식) — current 표식용.
               const next = crumbs[i + 1]
-              const showDropdown = !remoteLoc && next !== undefined
+              const showDropdown = !remoteLoc && !inArchive && next !== undefined
               return (
                 <span key={c.path} style={{ display: 'inline-flex', alignItems: 'center' }}>
                   {i > 0 && <span style={{ color: tokens.color.textMuted, margin: '0 2px' }}>›</span>}

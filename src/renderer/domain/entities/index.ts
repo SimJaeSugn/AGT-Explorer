@@ -110,6 +110,15 @@ export interface Tab {
   readonly activePanelId: string
   /** 분할 비율(미설정 시 균등 0.5/0.5 로 간주). */
   readonly splitRatios?: SplitRatios
+  /**
+   * 사용자 지정 탭 이름(Feature A). 설정되면 자동 제목(활성 패널 폴더명)을 덮어쓴다.
+   * 빈/공백이면 미설정(자동 제목 복귀) — setTabName 이 trim 후 빈값이면 clear 한다.
+   */
+  readonly customName?: string
+  /** 탭 색상 라벨 키(US-20.3·TAG_PALETTE 키 재사용). 미설정이면 색상 없음. */
+  readonly color?: string
+  /** 탭 잠금(US-20.3). 잠긴 탭은 닫기 가드(closeTab 거부 + 안내 토스트). */
+  readonly locked?: boolean
 }
 
 /** 닫은 탭 복원 스택 항목(휘발 — 세션 비직렬화). */

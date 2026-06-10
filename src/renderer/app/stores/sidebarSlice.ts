@@ -7,6 +7,7 @@
  * Immer 적용(저빈도, 중첩). 트리는 path → TreeNode 평탄 맵으로 보유(재귀 갱신 회피).
  */
 import type { TreeNode } from '@renderer/domain/entities'
+import type { KnownFoldersDTO } from '@shared/dto'
 import { fsApi } from '@renderer/infra/api'
 import type { SliceCreator } from './types'
 
@@ -34,9 +35,13 @@ export interface SidebarSlice {
   readonly pinnedByDir: Record<string, string[]>
   /** 최근 방문 위치(최신 우선, recentLimit 적용, P5b). */
   readonly recent: string[]
+  /** 빠른 위치(다운로드 등 OS 알려진 폴더). 부팅 시 1회 로드. 미로드 시 null. */
+  readonly knownFolders: KnownFoldersDTO | null
 
   /** 드라이브 루트 노드 로드(App 부팅 시 1회). */
   loadDrives(): void
+  /** 빠른 위치(알려진 폴더) 로드(App 부팅/사이드바 마운트 시 1회). */
+  loadKnownFolders(): void
   /** 트리 노드 펼침/접힘 토글. 첫 펼침 시 자식 lazy 로드. */
   toggleTreeNode(path: string): void
   /** 사이드바 폭 조절. */
@@ -133,6 +138,17 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
     favoriteLabels: {},
     pinnedByDir: {},
     recent: [],
+    knownFolders: null,
+
+    loadKnownFolders() {
+      void (async () => {
+        const res = await fsApi.knownFolders()
+        if (!res.ok) return
+        set((s) => {
+          s.knownFolders = res.value
+        })
+      })()
+    },
 
     loadDrives() {
       void (async () => {

@@ -21,6 +21,7 @@ export const CHANNELS = {
   FS_LIST: 'fs:list',
   FS_STAT: 'fs:stat',
   FS_DRIVES: 'fs:drives',
+  FS_KNOWN_FOLDERS: 'fs:known-folders', // 빠른 위치(다운로드 등) → Result<KnownFoldersDTO>
   FS_TREE_CHILDREN: 'fs:tree-children',
   FS_VALIDATE_PATH: 'fs:validate-path',
 
@@ -178,6 +179,14 @@ export const CHANNELS = {
   // Main→Renderer 단방향 이벤트(요청-응답 아님). 새 탭으로 해당 폴더/드라이브를 연다.
   APP_OPEN_PATH: 'app:open-path', // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
 
+  // ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3 Could) ──────────
+  // 둘 다 invoke(요청-응답) → EVENT_CHANNELS 무변(신규 푸시 evt 0).
+  //  - split-tab: 소스 렌더러가 탭 1개를 분리(TabSnapshot 전달) → main 이 새 창 생성.
+  //  - get-init : 각 창의 렌더러가 부팅 시 자기 초기 상태({primary, initialTab})를
+  //               동기 invoke 로 끌어온다(푸시 경쟁 회피). main 은 event.sender 로 식별.
+  WINDOW_SPLIT_TAB: 'window:split-tab', // invoke → Result<void> (탭 → 새 창 분리)
+  WINDOW_GET_INIT: 'window:get-init', // invoke → Result<WindowInitRes> (부팅 초기 상태)
+
   // ── search:content:* 내용 검색 grep (M8 — ADR-010, 신규 §S S1) ─────────────
   // 현재 폴더(+하위 토글) 온디맨드 텍스트/정규식 grep. analyze:scan:*·hash:* 선례
   // 동형(jobId 상관·SharedArrayBuffer 협조취소·200ms 스로틀 진행률·증분 결과 푸시).
@@ -189,7 +198,14 @@ export const CHANNELS = {
   SEARCH_CONTENT_PROGRESS: 'search:content:progress', // 푸시 evt (200ms 스로틀)
   SEARCH_CONTENT_MATCH: 'search:content:match', // 푸시 evt (파일 단위 증분 결과)
   SEARCH_CONTENT_DONE: 'search:content:done', // 푸시 evt (총 일치 수·truncated)
-  SEARCH_CONTENT_CANCEL: 'search:content:cancel' // invoke → Result<void> (jobId 협조취소)
+  SEARCH_CONTENT_CANCEL: 'search:content:cancel', // invoke → Result<void> (jobId 협조취소)
+
+  // ── archive:* 압축파일 어댑터 (M9 — ADR-008, 신규 §Q Q1) ──────────────────
+  ARCHIVE_OPEN: 'archive:open',
+  ARCHIVE_LIST: 'archive:list',
+  ARCHIVE_CLOSE: 'archive:close',
+  ARCHIVE_EXTRACT: 'archive:extract',
+  ARCHIVE_ADD: 'archive:add'
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]

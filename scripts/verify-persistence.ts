@@ -330,6 +330,46 @@ async function main(): Promise<void> {
   check('구버전 세션(splitRatios 키 없음) 크래시 프리 복원', legacy.windows.length === 1)
   check('구버전 세션 → splitRatios 미부착(undefined)', legacy.windows[0].tabs[0].splitRatios === undefined)
 
+  // ── 5c) 탭 메타(customName/color/locked) coerce(Feature A·US-20.3) ───────
+  line('== 5c) coerceTab 메타(customName trim/색상 화이트리스트/locked 불리언/구버전) ==')
+  const metaTab = (meta: Record<string, unknown>): unknown => ({
+    version: 1,
+    windows: [
+      {
+        tabs: [{ id: 't', activePanelId: 'p', layout: 'single', panels: [{ id: 'p', path: 'C:\\ok' }], ...meta }],
+        activeTabId: 't'
+      }
+    ],
+    sidebar: { favorites: [], recent: [], width: 240, collapsed: false },
+    ui: { theme: 'system', previewOpen: false }
+  })
+  const loadMetaTab = async (meta: Record<string, unknown>): Promise<SessionSnapshot['windows'][0]['tabs'][0]> => {
+    await writeJsonAtomic(paths.session, metaTab(meta))
+    const r = await corruptSess.load()
+    return r.windows[0]!.tabs[0]!
+  }
+  // 정상 값 보존.
+  const metaOk = await loadMetaTab({ customName: '작업', color: 'blue', locked: true })
+  check('탭 메타 정상 보존(customName/color/locked)', metaOk.customName === '작업' && metaOk.color === 'blue' && metaOk.locked === true)
+  // customName trim·빈값 생략.
+  const metaTrim = await loadMetaTab({ customName: '  여백  ' })
+  check('customName trim 보존', metaTrim.customName === '여백')
+  const metaEmpty = await loadMetaTab({ customName: '   ' })
+  check('빈/공백 customName → 생략', metaEmpty.customName === undefined && !('customName' in (metaEmpty as Record<string, unknown>)))
+  const metaNonStr = await loadMetaTab({ customName: 123 })
+  check('비문자열 customName → 생략', metaNonStr.customName === undefined)
+  // 색상 화이트리스트(무효 키 생략).
+  const metaBadColor = await loadMetaTab({ color: 'cyan' })
+  check('무효 색상 키(cyan) → 생략', metaBadColor.color === undefined)
+  // locked 비불리언/false → 생략(미잠금).
+  const metaLockFalse = await loadMetaTab({ locked: false })
+  check('locked=false → 생략', metaLockFalse.locked === undefined && !('locked' in (metaLockFalse as Record<string, unknown>)))
+  const metaLockStr = await loadMetaTab({ locked: 'yes' })
+  check('locked 비불리언 → 생략', metaLockStr.locked === undefined)
+  // 구버전(메타 키 없음) → 전부 생략·크래시 프리.
+  const metaLegacy = await loadMetaTab({})
+  check('구버전(메타 없음) → 키 생략', metaLegacy.customName === undefined && metaLegacy.color === undefined && metaLegacy.locked === undefined)
+
   // ── 6) 디바운스 ───────────────────────────────────────────────────────
   line('== 6) 디바운스 저장(변경 합산) + flush ==')
   await fsp.rm(paths.session, { force: true })
@@ -520,6 +560,51 @@ async function main(): Promise<void> {
   const backRt = await sessRt.load()
   check('round-trip version 1', backRt.version === 1)
   check('round-trip 전체 동등(JSON)', JSON.stringify(backRt) === JSON.stringify(sampleSession()))
+
+  // ── 12) U3: 멀티 윈도우 coerce(windows[] 배열 N개 보존·무효 창 제거) ───────
+  // 멀티 윈도우 세션 복원의 토대 — coerceSession 이 windows 를 단일 출처로 매핑하므로
+  // 길이>1 배열을 보존하고, 무효(빈 tabs) 창은 떨어뜨리되 유효 창은 살아남는다.
+  // (현 MVP 는 분리 창을 자동저장하지 않아 실제로 1창만 저장되지만, coerce 토대를
+  //  회귀 보호한다 — 향후 멀티 윈도우 복원 확장 시 안전망.)
+  line('== 12) U3 멀티 윈도우 coerce(windows[] 다중·무효 제거) ==')
+  const mw = (raw: unknown): SessionSnapshot => coerceSession(raw, 10)
+  const validWin = (id: string, p: string): unknown => ({
+    tabs: [{ id, activePanelId: `${id}-p`, layout: 'single', panels: [{ id: `${id}-p`, path: p }] }],
+    activeTabId: id
+  })
+  const twoWin = mw({
+    version: 1,
+    windows: [validWin('w1', 'C:\\a'), validWin('w2', 'D:\\b')],
+    sidebar: { favorites: [], recent: [], width: 240, collapsed: false },
+    ui: { theme: 'system', previewOpen: false }
+  })
+  check('U3 windows[] 2개 보존', twoWin.windows.length === 2)
+  check('U3 둘째 창 경로 보존', twoWin.windows[1]?.tabs[0]?.panels[0]?.path === 'D:\\b')
+
+  // 무효 창(빈 tabs)은 coerceWindow 가 undefined → 필터링, 유효 창만 생존.
+  const mixedWin = mw({
+    version: 1,
+    windows: [validWin('w1', 'C:\\a'), { tabs: [], activeTabId: '' }, 'garbage'],
+    sidebar: { favorites: [], recent: [], width: 240, collapsed: false },
+    ui: { theme: 'system', previewOpen: false }
+  })
+  check('U3 무효 창 제거(유효 1개만)', mixedWin.windows.length === 1)
+  check('U3 생존 창 경로 정상', mixedWin.windows[0]?.tabs[0]?.panels[0]?.path === 'C:\\a')
+
+  // 멀티 윈도우 round-trip(SessionStore) — 저장→로드 동등(향후 복원 확장 토대).
+  const mwStore = new SessionStore(paths, () => 10, 0)
+  const mwSnap: SessionSnapshot = {
+    version: 1,
+    windows: [
+      validWin('rw1', 'C:\\x') as SessionSnapshot['windows'][number],
+      validWin('rw2', 'E:\\y') as SessionSnapshot['windows'][number]
+    ],
+    sidebar: defaultSidebar(),
+    ui: { theme: 'system', previewOpen: false }
+  }
+  await mwStore.save(mwSnap)
+  const mwBack = await mwStore.load()
+  check('U3 멀티 윈도우 round-trip windows 2개', mwBack.windows.length === 2)
 
   // ── 정리 ──────────────────────────────────────────────────────────────
   await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)

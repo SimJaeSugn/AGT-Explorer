@@ -11,9 +11,13 @@
 import type { FileEntryDTO } from '@shared/dto'
 import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc } from '@renderer/domain/paths'
+import { locationKindOf } from '@renderer/domain/rules/remoteLocation'
+import { isZipFile } from '@renderer/domain/rules/archiveSession'
 import { TAG_PALETTE, type TagKey } from '@renderer/domain/rules/tags'
 import { execCommand } from './commandBus'
 import { openTerminalAt, openWithEntry, showPropertiesFor } from './open'
+import { openArchiveAsFolder, extractToLocal } from './archive'
+import { panelPaths } from './fileOps'
 import { comparePanelsOf } from './compare'
 import { visibleEntries } from './selectors'
 
@@ -154,10 +158,41 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   const single = ctx.singleEntry
   const items: MenuItem[] = []
 
+  // §Q1: 현재 패널이 압축 내부인지(추출 메뉴 노출 판정). targetPath 가 archive:// URI 면 압축 항목.
+  const inArchive = targetPath !== null && locationKindOf(targetPath) === 'archive'
+
+  // ── 압축: "추출"(압축 내부 항목 — 단일/다중 모두). 도착지=다른 패널의 로컬 폴더. ──────
+  // 도착지가 준비 안 됐어도 메뉴는 노출(클릭 시 안내) — 발견성 우선. 도착지 해석은 클릭 시점
+  // (최신 패널 상태)에 한다(메뉴를 띄운 뒤 반대편을 옮길 수 있으므로).
+  if (inArchive) {
+    const sources = single ? [single.path] : [...ctx.selectedPaths]
+    items.push({
+      id: 'extract',
+      label: '추출',
+      run: () => {
+        const d = panelPaths().otherPath
+        if (typeof d === 'string' && locationKindOf(d) === 'local' && !isMyPc(d)) {
+          void extractToLocal(sources, d)
+        } else {
+          store.getState().pushToast('info', '추출하려면 반대편 패널을 로컬 폴더로 여세요.')
+        }
+      }
+    })
+    items.push({ id: 'sep-extract', separator: true })
+  }
+
   // ── 열기 그룹(단일 전용) ──────────────────────────────────────────────
   if (!multi && single) {
     // 폴더=진입, 파일=연결 프로그램 실행. 둘 다 panel.activate(activateEntry) 로 수렴.
     items.push({ id: 'open', label: '열기', run: cmd('panel.activate') })
+    // §Q1: 로컬 .zip 단일 선택 시 "폴더처럼 열기"(archive:open → archive://zip!/ 이동).
+    if (!single.isDir && isZipFile(single.name) && locationKindOf(single.path) === 'local') {
+      items.push({
+        id: 'openAsFolder',
+        label: '폴더처럼 열기',
+        run: () => void openArchiveAsFolder(panelId, single.path)
+      })
+    }
     // 단일 디렉토리 선택만 "터미널 열기"(열기 그룹 내, 열기 바로 다음). 파일은 cwd 개념 부적합.
     if (single.isDir) {
       items.push({

@@ -4,11 +4,16 @@
  * §M M3: 로컬↔원격 드롭/복사/붙여넣기를 다운로드/업로드/로컬op 로 라우팅한다.
  * D&D·클립보드·키보드가 같은 규칙을 공유하고 단위 테스트가 쉽다(dragIntent 동형).
  *
- *  - local → local  : 기존 resolveDragIntent(copy/move) — 라우팅은 'local'(기존 op:* 경로).
- *  - local → remote : upload.
- *  - remote → local : download.
- *  - remote → remote: unsupported(1차 범위 밖 · UQ-M3 · 로컬 경유 별도).
+ *  - local → local   : 기존 resolveDragIntent(copy/move) — 라우팅은 'local'(기존 op:* 경로).
+ *  - local → remote  : upload.
+ *  - remote → local  : download.
+ *  - remote → remote : unsupported(1차 범위 밖 · UQ-M3 · 로컬 경유 별도).
  *  - 외부(앱 바깥) 도착(M1): copy 고정(transferToExternal).
+ *
+ * §Q1(ADR-008 결정①-전송 라우팅): 압축↔로컬 조합을 추가한다.
+ *  - archive → local : extract(`archive:extract` · 추출).
+ *  - local → archive : add(`archive:add` · 추가).
+ *  - archive ↔ archive / archive ↔ remote : unsupported(1차 범위 밖 · ADR-008).
  *
  * 부수효과 없음. react/zustand/infra/shared-ipc import 금지(.eslintrc).
  */
@@ -27,9 +32,11 @@ export interface Loc {
  *  - 'copy'/'move' : 로컬↔로컬(기존 op:* 파이프라인으로 위임).
  *  - 'upload'      : 로컬→원격(remote:upload).
  *  - 'download'    : 원격→로컬(remote:download).
- *  - 'unsupported' : 원격↔원격(1차 미지원).
+ *  - 'extract'     : 압축→로컬(archive:extract · §Q1).
+ *  - 'add'         : 로컬→압축(archive:add · §Q1).
+ *  - 'unsupported' : 원격↔원격 · 압축↔압축 · 압축↔원격(1차 미지원).
  */
-export type TransferKind = 'copy' | 'move' | 'upload' | 'download' | 'unsupported'
+export type TransferKind = 'copy' | 'move' | 'upload' | 'download' | 'extract' | 'add' | 'unsupported'
 
 /**
  * 드롭/붙여넣기 전송 종류 결정.
@@ -54,7 +61,10 @@ export function resolveTransfer(
   }
   if (srcLoc.kind === 'local' && dstLoc.kind === 'remote') return 'upload'
   if (srcLoc.kind === 'remote' && dstLoc.kind === 'local') return 'download'
-  // remote → remote
+  // §Q1(ADR-008): 압축↔로컬만 지원. 압축↔압축·압축↔원격은 1차 범위 밖.
+  if (srcLoc.kind === 'archive' && dstLoc.kind === 'local') return 'extract'
+  if (srcLoc.kind === 'local' && dstLoc.kind === 'archive') return 'add'
+  // remote → remote · archive ↔ archive · archive ↔ remote
   return 'unsupported'
 }
 

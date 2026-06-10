@@ -25,6 +25,7 @@ import type {
   FileOpErrorCode,
   GrepMatchDTO,
   HashAlgo,
+  KnownFoldersDTO,
   ListStreamChunk,
   ListStreamDone,
   ListStreamStart,
@@ -37,6 +38,7 @@ import type {
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
+  TabSnapshot,
   TrashItemDTO,
   VerifyMismatchDTO,
   WorkspaceInfo
@@ -513,6 +515,39 @@ export interface SearchContentCancelReq {
   readonly jobId: string
 }
 
+// archive:* 압축파일 어댑터 (M9 — ADR-008)
+export interface ArchiveOpenReq {
+  readonly archivePath: string
+}
+export interface ArchiveOpenRes {
+  readonly sessionId: string
+}
+export interface ArchiveListReq {
+  readonly sessionId: string
+  readonly innerPath: string
+}
+export interface ArchiveListRes {
+  readonly entries: FileEntryDTO[]
+}
+export interface ArchiveCloseReq {
+  readonly sessionId: string
+}
+export interface ArchiveExtractReq {
+  readonly sessionId: string
+  readonly innerPaths: string[]
+  readonly destDir: string
+  readonly conflictPolicy?: ConflictPolicy
+}
+export interface ArchiveAddReq {
+  readonly sessionId: string
+  readonly localPaths: string[]
+  readonly innerDir: string
+  readonly conflictPolicy?: ConflictPolicy
+}
+export interface ArchiveTransferRes {
+  readonly operationId: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
@@ -524,6 +559,7 @@ export interface IpcRequestMap {
   [CHANNELS.FS_LIST]: { req: FsListReq; res: Result<DirListResult> }
   [CHANNELS.FS_STAT]: { req: FsStatReq; res: Result<FileEntryDTO> }
   [CHANNELS.FS_DRIVES]: { req: void; res: Result<DriveDTO[]> }
+  [CHANNELS.FS_KNOWN_FOLDERS]: { req: void; res: Result<KnownFoldersDTO> }
   [CHANNELS.FS_TREE_CHILDREN]: { req: FsTreeChildrenReq; res: Result<FileEntryDTO[]> }
   [CHANNELS.FS_VALIDATE_PATH]: { req: FsValidatePathReq; res: Result<PathValidation> }
   [CHANNELS.FS_LIST_START]: { req: FsListStartReq; res: Result<ListStreamStart> }
@@ -578,6 +614,10 @@ export interface IpcRequestMap {
   [CHANNELS.WORKSPACE_LIST]: { req: void; res: Result<WorkspaceInfo[]> }
   [CHANNELS.WORKSPACE_LOAD]: { req: WorkspaceLoadReq; res: Result<SessionSnapshot> }
   [CHANNELS.WORKSPACE_DELETE]: { req: WorkspaceDeleteReq; res: Result<void> }
+
+  // window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3)
+  [CHANNELS.WINDOW_SPLIT_TAB]: { req: WindowSplitTabReq; res: Result<void> }
+  [CHANNELS.WINDOW_GET_INIT]: { req: void; res: Result<WindowInitRes> }
 
   // preview:* (P6 — 신규 Should)
   [CHANNELS.PREVIEW_READ]: { req: PreviewReadReq; res: Result<PreviewData> }
@@ -638,6 +678,13 @@ export interface IpcRequestMap {
   // search:content:* (신규 M8 — ADR-010, 핸들러/GrepManager impl: S1)
   [CHANNELS.SEARCH_CONTENT_START]: { req: SearchContentStartReq; res: Result<SearchContentStartRes> }
   [CHANNELS.SEARCH_CONTENT_CANCEL]: { req: SearchContentCancelReq; res: Result<void> }
+
+  // archive:* (신규 M9 — ADR-008, 핸들러 impl: Q1)
+  [CHANNELS.ARCHIVE_OPEN]: { req: ArchiveOpenReq; res: Result<ArchiveOpenRes> }
+  [CHANNELS.ARCHIVE_LIST]: { req: ArchiveListReq; res: Result<ArchiveListRes> }
+  [CHANNELS.ARCHIVE_CLOSE]: { req: ArchiveCloseReq; res: Result<void> }
+  [CHANNELS.ARCHIVE_EXTRACT]: { req: ArchiveExtractReq; res: Result<ArchiveTransferRes> }
+  [CHANNELS.ARCHIVE_ADD]: { req: ArchiveAddReq; res: Result<ArchiveTransferRes> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -761,6 +808,25 @@ export interface QueueStateEvt {
 /** 탐색기 컨텍스트 메뉴로 전달된 경로(정규화된 로컬 폴더/드라이브/파일). 렌더러가 새 탭으로 연다. */
 export interface AppOpenPathEvt {
   readonly path: string
+}
+
+// ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3) ────────────────
+/**
+ * 탭 분리 요청(window:split-tab). 소스 렌더러가 분리할 탭의 직렬화 스냅샷을
+ * 그대로 넘기면(세션 TabSnapshot 과 동형) main 이 새 창을 만들어 그 탭으로 부팅한다.
+ * 비밀·휘발 상태는 애초에 TabSnapshot 에 없다(세션 직렬화와 동일 규약).
+ */
+export interface WindowSplitTabReq {
+  readonly tab: TabSnapshot
+}
+/**
+ * 부팅 초기 상태(window:get-init). 각 창의 렌더러가 부팅 시 invoke 로 끌어간다.
+ * primary=true 면 세션 복원·자동저장 담당(기본 부트), false 면 분리 창
+ * (initialTab 으로 부팅·자동저장 미참여). initialTab 은 split 창만 채워진다.
+ */
+export interface WindowInitRes {
+  readonly primary: boolean
+  readonly initialTab: TabSnapshot | null
 }
 
 // ── search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 — 소비측 필터) ──

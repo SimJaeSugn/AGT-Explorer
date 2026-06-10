@@ -90,12 +90,22 @@ import type {
   QueueRetryReq,
   QueueSetConcurrencyReq,
   QueueStateEvt,
+  ArchiveOpenReq,
+  ArchiveOpenRes,
+  ArchiveListReq,
+  ArchiveListRes,
+  ArchiveCloseReq,
+  ArchiveExtractReq,
+  ArchiveAddReq,
+  ArchiveTransferRes,
   SearchContentStartReq,
   SearchContentStartRes,
   SearchContentCancelReq,
   SearchContentProgressEvt,
   SearchContentMatchEvt,
   SearchContentDoneEvt,
+  WindowSplitTabReq,
+  WindowInitRes,
   TrashRestoreReq,
   TrashEmptyReq,
   PreviewReadReq,
@@ -122,6 +132,7 @@ import type {
   DirListResult,
   DriveDTO,
   FileEntryDTO,
+  KnownFoldersDTO,
   ListStreamChunk,
   ListStreamDone,
   ListStreamStart,
@@ -164,11 +175,18 @@ export interface ExplorerApi {
     onOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe
   }
 
+  // ── window:* (U3 — 멀티 윈도우: 탭 분리(새 창), US-20.3) ────────
+  readonly window: {
+    splitTab(req: WindowSplitTabReq): Promise<Result<void>>
+    getInit(): Promise<Result<WindowInitRes>>
+  }
+
   readonly fs: {
     // ── 읽기 계열 (구현 P1) ──────────────────────────────────────
     list(req: FsListReq): Promise<Result<DirListResult>>
     stat(req: FsStatReq): Promise<Result<FileEntryDTO>>
     drives(): Promise<Result<DriveDTO[]>>
+    knownFolders(): Promise<Result<KnownFoldersDTO>>
     treeChildren(req: FsTreeChildrenReq): Promise<Result<FileEntryDTO[]>>
     validatePath(req: FsValidatePathReq): Promise<Result<PathValidation>>
 
@@ -340,6 +358,13 @@ export interface ExplorerApi {
     onContentMatch(cb: (evt: SearchContentMatchEvt) => void): Unsubscribe
     onContentDone(cb: (evt: SearchContentDoneEvt) => void): Unsubscribe
   }
+  readonly archive: {
+    open(req: ArchiveOpenReq): Promise<Result<ArchiveOpenRes>>
+    list(req: ArchiveListReq): Promise<Result<ArchiveListRes>>
+    close(req: ArchiveCloseReq): Promise<Result<void>>
+    extract(req: ArchiveExtractReq): Promise<Result<ArchiveTransferRes>>
+    add(req: ArchiveAddReq): Promise<Result<ArchiveTransferRes>>
+  }
 }
 
 export const api: ExplorerApi = {
@@ -349,10 +374,16 @@ export const api: ExplorerApi = {
     onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb)
   },
 
+  window: {
+    splitTab: (req) => invoke(CHANNELS.WINDOW_SPLIT_TAB, req),
+    getInit: () => invoke(CHANNELS.WINDOW_GET_INIT)
+  },
+
   fs: {
     list: (req) => invoke(CHANNELS.FS_LIST, req),
     stat: (req) => invoke(CHANNELS.FS_STAT, req),
     drives: () => invoke(CHANNELS.FS_DRIVES),
+    knownFolders: () => invoke(CHANNELS.FS_KNOWN_FOLDERS),
     treeChildren: (req) => invoke(CHANNELS.FS_TREE_CHILDREN, req),
     validatePath: (req) => invoke(CHANNELS.FS_VALIDATE_PATH, req),
 
@@ -499,6 +530,13 @@ export const api: ExplorerApi = {
     onContentProgress: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_PROGRESS, cb),
     onContentMatch: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_MATCH, cb),
     onContentDone: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_DONE, cb)
+  },
+  archive: {
+    open: (req) => invoke(CHANNELS.ARCHIVE_OPEN, req),
+    list: (req) => invoke(CHANNELS.ARCHIVE_LIST, req),
+    close: (req) => invoke(CHANNELS.ARCHIVE_CLOSE, req),
+    extract: (req) => invoke(CHANNELS.ARCHIVE_EXTRACT, req),
+    add: (req) => invoke(CHANNELS.ARCHIVE_ADD, req)
   }
 }
 

@@ -1,13 +1,15 @@
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { CHANNELS } from '@shared/ipc/channels'
-import { createMainWindow } from './windows/mainWindow'
+import { createPrimaryWindow, getPrimaryWindow } from './windows/windowManager'
 import { extractPathArg } from './os/launchPath'
 import { registerIpcHandlers } from './ipc'
 import { initPersistence, sessionStore } from './persistence'
 import { initRemoteProfileStore } from './persistence/RemoteProfileStore'
 import { initCredentialStore } from './os/credentials'
 import { initRemoteSessionManager, remoteSessionManager } from './remote'
+import { initArchiveSessionManager, initArchiveService, archiveSessionManager } from './archive'
+import { operationManager } from './operations/OperationManager'
 import { watchService } from './fs/WatchService'
 import { driveTypeService } from './os/driveType'
 
@@ -18,16 +20,16 @@ const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  let mainWindow: BrowserWindow | null = null
-
-  // 두 번째 실행(탐색기 "AGT-Finder로 열기" 포함): 기존 창을 포커스하고, argv 에
-  // 경로가 있으면 렌더러로 전달해 새 탭으로 연다(V2).
+  // 두 번째 실행(탐색기 "AGT-Finder로 열기" 포함): primary 창을 포커스하고, argv 에
+  // 경로가 있으면 렌더러로 전달해 새 탭으로 연다(V2). 멀티 윈도우(U3)에서도
+  // app:open-path 는 세션·새 탭을 담당하는 primary 창으로만 보낸다(전역 푸시 단일화).
   app.on('second-instance', (_e, argv) => {
-    if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    const primary = getPrimaryWindow()
+    if (!primary) return
+    if (primary.isMinimized()) primary.restore()
+    primary.focus()
     const target = extractPathArg(argv)
-    if (target) mainWindow.webContents.send(CHANNELS.APP_OPEN_PATH, { path: target })
+    if (target) primary.webContents.send(CHANNELS.APP_OPEN_PATH, { path: target })
   })
 
   // 종료 직전 보류 중인 세션 스냅샷을 즉시 flush (디바운스 대기분 보존, SA §5.2).
@@ -41,6 +43,12 @@ if (!gotTheLock) {
       void remoteSessionManager().disconnectAll()
     } catch {
       /* persistence/remote 미초기화 → 스킵 */
+    }
+    // 압축 세션 전부 정리(파일 디스크립터 누수 0 — §Q1). 미초기화면 무시.
+    try {
+      void archiveSessionManager().closeAll()
+    } catch {
+      /* archive 미초기화 → 스킵 */
     }
     if (quitFlushed) return
     try {
@@ -72,6 +80,12 @@ if (!gotTheLock) {
     const profiles = initRemoteProfileStore(userData)
     initRemoteSessionManager(profiles)
 
+    // §Q1 압축(M9): zip 세션 매니저(open/list/close) + 추출/추가 서비스 초기화.
+    //   추출/추가는 OperationManager(op:* 스트림)를 주입받아 진행률·취소·완료를 재사용한다
+    //   (신규 진행률 채널 0 — remote:download/upload 선례 동형). yauzl/yazl 은 archive/ 캡슐화.
+    initArchiveSessionManager()
+    initArchiveService(operationManager)
+
     // 엄격 CSP — 로컬 번들만 허용, 원격/인라인 스크립트 차단 (ADR-005)
     // dev 에서는 Vite HMR(웹소켓/인라인) 을 위해 약간 완화한다.
     const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -98,15 +112,14 @@ if (!gotTheLock) {
     // IPC 핸들러 등록(P1: fs:* 읽기 계열). 창 생성 전에 등록한다.
     registerIpcHandlers()
 
-    mainWindow = createMainWindow()
+    const mainWindow = createPrimaryWindow()
 
     // V2: 최초 실행이 탐색기 "AGT-Finder로 열기"였다면 argv 경로를 렌더러로 전달한다
     // (창 로드 완료 후 1회 — 렌더러가 새 탭으로 연다). 경로 없으면 무동작.
     const launchTarget = extractPathArg(process.argv)
     if (launchTarget) {
-      const win = mainWindow
-      win.webContents.once('did-finish-load', () => {
-        win.webContents.send(CHANNELS.APP_OPEN_PATH, { path: launchTarget })
+      mainWindow.webContents.once('did-finish-load', () => {
+        mainWindow.webContents.send(CHANNELS.APP_OPEN_PATH, { path: launchTarget })
       })
     }
 
@@ -115,8 +128,9 @@ if (!gotTheLock) {
     void driveTypeService.refresh()
 
     app.on('activate', () => {
+      // 모든 창이 닫힌 뒤 재활성(darwin) 시 primary 창을 다시 띄운다(세션 복원 경로).
       if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createMainWindow()
+        createPrimaryWindow()
       }
     })
   })

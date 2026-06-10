@@ -1,6 +1,6 @@
 {
   "name": "agt-finder",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
@@ -47,7 +47,9 @@
     "verify:remote-trust": "esbuild scripts/verify-remote-trust.ts --bundle --platform=node --format=cjs --external:electron --external:ssh2-sftp-client --external:basic-ftp --external:ssh2 --external:cpu-features --alias:@shared=./src/shared --outfile=./out/verify-remote-trust.cjs && node ./out/verify-remote-trust.cjs",
     "verify:remote-route": "esbuild scripts/verify-remote-route.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-remote-route.mjs && node ./out/verify-remote-route.mjs",
     "verify:palette": "esbuild tests/palette.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/palette.verify.mjs && node ./out/palette.verify.mjs",
-    "verify:contentsearch": "esbuild tests/contentsearch.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/contentsearch.verify.mjs && node ./out/contentsearch.verify.mjs"
+    "verify:contentsearch": "esbuild tests/contentsearch.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/contentsearch.verify.mjs && node ./out/contentsearch.verify.mjs",
+    "verify:archiveui": "esbuild tests/archiveui.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/archiveui.verify.mjs && node ./out/archiveui.verify.mjs",
+    "verify:archive": "esbuild scripts/verify-archive.ts --bundle --platform=node --format=cjs --external:electron --external:yauzl --external:yazl --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-archive.cjs && node ./out/verify-archive.cjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
@@ -59,6 +61,8 @@
     "marked": "^18.0.5",
     "recharts": "^3.8.1",
     "ssh2-sftp-client": "^11.0.0",
+    "yauzl": "^2.10.0",
+    "yazl": "^2.5.1",
     "zod": "^3.25.76",
     "zustand": "^4.5.5"
   },
@@ -70,6 +74,8 @@
     "@types/node": "^20.16.5",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^2.4.6",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.3.1",

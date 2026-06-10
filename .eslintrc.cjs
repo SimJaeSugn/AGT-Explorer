@@ -107,10 +107,33 @@ module.exports = {
               { name: 'tls', message: '원격 TLS import 는 `src/main/remote/` 에만 허용(ADR-007 ②) — 그 외 main 금지.' },
               { name: 'ssh2', message: '원격(SFTP) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' },
               { name: 'ssh2-sftp-client', message: '원격(SFTP) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' },
-              { name: 'basic-ftp', message: '원격(FTP/FTPS) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' }
+              { name: 'basic-ftp', message: '원격(FTP/FTPS) 라이브러리 import 는 `src/main/remote/` 에만 허용(ADR-007 ②).' },
+              // ── ADR-008 압축 라이브러리 격리(archive/ 외 전면 금지) ──
+              // yauzl/yazl 은 순수 JS(네트워크 아님)이나, 라이브러리 표면을 감사 가능한 단일
+              // 디렉토리(`src/main/archive/`)에 가둔다(remote/ 격리 모델 동형 · ADR-008).
+              { name: 'yauzl', message: '압축(zip 읽기) 라이브러리 import 는 `src/main/archive/` 에만 허용(ADR-008).' },
+              { name: 'yazl', message: '압축(zip 쓰기) 라이브러리 import 는 `src/main/archive/` 에만 허용(ADR-008).' }
             ],
             patterns: [
               { group: ['**/renderer/**', '@renderer/*'], message: 'main/preload 는 renderer import 금지.' }
+            ]
+          }
+        ]
+      }
+    },
+    // ── main/archive: 압축 라이브러리 화이트리스트 예외(ADR-008) ──
+    // 유일한 압축 라이브러리 특권 디렉토리. 위 main 광역 블록의 yauzl/yazl 차단을 여기서만
+    // 해제(allow)한다(remote/ 격리 모델 동형). renderer import 금지는 main 과 동일 유지.
+    // ESLint override 는 후순위 매칭 우선 — main 광역 블록 뒤에 두어 archive/ 만 완화된다.
+    {
+      files: ['src/main/archive/**/*.ts', 'src/main/workers/archiveWorker.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [],
+            patterns: [
+              { group: ['**/renderer/**', '@renderer/*'], message: 'main/archive 도 renderer import 금지(역방향 의존).' }
             ]
           }
         ]

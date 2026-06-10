@@ -24,7 +24,8 @@
 > **[2026-06-09 동작 변경 2건 — refinement·기존 기능 수용기준 갱신]** docs/temp/ref.md 신규 아이디어 2건을 구현·검증 완료하여 기존 명세를 실제 동작에 맞게 갱신했다(새 챕터 신설 아님·MoSCoW 등급/스코프 불변). ① **§O 고정 표시 "최상단 정렬"→"스크롤 고정(sticky)"**: 목록(list)·자세히(details) 보기에서 고정 항목이 스크롤해도 상단에 붙어 계속 보이도록 변경(키보드 내비게이션은 밴드 높이만큼 스크롤 보정). **아이콘 그리드(icons-*)는 wrapping 레이아웃 특성상 sticky 미적용 → 기존대로 "정렬 최상단"만 유지**(보기별 차이 정직 표기). §O1 표시·정렬 규칙·수용기준·US-14.1·F19 갱신. ② **원격 주소창 경로-only 입력(§H5×§M3 교차)**: 원격(SFTP/FTP) 패널의 주소 표시줄 편집 시 호스트(`sftp://host`)는 고정 프리픽스로 표시되고 사용자는 경로만(`/mnt/sub`) 입력하면 현재 호스트와 결합해 이동(방어적으로 전체 URI 입력도 처리·로컬 경로 입력 동작 불변). §H5·§M3 동작 규칙·수용기준·US-7.5·US-12.4·flows 주소입력/F16 갱신. **검증: typecheck/lint/build 0·verify 회귀 0(domain 60·store 121·persistence 101·perf 25 windowing 불변·remote-route 47). 실 GUI(원격 주소 경로-only 입력·이동, 고정 sticky 스크롤 고정 렌더·키보드 보정)는 헤드리스 미증명 → 런타임 스모크 권장 🟡.**
 > **[2026-06-09 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI 🟡 — 파워기능 M6 1차 3종(§P·§R·§T)]** 2026-06-09 §P~§U 14종 일괄 기획 편입(설계만·🔜) 중 M6 배정 3종을 구현·통합 검증 완료. **P1 듀얼 패널 폴더 비교(메타·단일깊이)(§P·US-15.1·F20, Should ✅ 코드 — `domain/rules/compare.ts` 4상태·`planMirror`·`compareSlice`·`usecases/compare`·`ui/compare/`[CompareView·CompareToolbar·useSyncScroll·CompareMirrorDialog]·`CompareStatus` DTO·미러=기존 `op:*`·**해시 비교·재귀 비교는 M7 연기 🔜**) · R1 고급 일괄 이름변경(§R·US-17.1·F22, Should ✅ 코드 — `domain/rules/batchRename.ts`·`usecases/batchRename`·`ui/rename/BatchRenameDialog`·`undoSlice kind:'batchRename'`·`undo.ts` 역연산·`Ctrl+Shift+R`·기존 `fs:rename` 반복) · T3 정렬/필터 프리셋(§T·US-19.3·F30, Should ✅ 코드 — `domain/rules/filterComposition.ts`·`presetsSlice`·`usecases/presets`·`ui/preset/PresetBar+PresetManageDialog`·`FilterPreset` DTO·`selectors.computeVisible` matches 교체·`coerceFilterPresets`·`SESSION_SCHEMA_VERSION` 1→2).** **3기능 모두 렌더러+세션영속·신규 IPC 채널 0·신규 npm 의존성 0.** 검증: typecheck/lint/build 0·`verify:domain` 132·`verify:store` 162·`verify:persistence` 123·`verify:operations` 75·`verify:perf` 25·`verify:p5` 52(0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속 불변식만 증명. 실 GUI 동작(프리셋 드롭다운/관리 다이얼로그·일괄 rename 실 파일 왕복·Ctrl+Z 실복원·비교 진입/미러/동기 스크롤)은 런타임 스모크 권장 🟡. P1 메타·단일깊이 한정·해시/재귀 M7 연기. 나머지 §P~§U 11종(Q1·R2·R3·R4·S1·S2·T1·T2·U1·U2·U3)은 🔜 미착수(M7~M9).** 상세 §P·§R·§T·[roadmap.md §0.5](./roadmap.md).
 > **[2026-06-09 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 워커·GUI 🟡 — 파워기능 M7 2차(공용 인프라 W1·W2 + 4기능)]** M7 배정분을 구현·통합 검증 완료. **공용 해시 인프라 W1**(`src/main/hash/`[hashEngine·dupEngine·compareEngine·verifyEngine·fsDeps·HashManager]·`src/main/workers/`[hashWorker·hashProtocol]·`hash.handlers.ts`·**신규 채널 `hash:compare:*`/`hash:dup:*`/`hash:verify:*`/`hash:cancel`**·SHA-256 node:crypto·Worker Threads·취소·진행률·`verify:hash` 46)·**전송 큐 인프라 W2**(`TransferQueue.ts`·`OperationManager` 큐 승격·`queue.handlers.ts`·**신규 채널 `queue:*`**·SharedArrayBuffer 2워드 cancel+pause·`verify:queue` 47). **R2 중복 파일 찾기(§R·US-17.2·F23, Should ✅ 코드 — `domain/rules/dupGroup.ts`·`dedupSlice`·`usecases/dedup.ts`·`ui/dedup/DuplicatesDialog.tsx`·`dupEngine.ts`·`hash:dup:*`·정리=기존 `op:trash`) · R3 전송 큐 매니저(§R·US-17.3·F24, Should ✅ 코드 — `usecases/queue.ts`·`ui/queue/(QueuePanel·QueueItemRow·QueueConcurrencyControl·queueFormat)`·StatusBar 합산) · R4 복사 시 체크섬 검증(§R·US-17.4·F25, Could ✅ 코드 — `domain/rules/checksumVerdict.ts`·`usecases/checksum.ts`·`SettingsSnapshot.verifyOnCopy`·SettingsDialog 토글·op:done 후 `hash:verify` 트리거) · P1 해시/재귀 비교 확장(§P·US-15.1, ✅ 코드 — `ComparePairDTO.relPath?`·`compare.ts` useHash/recursive·`fromCompareResult`·`compareSlice` 해시잡·`usecases/compare` `hash:compare:*` 구독·`compareEngine.ts`·옵션 off는 M6 메타 동치).** **신규 IPC 채널 `hash:*`·`queue:*`·신규 npm 의존성 0(SHA-256=node:crypto 내장).** 검증: typecheck/lint/build 0·`verify:hash` 46·`verify:queue` 47·`verify:domain` 168·`verify:store` 207·`verify:persistence` 128·`verify:operations` 75·`verify:ops` 35·`verify:paste` 13·`verify:scan` 39·`verify:fs` 19·`verify:perf` 25·`verify:p5` 52(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·해시/큐 불변식만 증명. 실 동작(해시 워커 잡·큐 스케줄러 일시정지/재개·중복 정리·복사후 검증 트리거·해시/재귀 실 GUI 비교)은 런타임 스모크 권장 🟡. R4 비원자 복사 검증 타이밍·원격 큐 일시정지 미배선 정직 표기. 나머지 §P~§U 7종(Q1·S1·S2·T1·T2·U1·U2·U3)은 🔜 미착수(M8~M9).** 상세 §P·§R·[roadmap.md §0.5](./roadmap.md).
-> **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커 🟡 — 파워기능 M8 6종(§S·§T·§U) + 신규 Should §W1]** M8 배정 6종을 구현·통합 검증 완료. **S1 내용 검색(grep)(§S·US-18.1, Should ✅ 코드 — **신규 채널 `search:content:*` 5종**·`main/search/{grepEngine,binaryDetect,GrepManager,fsDeps}`·`main/workers/grep{Worker,Protocol}`·`search.handlers.ts`·`usecases/contentSearch`·`searchSlice`·`ui/search/ContentSearchDialog`·`domain/rules/contentSearch`·ADR-010·점프=기존 `preview:read`·신규 의존성 0[Node 내장]·`verify:search` 58·`verify:contentsearch` 38) · S2 명령 팔레트(§S·US-18.2, Should ✅ 코드 — 신규 채널 0·`ui/palette/CommandPalette`·`paletteMatch`·`Ctrl+Shift+P`·`verify:palette` 20) · T1 파일 태그/색상 라벨(§T·US-19.1, Should ✅ 코드 — 신규 채널 0·`domain/rules/tags.ts` 7색·`tagsSlice`·세션 메타 `tagsByPath`·**T3 폐기로 삭제됐던 filterComposition 태그 합성 재설계**) · T2 폴더 용량 인라인(§T·US-19.2, Should ✅ 코드 — 신규 채널 0·`usecases/folderSize`·`analyze:scan:*` 재사용) · U1 Space 퀵룩(§U·US-20.1, Should ✅ 코드 — 신규 채널 0·`ui/quicklook/QuickLookOverlay`[J5 재사용]·`Space`·`preview:read` 재사용) · U2 브레드크럼 드롭다운(§U·US-20.2, Should ✅ 코드 — 신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용).** **신규 Should §W1 자세히 보기 컬럼 헤더·너비 드래그(§W·US-21.1·F34, ✅ 코드 — 신규 채널 0·`domain/rules/columnWidths.ts`·`columnsSlice`·`FileListView` sticky 헤더 밴드·세션 영속).** **S1만 신규 IPC 채널 추가·나머지 5종+§W1 신규 채널 0·신규 npm 의존성 0.** 검증: `npm run build`(typecheck node+web+electron-vite) PASS·ESLint 0·신규 `verify:search` 58·`verify:palette` 20·`verify:contentsearch` 38 + `verify:domain` 204·`verify:store` 222·`verify:persistence` 119(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속·계약 불변식만 증명. 실 GUI·실 워커(grep 스트리밍·결과 점프·미리보기 표출·팔레트 검색/실행·Space 퀵룩·태그 부여/필터·폴더용량 실 스캔·브레드크럼 ▾ 이동·컬럼 헤더 드래그/키보드 리사이즈/재시작 후 폭 유지)는 런타임 스모크 권장 🟡. Electron 앱 미실행. M8 잔여 0 — 파워기능 잔여는 M9(Q1 압축·U3 멀티윈도우) 2종.** 상세 §S·§T·§U·§W·[roadmap.md §0.5·§1](./roadmap.md).
+> **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커 🟡 — 파워기능 M8 6종(§S·§T·§U) + 신규 Should §W1]** M8 배정 6종을 구현·통합 검증 완료. **S1 내용 검색(grep)(§S·US-18.1, Should ✅ 코드 — **신규 채널 `search:content:*` 5종**·`main/search/{grepEngine,binaryDetect,GrepManager,fsDeps}`·`main/workers/grep{Worker,Protocol}`·`search.handlers.ts`·`usecases/contentSearch`·`searchSlice`·`ui/search/ContentSearchDialog`·`domain/rules/contentSearch`·ADR-010·점프=기존 `preview:read`·신규 의존성 0[Node 내장]·`verify:search` 58·`verify:contentsearch` 38) · S2 명령 팔레트(§S·US-18.2, Should ✅ 코드 — 신규 채널 0·`ui/palette/CommandPalette`·`paletteMatch`·`Ctrl+Shift+P`·`verify:palette` 20) · T1 파일 태그/색상 라벨(§T·US-19.1, Should ✅ 코드 — 신규 채널 0·`domain/rules/tags.ts` 7색·`tagsSlice`·세션 메타 `tagsByPath`·**T3 폐기로 삭제됐던 filterComposition 태그 합성 재설계**) · T2 폴더 용량 인라인(§T·US-19.2, Should ✅ 코드 — 신규 채널 0·`usecases/folderSize`·`analyze:scan:*` 재사용) · U1 Space 퀵룩(§U·US-20.1, Should ✅ 코드 — 신규 채널 0·`ui/quicklook/QuickLookOverlay`[J5 재사용]·`Space`·`preview:read` 재사용) · U2 브레드크럼 드롭다운(§U·US-20.2, Should ✅ 코드 — 신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용).** **신규 Should §W1 자세히 보기 컬럼 헤더·너비 드래그(§W·US-21.1·F34, ✅ 코드 — 신규 채널 0·`domain/rules/columnWidths.ts`·`columnsSlice`·`FileListView` sticky 헤더 밴드·세션 영속).** **S1만 신규 IPC 채널 추가·나머지 5종+§W1 신규 채널 0·신규 npm 의존성 0.** 검증: `npm run build`(typecheck node+web+electron-vite) PASS·ESLint 0·신규 `verify:search` 58·`verify:palette` 20·`verify:contentsearch` 38 + `verify:domain` 204·`verify:store` 222·`verify:persistence` 119(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속·계약 불변식만 증명. 실 GUI·실 워커(grep 스트리밍·결과 점프·미리보기 표출·팔레트 검색/실행·Space 퀵룩·태그 부여/필터·폴더용량 실 스캔·브레드크럼 ▾ 이동·컬럼 헤더 드래그/키보드 리사이즈/재시작 후 폭 유지)는 런타임 스모크 권장 🟡. Electron 앱 미실행. M8 잔여 0 — 파워기능 잔여는 M9(Q1 압축·U3 멀티윈도우) 2종(아래 M9 배너에서 구현 완료).** 상세 §S·§T·§U·§W·[roadmap.md §0.5·§1](./roadmap.md).
+> **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커·멀티윈도우 🟡 — 파워기능 M9 2종(§Q·§U) + 신규 Should §U4·§X1]** M9 배정 2종 + 사용자 명시 요청 신규 Should 2건을 구현·통합 검증 완료. **Q1 압축파일 `archive://` 어댑터(§Q·US-16.1, Should ✅ 코드 — **신규 채널 `archive:open/list/close/extract/add` 5종**·**신규 의존성 `yauzl`+`yazl`**[MIT·네이티브 0]·`src/main/archive/*`[`ArchiveService`·`ZipReader`(yauzl)·`ZipWriter`(yazl)·`ArchiveSessionManager`·`archiveProtocol`·`archiveErrors`]·`src/main/workers/archiveWorker.ts`·`src/shared/archive/{safePath,archivePath}.ts`[Zip Slip 순수]·`renderer/app/usecases/archive.ts`·추출/추가=기존 `op:*`·1차 zip만·암호 zip 제외·중첩 zip 제외·Zip Slip 차단[ADR-008]·`verify:archive` 56·`verify:archiveui` 43) · U3 탭 색상/잠금·탭 분리(새 창)(§U·US-20.3, Could ✅ 코드 — 색상/잠금=세션 메타[`Tab.color?`/`locked?`·신규 채널 0·닫기 가드]·탭 분리=멀티 윈도우[`src/main/windows/windowManager.ts`·`renderer/app/usecases/windowSplit.ts`·**신규 채널 `window:split-tab`/`window:get-init` 2종**]·신규 의존성 0).** **신규 Should §U4 탭 사용자 지정 이름(§U·US-20.4, ✅ 코드 — 신규 채널 0·`tabsSlice.setTabName/clearTabName`·`TabBar TabRenameInput`·`TabSnapshot.customName?` 영속) · §X1 좌측 사이드바 "빠른 위치 ▸ 다운로드"(§X·US-22.1, ✅ 코드 — **신규 채널 `fs:known-folders` 1종**·`KnownFoldersDTO`·`sidebarSlice.loadKnownFolders`·`Sidebar` 빠른 위치 섹션·다운로드만 렌더).** **Q1만 신규 의존성 추가(yauzl/yazl)·Q1·U3·X1 신규 채널 추가·U4 신규 채널 0.** 검증: `npm run build`(typecheck node+web + archiveWorker.js 번들) PASS·ESLint 0·부팅 스모크 정상·`verify:archive` 56·`verify:archiveui` 43 + store/persistence 증분(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify·코드 정합·부팅 스모크(창 표시)만 ✅. 실 기능 동작(zip 실 열기/추출/추가 IPC 왕복·op:* 진행률·멀티 윈도우 실 분리/이동/복원·탭 인라인 이름변경·색상/잠금·다운로드 노드 이동)은 런타임 스모크 권장 🟡. U3 정직 한계: 멀티 윈도우 세션 복원은 주 창만(분리 창 reopen-only·재시작 복원 안 함·의도적 MVP). M9 잔여 0 — §P~§U 14종 전부 완료(M6~M9 종료·T3 폐기).** 상세 §Q·§U·§X·[roadmap.md §0.5·§1](./roadmap.md).
 
 ---
 
@@ -1142,13 +1143,13 @@
 
 ---
 
-## Q. 압축파일(zip 등) 폴더처럼 열기 (2026-06-09 신규 기획 — 🔜 미착수)
+## Q. 압축파일(zip 등) 폴더처럼 열기 (2026-06-09 신규 기획 — M9 구현 완료(코드)·실 GUI·실 워커 🟡)
 
 > **타 탐색기와의 강력한 차별화 2.** 압축파일을 별도 도구 없이 **폴더처럼 진입·탐색**하고, 항목을 **추출**하거나 새 항목을 **추가**한다. 기존 원격(M3) RemoteAdapter 패턴처럼 `archive://` 네임스페이스 어댑터로 패널 하나에 압축 내부를 여는 것이 설계 힌트다(설계는 chief-architect).
 > 우선순위 **S(Should)** — 일상 빈도가 높은 차별화 기능이나, 압축 포맷·쓰기(추가)·암호화 변수로 MVP 범위를 좁힌다.
-> 상태: **🔜 미착수(기획 신규 편입)**. 보안: 압축 해제 경로 검증·**Zip Slip(상위 경로 이탈) 차단**(M3에서 확립한 원칙 재사용)·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
+> 상태: **M9 구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커 런타임 스모크 🟡**(2026-06-10·신규 채널 `archive:*` 5종·신규 의존성 yauzl/yazl·`verify:archive` 56·`verify:archiveui` 43). 보안: 압축 해제 경로 검증·**Zip Slip(상위 경로 이탈) 차단**(M3에서 확립한 원칙 재사용·`shared/archive/safePath.ts` 순수+워커 양쪽·ADR-008 결정④)·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
-### Q1. 압축파일 폴더처럼 열기·추출·추가 (S) 🔜
+### Q1. 압축파일 폴더처럼 열기·추출·추가 (S) ✅ 구현 완료(코드) (실 GUI·실 워커 런타임 스모크 🟡)
 **목적**: 압축파일을 풀지 않고 내부를 탐색하고, 필요한 것만 꺼내거나 넣는다. (US-16.1)
 
 | 항목 | 동작 규칙 |
@@ -1168,13 +1169,13 @@
 - 추출/추가는 워커/별도 처리(UI 비차단·진행률·취소). 대용량 압축 스트리밍 처리.
 - **Zip Slip 차단**(`../` 등 상위 경로 이탈 엔트리는 거부·정규화 후 대상 폴더 내부로만 추출), 경로 검증(F장)·throw0/Result·IPC guard(ADR-005).
 
-**수용 기준** (🔜 미착수)
-- [ ] zip 파일을 더블클릭/우클릭 "폴더처럼 열기"로 패널에서 내부를 디렉토리처럼 탐색할 수 있다(목록·정렬·브레드크럼·뒤로/위로)
-- [ ] 내부 항목을 다른(로컬) 패널로 D&D/복사·붙여넣기 또는 "추출"로 꺼낼 수 있고, 다중/폴더·진행률·취소·충돌(D4)이 적용된다
-- [ ] 로컬 항목을 zip 패널로 D&D/붙여넣기하면 zip에 추가된다(쓰기)
-- [ ] **암호 zip은 1차 제외**되며, 만나면 명확히 "지원하지 않음(암호 보호)" 안내한다(빈 화면·크래시 없음)
-- [ ] 추출 시 **Zip Slip(상위 경로 이탈) 엔트리는 차단**되고 대상 폴더 내부로만 풀린다
-- [ ] 추출/추가가 백그라운드 처리되어 UI를 막지 않고 취소 가능하다
+**수용 기준** (M9 구현 완료(코드)·실 GUI·실 워커 🟡)
+- [x] zip 파일을 더블클릭/우클릭 "폴더처럼 열기"로 패널에서 내부를 디렉토리처럼 탐색할 수 있다(목록·정렬·브레드크럼·뒤로/위로) — `renderer/app/usecases/archive.ts`·`main/archive/{ArchiveService,ZipReader}`·`archive:open/list` 채널. ※ 실 zip 열기/탐색 🟡
+- [x] 내부 항목을 다른(로컬) 패널로 D&D/복사·붙여넣기 또는 "추출"로 꺼낼 수 있고, 다중/폴더·진행률·취소·충돌(D4)이 적용된다 — `archive:extract`·추출 진행률=기존 `op:*` 재사용. ※ 실 추출 IPC 왕복 🟡
+- [x] 로컬 항목을 zip 패널로 D&D/붙여넣기하면 zip에 추가된다(쓰기) — `main/archive/ZipWriter`(yazl)·`archive:add`. ※ 실 추가 IPC 왕복 🟡
+- [x] **암호 zip은 1차 제외**되며, 만나면 명확히 "지원하지 않음(암호 보호)" 안내한다(빈 화면·크래시 없음) — `archiveErrors` EUNSUPPORTED. ※ 실 동작 🟡
+- [x] 추출 시 **Zip Slip(상위 경로 이탈) 엔트리는 차단**되고 대상 폴더 내부로만 풀린다 — `shared/archive/safePath.ts`(순수)+워커 양쪽 검증·ADR-008 결정④·`verify:archive` 56
+- [x] 추출/추가가 백그라운드 처리되어 UI를 막지 않고 취소 가능하다 — `main/workers/archiveWorker.ts`·기존 `op:*` 취소 재사용. ※ 실 비차단/취소 🟡
 - [ ] (범위 밖) 7z·rar 등 zip 외 포맷·중첩 압축 재귀·압축 내부 이름변경/삭제·원격 압축 진입은 1차 제외
 
 ---
@@ -1391,11 +1392,11 @@
 
 ---
 
-## U. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획 — U1·U2 M8 구현 완료(코드)·실 GUI 🟡 / U3 🔜 미착수 M9)
+## U. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획 — U1·U2 M8 + U3 M9 + U4 구현 완료(코드)·실 GUI·멀티윈도우 🟡)
 
 > **완성도 UX 묶음.** **U1 Space 퀵룩 오버레이 · U2 브레드크럼 드롭다운 · U3 탭 색상/잠금·탭을 새 창으로** 3기능. 기존 미리보기(D3·J5)·주소 표시줄(C1)·탭 관리(A1)를 확장한다.
 > 우선순위: U1 = **S(Should)**, U2 = **S(Should)**, U3 = **C(Could)**(탭 분리=새 창은 멀티 윈도우 복잡도).
-> 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 🔜 미착수(M9·멀티 윈도우)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
+> 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금 세션 메타 신규 채널 0·탭 분리 신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only) / U4는 구현 완료(코드)·실 GUI 🟡(신규 채널 0)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
 ### U1. Space 퀵룩 오버레이 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: macOS Quick Look처럼 Space로 선택 항목을 큰 미리보기 오버레이로 즉시 본다. (US-20.1)
@@ -1435,7 +1436,7 @@
 - [x] 형제 폴더 목록이 온디맨드 비동기 로드되어 주소 표시줄을 막지 않고, 권한 없음/지연이 안내된다 *(코드·`fs:tree-children` 재사용)*
 - [x] (범위 밖) 다단계 트리 펼침·파일 표시·즐겨찾기/최근 혼합은 1차 제외
 
-### U3. 탭 색상 / 잠금 · 탭을 새 창으로 (C) 🔜
+### U3. 탭 색상 / 잠금 · 탭을 새 창으로 (C) ✅ 구현 완료(코드) (실 GUI·멀티윈도우 런타임 스모크 🟡)
 **목적**: 탭에 색상·잠금(닫기 방지)을 주고, 탭을 분리해 새 창으로 연다. (US-20.3)
 
 | 항목 | 동작 규칙 |
@@ -1450,12 +1451,51 @@
 **비기능·제약**
 - 탭 분리=새 창은 멀티 윈도우(BrowserWindow 다중)·세션 복원·IPC 라우팅 복잡도가 있어 **Could**. 창 간 상태 격리·IPC guard(ADR-005) 준수.
 
-**수용 기준** (🔜 미착수)
-- [ ] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다
-- [ ] 탭을 잠그면(닫기 방지) `Ctrl+W`·가운데클릭·X로 닫히지 않고 잠금 표식이 표시되며 해제로 토글된다
-- [ ] 탭을 "새 창으로 분리"하면 그 탭이 새 창으로 이동하고 원 창에서 제거된다
-- [ ] 탭 색상·잠금 상태가 세션에 영속되어 재시작 후 유지된다(US-5.5 연계 범위)
+**수용 기준** (M9 구현 완료(코드)·실 GUI·멀티윈도우 🟡)
+- [x] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다 — `Tab.color?`·`TabSnapshot.color?`·`TabBar` 우클릭 색상(TAG_PALETTE 재사용). ※ 실 GUI 🟡
+- [x] 탭을 잠그면(닫기 방지) `Ctrl+W`·가운데클릭·X로 닫히지 않고 잠금 표식이 표시되며 해제로 토글된다 — `Tab.locked?`·닫기 가드·commandBus 가드. ※ 실 GUI 🟡
+- [x] 탭을 "새 창으로 분리"하면 그 탭이 새 창으로 이동하고 원 창에서 제거된다 — `windowSplit.ts#splitTabToNewWindow`·`window:split-tab`·`main/windows/windowManager.ts`. ※ 실 멀티윈도우 🟡
+- [x] 탭 색상·잠금 상태가 세션에 영속되어 재시작 후 유지된다(US-5.5 연계 범위) — 세션 메타. ※ 분리 창은 reopen-only·재시작 복원 안 함(주 창만·의도적 MVP·정직 표기)
 - [ ] (범위 밖) 창 간 탭 드래그 이동·창별 독립 워크스페이스·탭 그룹화는 1차 제외
+
+### U4. 탭 사용자 지정 이름(custom tab name) (S) ✅ 구현 완료 (실 GUI 동작 런타임 스모크 🟡)
+**목적**: 탭 라벨에 **사용자가 직접 지은 이름**을 부여해 자동 제목(현재 폴더명)을 덮어쓰고, 여러 탭을 의미 단위(예: "작업", "다운로드 정리")로 구분한다. (US-20.4)
+
+> 본 항목은 **이름 부여만** 추가한다 — 탭 색상·잠금·탭 분리(새 창)는 §U3 소관이며 여기서 다루지 않는다(중복 아님). 탭 아이콘 변경도 1차 범위 밖(이름만). 기존 탭 제목 규칙(A1 "현재 폴더명 표시·동명 폴더 상위 경로 병기")은 사용자 지정 이름이 **없을 때의 기본값(자동 제목)** 으로 그대로 유지된다.
+
+**조작 (인라인 편집 · 우클릭 메뉴)**
+| 항목 | 동작 규칙 |
+|---|---|
+| 더블클릭 편집 | 탭 라벨을 **더블클릭**하면 그 자리에서 인라인 텍스트 편집 모드로 전환한다(`TabRenameInput`) |
+| 우클릭 메뉴 | 탭 우클릭 컨텍스트 메뉴의 **"이름 바꾸기"** 로도 같은 인라인 편집을 시작한다 |
+| 확정 | **Enter** 또는 입력창 **blur**(포커스 잃음)로 입력한 이름을 확정한다 |
+| 취소 | **Esc** 로 편집을 취소하고 직전 라벨로 되돌린다(변경 없음) |
+| 빈 값 = 자동 복귀 | 이름을 **비워서 확정**하면 사용자 지정 이름을 **제거하고 자동 제목(현재 폴더명)으로 복귀**한다 |
+
+**표시·영속 규칙**
+| 항목 | 동작 규칙 |
+|---|---|
+| 표시 우선순위 | 사용자 지정 이름이 있으면 그 이름을, 없으면 **자동 제목(현재 폴더명·A1 규칙)** 을 탭 라벨로 표시한다 |
+| 경로 이동과 무관 | 사용자 지정 이름이 설정된 탭은 폴더를 옮겨도 **지정 이름을 유지**한다(자동 제목으로 되돌아가지 않음·비울 때만 자동 복귀) |
+| 세션 영속 | 사용자 지정 이름은 세션(`TabSnapshot.customName?`)에 **영속**되어 **앱 재시작 후에도 유지**된다. `pinnedByDir`/`detailsColumnWidths`와 동격의 하위호환 선택 필드(기존 스냅샷 데이터 비파괴·`SESSION_SCHEMA_VERSION` 무변경·coerce) |
+
+**범위 밖 (1차 — 정직 표기)**
+| 항목 | 사유 |
+|---|---|
+| 탭 색상 / 잠금 / 탭 분리 | §U3 소관(본 항목은 **이름 부여만**·중복 아님) |
+| 탭 아이콘 변경 | 1차는 텍스트 이름만(아이콘 커스터마이즈는 범위 밖) |
+
+**수용 기준** (✅ 구현 완료 — 코드 정합·verify 충족 / 실 GUI 동작은 🟡)
+- [x] 탭 라벨을 **더블클릭**하면 인라인 편집 모드로 전환된다 — `ui/tabbar/TabBar.tsx`(`TabRenameInput`). ※ 실 GUI 🟡
+- [x] 탭 **우클릭 컨텍스트 메뉴 "이름 바꾸기"** 로도 같은 인라인 편집을 시작할 수 있다 — `TabBar.tsx` 탭 컨텍스트 메뉴. ※ 실 GUI 🟡
+- [x] **Enter** 또는 입력창 **blur** 로 이름이 확정되고, **Esc** 로 편집이 취소된다(직전 라벨 유지) — `TabRenameInput` 키/blur 핸들러. ※ 실 GUI 🟡
+- [x] 이름을 **비워서 확정**하면 사용자 지정 이름이 제거되고 **자동 제목(현재 폴더명)으로 복귀**한다 — `tabsSlice.clearTabName`(빈 값 분기). ※ 실 GUI 🟡
+- [x] 사용자 지정 이름이 있으면 그 이름을, 없으면 자동 제목을 탭 라벨로 표시한다(폴더 이동 시에도 지정 이름 유지) — `TabBar.tsx` 라벨 우선순위(`customName ?? 자동 제목`)·`tabsSlice.setTabName`
+- [x] 사용자 지정 이름이 **세션에 영속**되어 앱 재시작 후에도 유지된다 — `app/usecases/session.ts`·`main/persistence/defaults.ts`·`TabSnapshot.customName?`(coerce·`verify:store`). ※ 재시작 후 유지 육안 🟡
+- [x] 기존 세션에 `customName` 필드가 없어도 자동 제목으로 정상 동작한다(하위호환 선택 필드) — `coerce`·**`SESSION_SCHEMA_VERSION` 무변경**(`pinnedByDir`/`detailsColumnWidths` 선례)
+- [x] 신규 IPC 채널·신규 npm 의존성 없이 렌더러+세션 영속만으로 동작하며, 기존 탭 관리(A1)·탭 복제/복원·세션 복원(US-5.5)과 충돌·회귀가 없다 — 신규 채널 0·의존성 0·`Tab.customName?` 추가는 표시/영속 계층 한정
+- [ ] 탭 색상·잠금·탭 분리(새 창) — **§U3 소관**(본 항목은 이름 부여만)
+- [ ] 탭 아이콘 변경 — **1차 범위 밖**(텍스트 이름만)
 
 ---
 
@@ -1511,3 +1551,41 @@
 - [x] 본 기능은 **자세히 보기 한정**이며 그리드·목록 보기에는 적용되지 않는다 — `FileListView.tsx` details 분기 한정
 - [ ] 헤더 클릭으로 정렬 기준/방향 변경 — **1차 범위 밖**(너비 조절·레이블 표시 전용)
 - [ ] 컬럼 표시/숨김·순서 변경 — **1차 범위 밖**(4컬럼 고정)
+
+---
+
+## X. 좌측 사이드바 "빠른 위치" (2026-06-10 신규 기획 — 구현 완료(코드)·실 GUI 🟡)
+
+> 기존 **트리 사이드바(C3, Must)** 를 **탐색 진입점 관점에서 비파괴로 확장**하는 영역이다. 즐겨찾기·최근·드라이브·휴지통과 동격으로, 사이드바에 **"빠른 위치"** 섹션을 더해 자주 쓰는 **OS 시스템 폴더(다운로드 등)** 로 한 번에 닿게 한다. 1차는 **다운로드** 항목만 노출한다(아래 정직 표기).
+> 2026-06-10 사용자 직접 요청으로 정식 편입. 우선순위는 **S(Should)** — 핵심 가치(다중 디렉토리 작업)와 독립적이나 일상 탐색 동선을 단축하는 즐겨찾기 별칭(J7)·상단 고정(O1)과 동급의 소규모 탐색 UX 개선이다(우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-10 §X)"](./PRD.md#6-범위와-우선순위-moscow)).
+> **기존 정합**: "빠른 위치" 항목 클릭 이동은 기존 사이드바 항목 클릭(C3·즐겨찾기 클릭)과 **동일한 활성 패널 이동 경로**를 재사용한다(새 탐색 동작 추가 아님). OS 시스템 폴더 경로는 **신규 채널 `fs:known-folders`**(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, home }`·`app.getPath`)로 가져온다 — P1 동결 이후 신기능 신규 채널로, 기존 `preview:read`·`analyze:scan:*`·`hash:*`·`search:content:*` 선례와 동일한 invoke·guard/Result 규약(ADR-005)을 따른다(신규 npm 의존성 0). 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(항목 클릭으로만 조작·신규 키 불요).
+> 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-10 상태] X1 ✅ 구현 완료(코드)**(코드 정합 — `fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx` "빠른 위치" 섹션·신규 채널 `fs:known-folders`·신규 npm 의존성 0). **정직 범위: 현재는 다운로드 항목만 렌더된다**(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약). **실 GUI 동작(섹션 렌더·다운로드 클릭 이동·실 `app.getPath` 경로 해석)은 헤드리스로 미증명 → 런타임 스모크 권장 🟡**(✅ 위장 아님·각 수용 기준 옆 "※ 실 GUI 🟡" 부기).
+
+### X1. 빠른 위치 ▸ 다운로드 이동 (S) ✅ 구현 완료 (실 GUI 동작 런타임 스모크 🟡)
+**목적**: 사이드바 **"빠른 위치"** 섹션의 **다운로드** 항목을 클릭하면 활성 패널이 **OS 다운로드 폴더**로 즉시 이동한다 — 매번 경로를 입력하거나 트리를 펼치지 않고 가장 자주 들르는 폴더에 한 번에 닿는다. (US-22.1)
+
+> C4(즐겨찾기)는 **사용자가 직접 등록한** 폴더 모음이고, X1 "빠른 위치"는 **OS가 제공하는 표준 시스템 폴더**(다운로드 등)를 항상 제공하는 고정 진입점이다(서로 보완·중복 아님).
+
+**구성·동작**
+| 항목 | 동작 규칙 |
+|---|---|
+| 섹션 | 사이드바에 **"빠른 위치"** 섹션을 추가한다(즐겨찾기·최근·드라이브·휴지통과 동격의 사이드바 진입점) |
+| 다운로드 항목 | 섹션 안의 **다운로드** 항목 클릭 시 활성 패널이 **OS 다운로드 폴더**로 이동한다(기존 사이드바 항목 클릭과 동일한 활성 패널 이동 경로 재사용) |
+| 경로 출처 | OS 시스템 폴더 경로는 **신규 채널 `fs:known-folders`**(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, home }`)로 가져온다(`app.getPath` 기반·`sidebarSlice.loadKnownFolders`로 적재) |
+| 현재 렌더 범위 | **현재는 다운로드 항목만 렌더된다.** 바탕화면·문서·홈은 DTO로 **함께 가져오나 사이드바에 표시하지 않는다**(예약·정직 표기) |
+
+**범위 밖 (1차 — 정직 표기)**
+| 항목 | 사유 |
+|---|---|
+| 바탕화면·문서·홈 항목 표시 | DTO(`KnownFoldersDTO`)로 함께 가져오나 1차는 **다운로드만 렌더**(나머지는 예약·미표시) |
+| 항목 추가/제거·재정렬·고정 | "빠른 위치"는 OS 제공 고정 진입점(사용자 편집은 즐겨찾기 C4 소관)·1차 범위 밖 |
+| 다운로드 외 동작 | 항목 클릭 **이동만**(다운로드 폴더 비우기·정리 등 부가 동작 없음) |
+
+**수용 기준** (✅ 구현 완료 — 코드 정합 / 실 GUI 동작은 🟡)
+- [x] 사이드바에 **"빠른 위치"** 섹션이 추가되고 그 안에 **다운로드** 항목이 표시된다 — `ui/sidebar/Sidebar.tsx`(빠른 위치 섹션). ※ 실 GUI 🟡
+- [x] 다운로드 항목을 클릭하면 활성 패널이 **OS 다운로드 폴더**로 이동한다(기존 사이드바 항목 클릭과 동일한 이동 경로) — `Sidebar.tsx` 클릭 → 활성 패널 navigate(`knownFolders.downloads`). ※ 실 GUI 🟡
+- [x] OS 시스템 폴더 경로를 **신규 채널 `fs:known-folders`** 로 가져온다(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, home }`·`app.getPath`) — `fs.handlers.ts`(핸들러)·`sidebarSlice.knownFolders`/`loadKnownFolders`. ※ 실 `app.getPath` 경로 해석 🟡
+- [x] **현재는 다운로드 항목만 렌더**되며(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약), 신규 npm 의존성 없이 동작한다 — `Sidebar.tsx` 다운로드만 렌더(정직 표기)·신규 의존성 0
+- [x] 기존 사이드바(C3·즐겨찾기·최근·드라이브·휴지통)·탐색 동작과 충돌·회귀가 없다(추가 진입점일 뿐 기존 항목 동작 불변) — `Sidebar.tsx` 신규 섹션 추가·기존 섹션 렌더/동작 무변경
+- [ ] 바탕화면·문서·홈 항목 표시 — **1차 범위 밖**(DTO로 함께 가져오나 다운로드만 렌더·예약)
+- [ ] 빠른 위치 항목 추가/제거·재정렬·고정 — **1차 범위 밖**(OS 제공 고정 진입점·사용자 편집은 즐겨찾기 C4 소관)

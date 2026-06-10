@@ -19,39 +19,51 @@ import { SESSION_SCHEMA_VERSION } from '@renderer/domain/session'
 import { sessionApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 
+/**
+ * 탭 1개를 직렬화 가능한 TabSnapshot 으로 추출한다(휘발 제외). buildSessionSnapshot
+ * 의 탭 직렬화 로직과 동일 규약(단일 출처) — U3 탭 분리(window:split-tab)가 이
+ * 헬퍼로 넘길 탭 1개를 만든다. 패널이 하나도 없으면 null(분리 불가).
+ */
+export function buildTabSnapshot(tabId: string): TabSnapshot | null {
+  const s = store.getState()
+  const tab = s.tabs[tabId]
+  if (!tab) return null
+  const panels: PanelSnapshot[] = tab.panelIds
+    .map((pid): PanelSnapshot | null => {
+      const p = s.panels[pid]
+      if (!p) return null
+      return {
+        id: pid,
+        path: p.path,
+        sortKey: p.view.sortKey,
+        sortDir: p.view.sortDir,
+        viewMode: p.view.viewMode,
+        history: { back: [...p.nav.back], forward: [...p.nav.forward] },
+        scrollTop: p.scrollTop
+      }
+    })
+    .filter((p): p is PanelSnapshot => p !== null)
+  if (panels.length === 0) return null
+  return {
+    id: tabId,
+    activePanelId: tab.activePanelId,
+    layout: tab.layout,
+    panels,
+    // H-6: 분할 비율 직렬화(undefined 면 생략 → 직렬화 안정).
+    ...(tab.splitRatios ? { splitRatios: tab.splitRatios } : {}),
+    // 탭 메타 직렬화(Feature A 이름 · US-20.3 색상/잠금). 미설정은 생략(스키마 미상향·비파괴).
+    ...(tab.customName ? { customName: tab.customName } : {}),
+    ...(tab.color ? { color: tab.color } : {}),
+    ...(tab.locked ? { locked: true } : {})
+  }
+}
+
 /** 현재 스토어 상태에서 직렬화 가능한 세션 스냅샷을 만든다(휘발 제외). */
 export function buildSessionSnapshot(): SessionSnapshot {
   const s = store.getState()
 
   const tabs: TabSnapshot[] = s.tabOrder
-    .map((tabId): TabSnapshot | null => {
-      const tab = s.tabs[tabId]
-      if (!tab) return null
-      const panels: PanelSnapshot[] = tab.panelIds
-        .map((pid): PanelSnapshot | null => {
-          const p = s.panels[pid]
-          if (!p) return null
-          return {
-            id: pid,
-            path: p.path,
-            sortKey: p.view.sortKey,
-            sortDir: p.view.sortDir,
-            viewMode: p.view.viewMode,
-            history: { back: [...p.nav.back], forward: [...p.nav.forward] },
-            scrollTop: p.scrollTop
-          }
-        })
-        .filter((p): p is PanelSnapshot => p !== null)
-      if (panels.length === 0) return null
-      return {
-        id: tabId,
-        activePanelId: tab.activePanelId,
-        layout: tab.layout,
-        panels,
-        // H-6: 분할 비율 직렬화(undefined 면 생략 → 직렬화 안정).
-        ...(tab.splitRatios ? { splitRatios: tab.splitRatios } : {})
-      }
-    })
+    .map((tabId) => buildTabSnapshot(tabId))
     .filter((t): t is TabSnapshot => t !== null)
 
   const window: WindowSnapshot = { tabs, activeTabId: s.activeTabId }

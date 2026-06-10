@@ -19,7 +19,7 @@ import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
 import { loadSettings } from '@renderer/app/usecases/settings'
-import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
+import { bootWindow } from '@renderer/app/usecases/windowInit'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
 import { IconBar } from '@renderer/ui/toolbar/IconBar'
 import { Sidebar } from '@renderer/ui/sidebar/Sidebar'
@@ -82,17 +82,17 @@ export function App(): JSX.Element {
     initContentSearchBridge()
   }, [])
 
-  // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독
-  // → 시작 시 대시보드 자동 팝업(설정 showDashboardOnStartup, I장 §4.4).
-  // StrictMode 의 이중 마운트 방지를 위해 1회 가드.
+  // 부팅 순서: 설정 로드(테마 적용) → 창 초기화(U3 — primary 면 세션 복원+자동저장,
+  // split 이면 넘겨받은 탭으로 부팅·자동저장 미참여) → 시작 시 대시보드 자동 팝업
+  // (설정 showDashboardOnStartup, I장 §4.4). StrictMode 이중 마운트 방지를 위해 1회 가드.
   useEffect(() => {
     if (bootedRef.current) return
     bootedRef.current = true
     let stopAutosave: (() => void) | null = null
     void (async () => {
       await loadSettings()
-      await restoreSession()
-      stopAutosave = startSessionAutosave()
+      // U3: window:get-init 으로 primary/split 분기(분리 payload 없으면 기존 부트와 동일).
+      stopAutosave = await bootWindow()
       // 설정 로드(applySettings)로 showDashboardOnStartup 가 반영된 뒤 분기.
       const s = useRootStore.getState()
       if (s.showDashboardOnStartup) s.openDashboard()
