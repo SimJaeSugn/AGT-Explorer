@@ -27,28 +27,9 @@ import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from './protocol'
 const port = parentPort
 const job = workerData as WorkerJob
 
-/** "C:\\..." → "C"(대문자). UNC/원격/상대 등 드라이브 문자가 없으면 빈 문자열. */
-function driveLetterOf(p: string): string {
-  return /^[A-Za-z]:/.test(p) ? p[0]!.toUpperCase() : ''
-}
-
-/**
- * 적응형 복사 동시성 결정(무회귀 휴리스틱):
- *  - copy/move 만 대상(delete 는 1).
- *  - 소스↔대상이 **다른 볼륨**이면 4(읽기/쓰기 장치 분리 → 병렬 이득), 같은 볼륨이면 1
- *    (같은 디스크 동시 접근은 HDD 시킹 악화 위험 → 순차로 회귀 방지).
- *  드라이브 종류(SSD/HDD) 정보가 워커에 없으므로 같은 볼륨 병렬은 보수적으로 보류한다.
- */
-function pickConcurrency(): number {
-  if (job.kind === 'delete' || !job.destDir) return 1
-  const dest = driveLetterOf(job.destDir)
-  if (!dest) return 1
-  const crossVolume = job.sources.some((s) => {
-    const d = driveLetterOf(s)
-    return d !== '' && d !== dest
-  })
-  return crossVolume ? 4 : 1
-}
+// 동시성은 Main(OperationManager)에서 SSD 감지(DiskTypeService) 기반으로 산출해 job.concurrency
+// 로 전달한다(SSD 캐시는 Main 에만 존재). 워커는 그 값을 그대로 사용하고, 미지정 시 1 로 폴백한다.
+const concurrency = job.concurrency ?? 1
 
 if (!port) {
   // worker_threads 외부에서 import 된 경우(번들 검증 등) — no-op.
@@ -115,13 +96,12 @@ if (!port) {
 
   void (async () => {
     try {
-      const concurrency = pickConcurrency()
       const result =
         job.kind === 'copy'
           ? await runCopy(job.sources, job.destDir ?? '', hooks, concurrency, job.baseDir)
           : job.kind === 'move'
             ? await runMove(job.sources, job.destDir ?? '', hooks, concurrency)
-            : await runDelete(job.sources, hooks)
+            : await runDelete(job.sources, hooks, concurrency)
 
       post({
         type: 'done',

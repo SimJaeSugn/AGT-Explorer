@@ -69,8 +69,15 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
       const loc = parseRemotePath(path)
       setEditValue(loc ? loc.remotePath : path)
       setPathError(null)
+      useRootStore.getState().setInputContext('addressEdit')
       const t = setTimeout(() => inputRef.current?.select(), 0)
-      return () => clearTimeout(t)
+      return () => {
+        clearTimeout(t)
+        // 편집 종료(Enter 커밋·Esc·언마운트) 시 입력 컨텍스트를 반드시 해제한다.
+        // 안 하면 inputContext 가 'addressEdit' 로 남아 Delete/Ctrl+C 등 전역 단축키가
+        // 영구 차단된다(주소창 포커스 이후 단축키 먹통 버그).
+        useRootStore.getState().setInputContext('list')
+      }
     }
     return undefined
   }, [addressEditing, path])
@@ -190,6 +197,7 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
                 else if (e.key === 'Escape') setAddressEditing(false)
               }}
               onFocus={() => useRootStore.getState().setInputContext('addressEdit')}
+              onBlur={() => useRootStore.getState().setInputContext('list')}
               spellCheck={false}
               aria-label="경로 입력"
               style={{

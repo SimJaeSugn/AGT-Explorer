@@ -37,6 +37,8 @@ import { CANCEL_FLAG_INDEX, FLAG_WORD_COUNT, PAUSE_FLAG_INDEX } from '../workers
 import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from '../workers/protocol'
 import { TransferQueue } from './TransferQueue'
 import type { ProgressSnapshot, QueueEntry } from './TransferQueue'
+import { pickOpConcurrency } from './concurrency'
+import { diskTypeService } from '../os/diskType'
 import { runRobocopyCopy } from '../os/robocopy'
 import type { RobocopyHandle } from '../os/robocopy'
 
@@ -320,6 +322,10 @@ export class OperationManager {
     }
     this.ops.set(operationId, op)
 
+    // 동시성 산출(SSD 감지 기반·순수 함수). SSD 캐시는 Main 에만 있으므로 여기서 결정해 값만
+    // 워커로 넘긴다. unknown/미초기화 → 비-SSD 취급(보수적) → 기존 숫자 유지(무회귀).
+    const concurrency = pickOpConcurrency(kind, sources, destDir, (l) => diskTypeService.isSsd(l))
+
     const job: WorkerJob = {
       operationId,
       kind,
@@ -327,6 +333,7 @@ export class OperationManager {
       ...(destDir !== undefined ? { destDir } : {}),
       ...(conflictPolicy !== undefined ? { conflictPolicy } : {}),
       ...(baseDir !== undefined ? { baseDir } : {}),
+      concurrency,
       cancelBuffer
     }
 

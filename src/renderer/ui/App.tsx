@@ -46,6 +46,7 @@ import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
 import { ConfirmDialog } from '@renderer/ui/dialogs/ConfirmDialog'
 import { AutoLinkDialog } from '@renderer/ui/dialogs/AutoLinkDialog'
+import { BatchAutoLinkDialog } from '@renderer/ui/dialogs/BatchAutoLinkDialog'
 import { NewTabPickerDialog } from '@renderer/ui/tabbar/NewTabPickerDialog'
 import { ContextMenu } from '@renderer/ui/contextmenu/ContextMenu'
 import { useDragController } from '@renderer/ui/dnd/useDrag'
@@ -157,6 +158,7 @@ export function App(): JSX.Element {
       <ConflictDialog />
       <ConfirmDialog />
       <AutoLinkDialog />
+      <BatchAutoLinkDialog />
       <NewTabPickerDialog />
       <ContextMenu />
     </div>

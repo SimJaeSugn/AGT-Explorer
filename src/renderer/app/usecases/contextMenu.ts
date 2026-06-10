@@ -240,6 +240,18 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   // §R1: 다중 선택(2+) 시 "고급 이름변경…"(단일은 위 인라인 F2). Ctrl+Shift+R 과 동일 경로.
   if (multi) {
     items.push({ id: 'batchRename', label: '고급 이름변경…', run: cmd('file.batchRename') })
+    // §V(일괄) 자동링크: 선택 폴더가 2개 이상이면 일괄 자동링크 진입(잠김/권한 없는 폴더는
+    // 실행 시 자동 제외·보고). 선택 중 디렉토리만 대상(파일은 무시). store 경유(신규 채널 0).
+    const selectedDirPaths = visibleEntries(panelId)
+      .filter((e) => ctx.selectedPaths.has(e.path) && e.isDir)
+      .map((e) => e.path)
+    if (selectedDirPaths.length >= 2) {
+      items.push({
+        id: 'autoLinkBatch',
+        label: '자동링크(일괄)…',
+        run: () => store.getState().openAutoLinkBatch(selectedDirPaths)
+      })
+    }
   }
 
   // ── 태그 그룹(T1) — 단일/다중 선택 모두. 색상 라벨 토글 하위 메뉴. ────────

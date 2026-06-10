@@ -122,6 +122,8 @@ export interface UiSlice {
   readonly batchRenameOpen: boolean
   /** 자동링크 다이얼로그 대상 폴더 경로(열려 있으면 set, 아니면 null). V10. */
   readonly autoLinkSource: string | null
+  /** 자동링크 일괄 다이얼로그 대상 폴더들(열려 있으면 배열, 아니면 null). V(일괄). */
+  readonly autoLinkBatchSources: readonly string[] | null
   /** 새 탭 시작 위치 피커 열림(기본 시작 위치 미설정 + 워크스페이스 존재 시). I6. */
   readonly newTabPickerOpen: boolean
   /** 폴더 비교 미러 확인 모달(파괴적 동기화 확정 전·없으면 null, §P1). */
@@ -209,6 +211,10 @@ export interface UiSlice {
   openAutoLink(sourceDir: string): void
   /** 자동링크 다이얼로그 닫기. */
   closeAutoLink(): void
+  /** 자동링크 일괄 다이얼로그 열기(대상 폴더들). V(일괄). */
+  openAutoLinkBatch(dirs: string[]): void
+  /** 자동링크 일괄 다이얼로그 닫기. */
+  closeAutoLinkBatch(): void
   /** 새 탭 시작 위치 피커 열기/닫기(I6). */
   openNewTabPicker(): void
   closeNewTabPicker(): void
@@ -291,6 +297,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   remoteDialogOpen: false,
   batchRenameOpen: false,
   autoLinkSource: null,
+  autoLinkBatchSources: null,
   newTabPickerOpen: false,
   compareMirrorConfirm: null,
   dedupOpen: false,
@@ -470,7 +477,34 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         !s.workspaceOpen &&
         !s.trashOpen &&
         !s.remoteDialogOpen &&
-        !s.batchRenameOpen
+        !s.batchRenameOpen &&
+        !s.autoLinkBatchSources
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openAutoLinkBatch(dirs) {
+    set((s) => {
+      s.autoLinkBatchSources = dirs
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeAutoLinkBatch() {
+    set((s) => {
+      s.autoLinkBatchSources = null
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.autoLinkSource
       ) {
         s.inputContext = 'list'
       }
@@ -496,7 +530,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
         !s.trashOpen &&
         !s.remoteDialogOpen &&
         !s.batchRenameOpen &&
-        !s.autoLinkSource
+        !s.autoLinkSource &&
+        !s.autoLinkBatchSources
       ) {
         s.inputContext = 'list'
       }

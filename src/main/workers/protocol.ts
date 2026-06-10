@@ -35,6 +35,11 @@ export interface WorkerJob {
   /** 사전 일괄 충돌 정책(없으면 충돌 시 질의). */
   readonly conflictPolicy?: ConflictResolution
   /**
+   * 워커 동시성(Main 에서 SSD 감지 기반 산출 — pickOpConcurrency). 미지정 시 워커는 1 로 폴백.
+   * SSD 캐시는 Main 에만 있으므로 결정은 Main 에서 하고 값만 워커로 전달한다.
+   */
+  readonly concurrency?: number
+  /**
    * 협조 플래그용 SharedArrayBuffer(Int32 2워드): [0]=cancel(불변), [1]=pause(M7).
    * 단발 경로는 cancel(0)만 쓰고 pause(1)는 항상 0 → 기존 동작 동치.
    */

@@ -1,6 +1,6 @@
 {
   "name": "agt-finder",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
@@ -22,6 +22,7 @@
     "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
     "verify:persistence": "esbuild scripts/verify-persistence.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-persistence.cjs && node ./out/verify-persistence.cjs",
     "verify:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-scan.cjs && node ./out/verify-scan.cjs",
+    "verify:concurrency": "esbuild scripts/verify-concurrency.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-concurrency.cjs && node ./out/verify-concurrency.cjs",
     "verify:hash": "esbuild scripts/verify-hash.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-hash.cjs && node ./out/verify-hash.cjs",
     "verify:queue": "esbuild scripts/verify-queue.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-queue.cjs && node ./out/verify-queue.cjs",
     "verify:search": "esbuild scripts/verify-search.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-search.cjs && node ./out/verify-search.cjs",
@@ -48,6 +49,7 @@
     "verify:remote-route": "esbuild scripts/verify-remote-route.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-remote-route.mjs && node ./out/verify-remote-route.mjs",
     "verify:palette": "esbuild tests/palette.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/palette.verify.mjs && node ./out/palette.verify.mjs",
     "verify:contentsearch": "esbuild tests/contentsearch.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/contentsearch.verify.mjs && node ./out/contentsearch.verify.mjs",
+    "verify:autolink": "esbuild tests/autolink.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/autolink.verify.mjs && node ./out/autolink.verify.mjs",
     "verify:archiveui": "esbuild tests/archiveui.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/archiveui.verify.mjs && node ./out/archiveui.verify.mjs",
     "verify:archive": "esbuild scripts/verify-archive.ts --bundle --platform=node --format=cjs --external:electron --external:yauzl --external:yazl --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-archive.cjs && node ./out/verify-archive.cjs"
   },

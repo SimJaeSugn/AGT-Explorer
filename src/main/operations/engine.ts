@@ -441,7 +441,8 @@ async function tryRemove(p: string, dir: boolean): Promise<unknown | null> {
  */
 async function forceRemove(
   target: string,
-  onFail: (path: string, err: unknown) => void
+  onFail: (path: string, err: unknown) => void,
+  limit = 1
 ): Promise<boolean> {
   let st: import('node:fs').Stats
   try {
@@ -469,9 +470,9 @@ async function forceRemove(
   }
 
   if (st.isDirectory()) {
-    let kids: string[]
+    let dirents: import('node:fs').Dirent[]
     try {
-      kids = await fsp.readdir(target)
+      dirents = await fsp.readdir(target, { withFileTypes: true })
     } catch (e) {
       // 진입 불가: 그래도 rmdir 시도(비어 있을 수도). 실패면 readdir 오류로 보고.
       const er = await tryRemove(target, true)
@@ -480,9 +481,22 @@ async function forceRemove(
       return false
     }
     let allRemoved = true
-    for (const k of kids) {
-      if (!(await forceRemove(win32.join(target, k), onFail))) allRemoved = false
+    // 병렬 삭제(limit>1): 한 디렉토리의 **파일/링크 자식**은 동시에 제거하되, 실제 하위
+    // 디렉토리는 순차 재귀한다(전역 동시 핸들이 limit 이하 유지 — 복사 엔진과 동일 안전 모델).
+    // 정션/심볼릭은 미재귀 제거 대상이므로 파일군으로 분류한다(forceRemove 가 링크만 제거).
+    const isRealDir = (d: import('node:fs').Dirent): boolean => d.isDirectory() && !d.isSymbolicLink()
+    const fileKids = dirents.filter((d) => !isRealDir(d))
+    const dirKids = dirents.filter(isRealDir)
+    const removeChild = async (name: string): Promise<void> => {
+      if (!(await forceRemove(win32.join(target, name), onFail, limit))) allRemoved = false
     }
+    if (limit > 1 && fileKids.length > 1) {
+      await runPool(fileKids, limit, (d) => removeChild(d.name))
+    } else {
+      for (const d of fileKids) await removeChild(d.name)
+    }
+    // 하위 폴더는 순차 재귀(각 폴더 내부에서 다시 파일 자식을 병렬 제거 — 동시성 한정).
+    for (const d of dirKids) await removeChild(d.name)
     if (!allRemoved) return false // 자식 잔존 → rmdir 생략(leaf 가 이미 보고함).
     const er = await tryRemove(target, true)
     if (er === null) return true
@@ -652,8 +666,17 @@ async function aggregateOne(p: string): Promise<{ items: number; bytes: number }
   return aggregate([p])
 }
 
-/** delete: 영구 삭제(재귀). 휴지통이 아니라 실제 제거. */
-export async function runDelete(sources: string[], hooks: EngineHooks): Promise<EngineResult> {
+/**
+ * delete: 영구 삭제(재귀). 휴지통이 아니라 실제 제거.
+ * @param concurrency 디렉토리 내 파일 자식 동시 삭제 수(기본 1=순차, 기존 동작 동치).
+ *   top-level 소스는 순차로 돌되 각 트리 내부에서 파일 자식을 병렬 제거한다(핸들 폭주 방지).
+ */
+export async function runDelete(
+  sources: string[],
+  hooks: EngineHooks,
+  concurrency = 1
+): Promise<EngineResult> {
+  const limit = Math.max(1, concurrency)
   const result: EngineResult = { succeededItems: 0, failedItems: 0, canceled: false, failures: [], inUse: [] }
   const totals = await aggregate(sources)
   hooks.onTotals(totals.items, totals.bytes)
@@ -670,7 +693,7 @@ export async function runDelete(sources: string[], hooks: EngineHooks): Promise<
     // 견고한 best-effort 재귀 삭제: 삭제 가능한 건 모두 지우고, 못 지운 항목(소켓·사용중·
     // 권한·정션 등)만 failures 로 보고한다(한 항목 실패가 전체를 중단시키지 않음). 읽기전용
     // 해제·정션 비재귀·EPERM/EACCES 재시도·lstat 실패 시도는 forceRemove 가 처리한다.
-    const fullyRemoved = await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
+    const fullyRemoved = await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e), limit)
     if (fullyRemoved) {
       counters.items++
       result.succeededItems++

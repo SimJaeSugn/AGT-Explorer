@@ -1,3 +1,6 @@
+// libuv 스레드풀 상향(프로세스 전역). **가장 첫 import** 로 두어 다른 모듈이 async I/O 를
+// 시작하기 전에 UV_THREADPOOL_SIZE 를 설정한다(부작용 모듈 — 상세 주석은 threadpool.ts 참조).
+import './os/threadpool'
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { CHANNELS } from '@shared/ipc/channels'
@@ -12,6 +15,7 @@ import { initArchiveSessionManager, initArchiveService, archiveSessionManager } 
 import { operationManager } from './operations/OperationManager'
 import { watchService } from './fs/WatchService'
 import { driveTypeService } from './os/driveType'
+import { diskTypeService } from './os/diskType'
 
 // ── 단일 인스턴스 락 (PRD §7, ADR-005) ──────────────────────────────
 // 두 번째 실행 시도는 즉시 종료하고, 첫 인스턴스의 창을 포커스한다.
@@ -126,6 +130,11 @@ if (!gotTheLock) {
     // 매핑 네트워크 드라이브 문자 캐시 1회 비동기 수집(J2). non-blocking — PowerShell 콜드스타트가
     // 부팅을 차단하지 않는다(trigger-and-forget). 실패해도 서비스 내부 격리(throw 0) → 부팅 영향 0.
     void driveTypeService.refresh()
+
+    // 드라이브 미디어 종류(SSD/HDD) 캐시 1회 비동기 수집. non-blocking — PowerShell 콜드스타트가
+    // 부팅을 차단하지 않는다(trigger-and-forget). 실패해도 서비스 내부 격리(throw 0) → 미상은 비-SSD
+    // 취급(보수적)이라 기존 동시성 숫자 유지(무회귀). 파일 작업 동시성 산출에 사용된다.
+    void diskTypeService.refresh()
 
     app.on('activate', () => {
       // 모든 창이 닫힌 뒤 재활성(darwin) 시 primary 창을 다시 띄운다(세션 복원 경로).
