@@ -37,6 +37,32 @@ function activePanel(): string | undefined {
 }
 
 /**
+ * U1 퀵룩 대상 경로 — 활성 패널의 "앵커(현재 활성)" 항목 경로.
+ * 우선순위: selection.anchorIndex 의 가시 항목 → 단일 선택 항목 → null.
+ * 다중 선택이어도 앵커(마지막 클릭/이동 기준점) 1개를 미리본다.
+ */
+function activeAnchorPath(): string | null {
+  const s = store.getState()
+  const pid = s.activePanelId()
+  if (!pid) return null
+  const vis = visibleEntries(pid)
+  if (vis.length === 0) return null
+  const sel = s.selection[pid]
+  if (sel) {
+    const ai = sel.anchorIndex
+    if (ai >= 0 && ai < vis.length) {
+      const e = vis[ai]
+      if (e) return e.path
+    }
+    if (sel.selectedPaths.size === 1) {
+      const [only] = sel.selectedPaths
+      if (only) return only
+    }
+  }
+  return null
+}
+
+/**
  * commandId 를 실행한다. 알 수 없는/비활성 명령은 무시(false 반환 가능).
  * @returns 처리 여부(true 면 기본 동작 preventDefault 권장).
  */
@@ -253,6 +279,26 @@ export function execCommand(commandId: string): boolean {
     case 'workspace.manage':
       s.openWorkspace()
       return true
+
+    // ── 명령 팔레트(S2 · US-18.2) ─────────────────────────────────────
+    case 'palette.open':
+      s.openPalette()
+      return true
+
+    // ── 퀵룩(U1 · US-20.1) — 열려 있으면 닫고, 아니면 앵커 항목을 연다(토글) ──
+    case 'quicklook.toggle': {
+      if (s.quickLookPath) {
+        s.closeQuickLook()
+        return true
+      }
+      const path = activeAnchorPath()
+      if (path) {
+        s.openQuickLook(path)
+        return true
+      }
+      // 미리볼 항목이 없으면 가로채지 않음(Space 네이티브 동작 양보).
+      return false
+    }
 
     default:
       return false

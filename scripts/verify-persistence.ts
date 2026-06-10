@@ -104,6 +104,9 @@ function sampleSession(): SessionSnapshot {
       favoriteLabels: { 'C:\\fav': '즐겨찾기' },
       // 상단 고정 맵 — coerce 가 비-빈 배열 키를 보존하므로 round-trip 포함.
       pinnedByDir: { 'C:\\d': ['C:\\d\\pin.txt'] },
+      // T1: 태그 맵 — coerce(coerceTagsByPath)가 유효 키를 팔레트 순으로 보존하므로
+      // round-trip 동등을 위해 키 순서(red<blue)를 맞춘다(coerce 출력과 일치).
+      tagsByPath: { 'C:\\d\\pin.txt': ['red', 'blue'] },
       recent: ['C:\\r1', 'C:\\r2'],
       width: 280,
       collapsed: false
@@ -418,6 +421,22 @@ async function main(): Promise<void> {
   check('구버전(pinnedByDir 없음) → {}', JSON.stringify(sbPinLegacy.pinnedByDir) === '{}')
   const sbPinNonObj = cs8({ favorites: [], pinnedByDir: ['x'] })
   check('pinnedByDir 비객체 → {}', JSON.stringify(sbPinNonObj.pinnedByDir) === '{}')
+
+  // ── 8c) T1: 파일 태그(tagsByPath) coerce(무효키/빈배열/비배열/팔레트순/구버전) ──
+  line('== 8c) tagsByPath coerce(무효키 제거/빈배열 제외/팔레트순/구버전 호환) ==')
+  check('defaultSidebar.tagsByPath = {}', JSON.stringify(defSb.tagsByPath) === '{}')
+  const sbTag = cs8({ favorites: [], tagsByPath: { 'C:\\a': ['blue', 'red'] } })
+  check('tagsByPath 팔레트순 보존(red<blue)', JSON.stringify(sbTag.tagsByPath?.['C:\\a']) === JSON.stringify(['red', 'blue']))
+  const sbTagBad = cs8({ favorites: [], tagsByPath: { 'C:\\a': ['red', 'cyan', 1] } })
+  check('무효 태그 키 제거', JSON.stringify(sbTagBad.tagsByPath?.['C:\\a']) === JSON.stringify(['red']))
+  const sbTagEmpty = cs8({ favorites: [], tagsByPath: { 'C:\\a': [] } })
+  check('빈 배열 키 제외', sbTagEmpty.tagsByPath?.['C:\\a'] === undefined)
+  const sbTagNonArr = cs8({ favorites: [], tagsByPath: { 'C:\\a': 'red' } })
+  check('비배열 값 제외', sbTagNonArr.tagsByPath?.['C:\\a'] === undefined)
+  const sbTagLegacy = cs8({ favorites: ['C:\\a'] })
+  check('구버전(tagsByPath 없음) → {}', JSON.stringify(sbTagLegacy.tagsByPath) === '{}')
+  const sbTagNonObj = cs8({ favorites: [], tagsByPath: ['x'] })
+  check('tagsByPath 비객체 → {}', JSON.stringify(sbTagNonObj.tagsByPath) === '{}')
 
   // ── 9) J7: coerceSession.ui.previewWidth(클램프 240~720·생략) ────────────
   line('== 9) J7 previewWidth coerce(클램프/누락생략/비유한수) ==')

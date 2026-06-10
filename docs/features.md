@@ -24,6 +24,7 @@
 > **[2026-06-09 동작 변경 2건 — refinement·기존 기능 수용기준 갱신]** docs/temp/ref.md 신규 아이디어 2건을 구현·검증 완료하여 기존 명세를 실제 동작에 맞게 갱신했다(새 챕터 신설 아님·MoSCoW 등급/스코프 불변). ① **§O 고정 표시 "최상단 정렬"→"스크롤 고정(sticky)"**: 목록(list)·자세히(details) 보기에서 고정 항목이 스크롤해도 상단에 붙어 계속 보이도록 변경(키보드 내비게이션은 밴드 높이만큼 스크롤 보정). **아이콘 그리드(icons-*)는 wrapping 레이아웃 특성상 sticky 미적용 → 기존대로 "정렬 최상단"만 유지**(보기별 차이 정직 표기). §O1 표시·정렬 규칙·수용기준·US-14.1·F19 갱신. ② **원격 주소창 경로-only 입력(§H5×§M3 교차)**: 원격(SFTP/FTP) 패널의 주소 표시줄 편집 시 호스트(`sftp://host`)는 고정 프리픽스로 표시되고 사용자는 경로만(`/mnt/sub`) 입력하면 현재 호스트와 결합해 이동(방어적으로 전체 URI 입력도 처리·로컬 경로 입력 동작 불변). §H5·§M3 동작 규칙·수용기준·US-7.5·US-12.4·flows 주소입력/F16 갱신. **검증: typecheck/lint/build 0·verify 회귀 0(domain 60·store 121·persistence 101·perf 25 windowing 불변·remote-route 47). 실 GUI(원격 주소 경로-only 입력·이동, 고정 sticky 스크롤 고정 렌더·키보드 보정)는 헤드리스 미증명 → 런타임 스모크 권장 🟡.**
 > **[2026-06-09 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI 🟡 — 파워기능 M6 1차 3종(§P·§R·§T)]** 2026-06-09 §P~§U 14종 일괄 기획 편입(설계만·🔜) 중 M6 배정 3종을 구현·통합 검증 완료. **P1 듀얼 패널 폴더 비교(메타·단일깊이)(§P·US-15.1·F20, Should ✅ 코드 — `domain/rules/compare.ts` 4상태·`planMirror`·`compareSlice`·`usecases/compare`·`ui/compare/`[CompareView·CompareToolbar·useSyncScroll·CompareMirrorDialog]·`CompareStatus` DTO·미러=기존 `op:*`·**해시 비교·재귀 비교는 M7 연기 🔜**) · R1 고급 일괄 이름변경(§R·US-17.1·F22, Should ✅ 코드 — `domain/rules/batchRename.ts`·`usecases/batchRename`·`ui/rename/BatchRenameDialog`·`undoSlice kind:'batchRename'`·`undo.ts` 역연산·`Ctrl+Shift+R`·기존 `fs:rename` 반복) · T3 정렬/필터 프리셋(§T·US-19.3·F30, Should ✅ 코드 — `domain/rules/filterComposition.ts`·`presetsSlice`·`usecases/presets`·`ui/preset/PresetBar+PresetManageDialog`·`FilterPreset` DTO·`selectors.computeVisible` matches 교체·`coerceFilterPresets`·`SESSION_SCHEMA_VERSION` 1→2).** **3기능 모두 렌더러+세션영속·신규 IPC 채널 0·신규 npm 의존성 0.** 검증: typecheck/lint/build 0·`verify:domain` 132·`verify:store` 162·`verify:persistence` 123·`verify:operations` 75·`verify:perf` 25·`verify:p5` 52(0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속 불변식만 증명. 실 GUI 동작(프리셋 드롭다운/관리 다이얼로그·일괄 rename 실 파일 왕복·Ctrl+Z 실복원·비교 진입/미러/동기 스크롤)은 런타임 스모크 권장 🟡. P1 메타·단일깊이 한정·해시/재귀 M7 연기. 나머지 §P~§U 11종(Q1·R2·R3·R4·S1·S2·T1·T2·U1·U2·U3)은 🔜 미착수(M7~M9).** 상세 §P·§R·§T·[roadmap.md §0.5](./roadmap.md).
 > **[2026-06-09 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 워커·GUI 🟡 — 파워기능 M7 2차(공용 인프라 W1·W2 + 4기능)]** M7 배정분을 구현·통합 검증 완료. **공용 해시 인프라 W1**(`src/main/hash/`[hashEngine·dupEngine·compareEngine·verifyEngine·fsDeps·HashManager]·`src/main/workers/`[hashWorker·hashProtocol]·`hash.handlers.ts`·**신규 채널 `hash:compare:*`/`hash:dup:*`/`hash:verify:*`/`hash:cancel`**·SHA-256 node:crypto·Worker Threads·취소·진행률·`verify:hash` 46)·**전송 큐 인프라 W2**(`TransferQueue.ts`·`OperationManager` 큐 승격·`queue.handlers.ts`·**신규 채널 `queue:*`**·SharedArrayBuffer 2워드 cancel+pause·`verify:queue` 47). **R2 중복 파일 찾기(§R·US-17.2·F23, Should ✅ 코드 — `domain/rules/dupGroup.ts`·`dedupSlice`·`usecases/dedup.ts`·`ui/dedup/DuplicatesDialog.tsx`·`dupEngine.ts`·`hash:dup:*`·정리=기존 `op:trash`) · R3 전송 큐 매니저(§R·US-17.3·F24, Should ✅ 코드 — `usecases/queue.ts`·`ui/queue/(QueuePanel·QueueItemRow·QueueConcurrencyControl·queueFormat)`·StatusBar 합산) · R4 복사 시 체크섬 검증(§R·US-17.4·F25, Could ✅ 코드 — `domain/rules/checksumVerdict.ts`·`usecases/checksum.ts`·`SettingsSnapshot.verifyOnCopy`·SettingsDialog 토글·op:done 후 `hash:verify` 트리거) · P1 해시/재귀 비교 확장(§P·US-15.1, ✅ 코드 — `ComparePairDTO.relPath?`·`compare.ts` useHash/recursive·`fromCompareResult`·`compareSlice` 해시잡·`usecases/compare` `hash:compare:*` 구독·`compareEngine.ts`·옵션 off는 M6 메타 동치).** **신규 IPC 채널 `hash:*`·`queue:*`·신규 npm 의존성 0(SHA-256=node:crypto 내장).** 검증: typecheck/lint/build 0·`verify:hash` 46·`verify:queue` 47·`verify:domain` 168·`verify:store` 207·`verify:persistence` 128·`verify:operations` 75·`verify:ops` 35·`verify:paste` 13·`verify:scan` 39·`verify:fs` 19·`verify:perf` 25·`verify:p5` 52(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·해시/큐 불변식만 증명. 실 동작(해시 워커 잡·큐 스케줄러 일시정지/재개·중복 정리·복사후 검증 트리거·해시/재귀 실 GUI 비교)은 런타임 스모크 권장 🟡. R4 비원자 복사 검증 타이밍·원격 큐 일시정지 미배선 정직 표기. 나머지 §P~§U 7종(Q1·S1·S2·T1·T2·U1·U2·U3)은 🔜 미착수(M8~M9).** 상세 §P·§R·[roadmap.md §0.5](./roadmap.md).
+> **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커 🟡 — 파워기능 M8 6종(§S·§T·§U) + 신규 Should §W1]** M8 배정 6종을 구현·통합 검증 완료. **S1 내용 검색(grep)(§S·US-18.1, Should ✅ 코드 — **신규 채널 `search:content:*` 5종**·`main/search/{grepEngine,binaryDetect,GrepManager,fsDeps}`·`main/workers/grep{Worker,Protocol}`·`search.handlers.ts`·`usecases/contentSearch`·`searchSlice`·`ui/search/ContentSearchDialog`·`domain/rules/contentSearch`·ADR-010·점프=기존 `preview:read`·신규 의존성 0[Node 내장]·`verify:search` 58·`verify:contentsearch` 38) · S2 명령 팔레트(§S·US-18.2, Should ✅ 코드 — 신규 채널 0·`ui/palette/CommandPalette`·`paletteMatch`·`Ctrl+Shift+P`·`verify:palette` 20) · T1 파일 태그/색상 라벨(§T·US-19.1, Should ✅ 코드 — 신규 채널 0·`domain/rules/tags.ts` 7색·`tagsSlice`·세션 메타 `tagsByPath`·**T3 폐기로 삭제됐던 filterComposition 태그 합성 재설계**) · T2 폴더 용량 인라인(§T·US-19.2, Should ✅ 코드 — 신규 채널 0·`usecases/folderSize`·`analyze:scan:*` 재사용) · U1 Space 퀵룩(§U·US-20.1, Should ✅ 코드 — 신규 채널 0·`ui/quicklook/QuickLookOverlay`[J5 재사용]·`Space`·`preview:read` 재사용) · U2 브레드크럼 드롭다운(§U·US-20.2, Should ✅ 코드 — 신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용).** **신규 Should §W1 자세히 보기 컬럼 헤더·너비 드래그(§W·US-21.1·F34, ✅ 코드 — 신규 채널 0·`domain/rules/columnWidths.ts`·`columnsSlice`·`FileListView` sticky 헤더 밴드·세션 영속).** **S1만 신규 IPC 채널 추가·나머지 5종+§W1 신규 채널 0·신규 npm 의존성 0.** 검증: `npm run build`(typecheck node+web+electron-vite) PASS·ESLint 0·신규 `verify:search` 58·`verify:palette` 20·`verify:contentsearch` 38 + `verify:domain` 204·`verify:store` 222·`verify:persistence` 119(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속·계약 불변식만 증명. 실 GUI·실 워커(grep 스트리밍·결과 점프·미리보기 표출·팔레트 검색/실행·Space 퀵룩·태그 부여/필터·폴더용량 실 스캔·브레드크럼 ▾ 이동·컬럼 헤더 드래그/키보드 리사이즈/재시작 후 폭 유지)는 런타임 스모크 권장 🟡. Electron 앱 미실행. M8 잔여 0 — 파워기능 잔여는 M9(Q1 압축·U3 멀티윈도우) 2종.** 상세 §S·§T·§U·§W·[roadmap.md §0.5·§1](./roadmap.md).
 
 ---
 
@@ -1269,13 +1270,13 @@
 
 ---
 
-## S. 검색·실행 가속 (2026-06-09 신규 기획 — 🔜 미착수)
+## S. 검색·실행 가속 (2026-06-09 신규 기획 — M8 구현 완료(코드)·실 GUI/실 워커 🟡)
 
 > **찾기·실행을 빠르게.** **S1 내용 검색(grep) · S2 명령 팔레트** 2기능. 기존 이름 검색/필터(D1·D2)와 단축키 체계(E1)를 확장한다.
 > 우선순위: S1 = **S(Should)**(개발자·파워유저 핵심 가치), S2 = **S(Should)**(전역 실행 가속).
-> 상태: **🔜 미착수(기획 신규 편입)**. 보안: grep은 워커/별도 처리·바이너리 제외·크기 상한·경로 검증·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
+> 상태: **M8 구현 완료(코드)·실 GUI/실 워커 런타임 스모크 🟡(2026-06-10)**. S1=신규 채널 `search:content:*` 5종·`main/search/`·`grepWorker`·신규 의존성 0(Node 내장)·ADR-010·`verify:search` 58·`verify:contentsearch` 38, S2=신규 채널 0·`ui/palette/CommandPalette`·`paletteMatch`·`Ctrl+Shift+P`·`verify:palette` 20. 보안: grep은 워커/별도 처리·바이너리 제외·크기 상한·경로 검증·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
-### S1. 내용 검색(grep) (S) 🔜
+### S1. 내용 검색(grep) (S) — 구현 완료(코드)·실 워커/GUI 🟡
 **목적**: 파일 **내부 텍스트**를 검색해(현재는 이름 필터만) 결과로 점프한다. (US-18.1)
 
 | 항목 | 동작 규칙 |
@@ -1289,15 +1290,15 @@
 
 **MVP 경계**: 1차 포함 = 현재 폴더(+하위 토글) 텍스트/정규식 검색·바이너리 제외·크기 상한·결과 목록(라인)·미리보기 점프·진행률/취소. 1차 제외 = 전 디스크 인덱싱(풀텍스트 인덱스·PRD Won't "내용 전문 인덱싱" 유지)·검색 결과에서 직접 일괄 치환(편집)·인코딩 자동 감지 고급·원격(M3) 내용 검색.
 
-**수용 기준** (🔜 미착수)
-- [ ] 검색창 "내용 검색" 모드로 현재 폴더(하위 포함 토글) 파일 내부 텍스트를 검색한다(정규식 옵션)
-- [ ] **바이너리 파일은 자동 제외**되고, **크기 상한 초과 파일은 건너뛴다**(설정값)
-- [ ] 결과가 파일별 일치 줄(라인 번호·발췌)로 표시되고 일치 부분이 하이라이트된다
-- [ ] 결과 클릭 시 해당 파일로 점프하고 미리보기에서 해당 위치를 보여준다
-- [ ] 검색이 백그라운드에서 처리되어 UI를 막지 않고 진행률·취소가 동작한다
-- [ ] (범위 밖) 전 디스크 풀텍스트 인덱싱(PRD Won't 유지)·결과 직접 일괄 치환·원격 내용 검색은 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI/실 워커 런타임 스모크 🟡)
+- [x] 검색창 "내용 검색" 모드로 현재 폴더(하위 포함 토글) 파일 내부 텍스트를 검색한다(정규식 옵션) *(코드·실 GUI 🟡)*
+- [x] **바이너리 파일은 자동 제외**되고, **크기 상한 초과 파일은 건너뛴다**(설정값) *(코드·`binaryDetect.ts`)*
+- [x] 결과가 파일별 일치 줄(라인 번호·발췌)로 표시되고 일치 부분이 하이라이트된다 *(코드·match ranges [start,end) end-exclusive)*
+- [x] 결과 클릭 시 해당 파일로 점프하고 미리보기에서 해당 위치를 보여준다 *(코드·`preview:read` 재사용·실 표출 🟡)*
+- [x] 검색이 백그라운드에서 처리되어 UI를 막지 않고 진행률·취소가 동작한다 *(코드·grep 워커·`search:content:*`·실 스트리밍 🟡)*
+- [x] (범위 밖) 전 디스크 풀텍스트 인덱싱(PRD Won't 유지)·결과 직접 일괄 치환·원격 내용 검색은 1차 제외
 
-### S2. 명령 팔레트(Ctrl+Shift+P) (S) 🔜
+### S2. 명령 팔레트(Ctrl+Shift+P) (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: 모든 명령·즐겨찾기·최근·드라이브를 한 입력창에서 검색·실행·점프한다. (US-18.2)
 
 | 항목 | 동작 규칙 |
@@ -1310,23 +1311,23 @@
 
 **MVP 경계**: 1차 포함 = 명령+즐겨찾기+최근+드라이브 통합 검색·실행/점프·키보드 내비·`Ctrl+Shift+P`. 1차 제외 = 파일/폴더 내용 검색 결과를 팔레트에 통합(S1과 분리)·사용자 정의 매크로/체이닝·플러그인 명령(PRD Could "플러그인" 유지).
 
-**수용 기준** (🔜 미착수)
-- [ ] `Ctrl+Shift+P`로 명령 팔레트가 열리고 `Esc`로 닫힌다(신규 단축키·기존 키와 충돌 없음)
-- [ ] 입력으로 명령·즐겨찾기·최근·드라이브를 통합 검색(부분 일치)하고 점수/최근 가중으로 정렬한다
-- [ ] 명령 항목 실행은 키보드/아이콘바와 **동일 commandId**로 수렴하고, 위치 항목 선택은 그 경로로 이동한다
-- [ ] 위/아래·Enter 키보드만으로 검색·실행이 가능하다
-- [ ] 컨텍스트상 불가능한 명령은 흐림/제외된다
-- [ ] (범위 밖) 파일 내용 검색 통합·사용자 매크로·플러그인 명령은 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI 런타임 스모크 🟡)
+- [x] `Ctrl+Shift+P`로 명령 팔레트가 열리고 `Esc`로 닫힌다(신규 단축키·기존 키와 충돌 없음) *(코드·실 GUI 🟡)*
+- [x] 입력으로 명령·즐겨찾기·최근·드라이브를 통합 검색(부분 일치)하고 점수/최근 가중으로 정렬한다 *(코드·`paletteMatch.ts`)*
+- [x] 명령 항목 실행은 키보드/아이콘바와 **동일 commandId**로 수렴하고, 위치 항목 선택은 그 경로로 이동한다 *(코드·commandBus 수렴)*
+- [x] 위/아래·Enter 키보드만으로 검색·실행이 가능하다 *(코드·실 GUI 🟡)*
+- [x] 컨텍스트상 불가능한 명령은 흐림/제외된다 *(코드)*
+- [x] (범위 밖) 파일 내용 검색 통합·사용자 매크로·플러그인 명령은 1차 제외
 
 ---
 
-## T. 메타·표시 UX (2026-06-09 신규 기획 — T3 폐기(코드 제거) / T1·T2 🔜 미착수 M8)
+## T. 메타·표시 UX (2026-06-09 신규 기획 — T1·T2 M8 구현 완료(코드)·실 GUI 🟡 / T3 폐기(코드 제거))
 
 > **항목 메타와 표시를 풍부하게.** **T1 파일 태그/색상 라벨 · T2 상세 보기 폴더 용량 인라인 · ~~T3 정렬/필터 프리셋 저장~~(폐기)** 3기능. 기존 per-위치 메타(J7 별칭·N1 워터마크·O1 고정)·정렬/필터(B2·D2)·세션 영속 패턴을 확장한다.
 > 우선순위: T1 = **S(Should)**, T2 = **S(Should)**, ~~T3 = **S(Should)**~~(등급 보존·폐기).
-> 상태: **T3는 M6에서 구현 완료(코드)됐다가 2026-06-09 사용자 결정으로 폐기·코드 전면 제거(아래 T3 절 참조) / T1·T2는 🔜 미착수(M8)**. T3 제거 내역: `domain/rules/filterComposition.ts`·`presetsSlice`·`usecases/presets`·`ui/preset/PresetBar+PresetManageDialog`·`FilterPreset` DTO 삭제·`selectors.computeVisible`→기존 `filterEntries` 환원·`SESSION_SCHEMA_VERSION` 2→1 환원. 범례: ✅ · 🟡 · 🔜 · ❌ 폐기.
+> 상태: **T1·T2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / T3는 M6에서 구현 완료(코드)됐다가 2026-06-09 사용자 결정으로 폐기·코드 전면 제거(아래 T3 절 참조)**. T1=신규 채널 0·`domain/rules/tags.ts`(7색 팔레트·`matchesTags`)·`tagsSlice`·세션 메타 `tagsByPath`+coerce·**T3 폐기로 삭제됐던 `filterComposition.ts` 태그 합성을 T1에서 재설계**, T2=신규 채널 0·`usecases/folderSize`·`analyze:scan:*` 재사용. T3 제거 내역: `domain/rules/filterComposition.ts`·`presetsSlice`·`usecases/presets`·`ui/preset/PresetBar+PresetManageDialog`·`FilterPreset` DTO 삭제·`selectors.computeVisible`→기존 `filterEntries` 환원·`SESSION_SCHEMA_VERSION` 2→1 환원. 범례: ✅ · 🟡 · 🔜 · ❌ 폐기.
 
-### T1. 파일 태그 / 색상 라벨 (S) 🔜
+### T1. 파일 태그 / 색상 라벨 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: 파일/폴더에 색 태그를 붙여 분류하고 태그로 필터한다. (US-19.1)
 
 | 항목 | 동작 규칙 |
@@ -1339,16 +1340,16 @@
 
 **MVP 경계**: 1차 포함 = 고정 색 팔레트 라벨 부여/해제·목록/그리드 표시·태그 필터·세션 영속(앱 내부 메타). 1차 제외 = 사용자 정의 태그명/색 추가·NTFS 대체데이터스트림이나 OS 태그 연동·태그 기반 전역 검색(전 디스크)·태그 동기화.
 
-**수용 기준** (🔜 미착수)
-- [ ] 항목 우클릭에서 색상 라벨(고정 팔레트)을 부여·해제할 수 있다(다중 라벨 허용 여부는 설계 — 최소 1색)
-- [ ] 부여한 태그가 목록/그리드에서 색으로 표시되고 테마 대비를 유지한다
-- [ ] 태그로 목록을 필터할 수 있다(기존 검색/필터와 병행)
-- [ ] (미해결/설계 인계) 태그 필터가 기존 검색/필터(D1·D2)·"차이만 보기"(P1)와 동시 적용될 때의 합성 규칙(AND/OR)은 chief-architect 설계에서 확정 *(프리셋 T3은 2026-06-09 폐기·제외·`filterComposition.ts` 삭제됨)*
-- [ ] 태그가 per-경로 메타로 세션에 영속되어 재시작 후 유지된다(기존 스냅샷 비파괴)
-- [ ] 태그는 앱 내부 메타로 저장되어 파일 자체를 변경하지 않는다(데이터 비파괴)
-- [ ] (범위 밖) 사용자 정의 태그명/색·OS 태그/ADS 연동·전 디스크 태그 검색·동기화는 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI 런타임 스모크 🟡)
+- [x] 항목 우클릭에서 색상 라벨(고정 7색 팔레트)을 부여·해제할 수 있다 *(코드·contextMenu "태그" 서브메뉴·실 GUI 🟡)*
+- [x] 부여한 태그가 목록/그리드에서 색으로 표시되고 테마 대비를 유지한다 *(코드·FileListView 태그 점)*
+- [x] 태그로 목록을 필터할 수 있다(기존 검색/필터와 병행) *(코드·SearchBar 태그칩·`computeVisible` 이름+태그 합성)*
+- [x] 태그 필터가 기존 검색/필터(D1·D2)와 합성될 때의 규칙을 **T1에서 신설**(T3 폐기로 삭제된 `filterComposition.ts` 태그 합성을 `domain/rules/tags.ts`·`selectors.computeVisible`로 재설계 — 이름+태그 합성)
+- [x] 태그가 per-경로 메타로 세션에 영속되어 재시작 후 유지된다(기존 스냅샷 비파괴·`SidebarSnapshot.tagsByPath`+coerce·`SESSION_SCHEMA_VERSION` 무변경)
+- [x] 태그는 앱 내부 메타로 저장되어 파일 자체를 변경하지 않는다(데이터 비파괴)
+- [x] (범위 밖) 사용자 정의 태그명/색·OS 태그/ADS 연동·전 디스크 태그 검색·동기화는 1차 제외
 
-### T2. 상세 보기 폴더 용량 인라인 (S) 🔜
+### T2. 상세 보기 폴더 용량 인라인 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: 자세히 보기에서 폴더 크기를 온디맨드로 계산해 인라인 표시한다(취소 가능·비차단). (US-19.2)
 
 | 항목 | 동작 규칙 |
@@ -1360,12 +1361,12 @@
 
 **MVP 경계**: 1차 포함 = 자세히 보기 폴더 행 온디맨드 크기 계산·인라인 표시·취소·비차단·권한 skip/순환 차단. 1차 제외 = 모든 폴더 자동 일괄 계산(기본 on)·크기 결과 영속 캐시·그리드/목록 보기 폴더 크기 표시(자세히 전용)·실시간 갱신(워처 연동).
 
-**수용 기준** (🔜 미착수)
-- [ ] 자세히 보기 폴더 행에서 온디맨드로 폴더 재귀 크기를 계산해 크기 칸에 인라인 표시한다(계산 중 진행 표기)
-- [ ] 계산이 백그라운드에서 처리되어 UI를 막지 않고 취소 가능하며, 폴더 이동/정렬 변경 시 진행 계산이 정리된다
-- [ ] 권한 없는 경로는 건너뛰고, 심볼릭/정션 링크 순환이 차단된다(I1 엔진 원칙 재사용)
-- [ ] 기본은 off(성능)이며 설정/행 액션으로 켠다
-- [ ] (범위 밖) 전 폴더 자동 일괄 계산·결과 영속 캐시·그리드/목록 표시·실시간 갱신은 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI 런타임 스모크 🟡)
+- [x] 자세히 보기 폴더 행에서 온디맨드로 폴더 재귀 크기를 계산해 크기 칸에 인라인 표시한다 *(코드·`usecases/folderSize`·지연·캐시·디듀프·실 스캔 🟡)*
+- [x] 계산이 백그라운드에서 처리되어 UI를 막지 않고 취소 가능하며, 폴더 이동/정렬 변경 시 진행 계산이 정리된다 *(코드·`analyze:scan:*` 재사용)*
+- [x] 권한 없는 경로는 건너뛰고, 심볼릭/정션 링크 순환이 차단된다(I1 엔진 원칙 재사용) *(코드·기존 scanEngine 재사용)*
+- [x] 기본은 off(성능)이며 설정/행 액션으로 켠다 *(코드)*
+- [x] (범위 밖) 전 폴더 자동 일괄 계산·결과 영속 캐시·그리드/목록 표시·실시간 갱신은 1차 제외
 
 ### ~~T3. 정렬/필터 프리셋 저장 (S)~~ ❌ 폐기 (2026-06-09 사용자 결정·코드 전면 제거)
 > **폐기 안내(은폐 금지·경과 보존)**: M6에서 구현 완료(코드 ✅)됐으나 **2026-06-09 사용자 결정으로 폐기되어 코드가 전면 제거**됐다. 삭제 파일: `domain/rules/filterComposition.ts`·`app/stores/presetsSlice.ts`·`app/usecases/presets.ts`·`ui/preset/PresetBar.tsx`·`ui/preset/PresetManageDialog.tsx`(디렉토리째). 환원: `selectors.computeVisible`→기존 `filterEntries`(이름 필터)·`FilterState` extPatterns/tagColors/diffOnly 제거·`FilterPreset`/`PresetSort`/`PresetFilter`/`TagColor`/`SessionSnapshot.filterPresets` DTO 제거·`SESSION_SCHEMA_VERSION` 2→1 환원. 아래 설명·수용기준은 **이력으로만 보존**(상태=폐기).
@@ -1390,13 +1391,13 @@
 
 ---
 
-## U. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획 — 🔜 미착수)
+## U. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획 — U1·U2 M8 구현 완료(코드)·실 GUI 🟡 / U3 🔜 미착수 M9)
 
 > **완성도 UX 묶음.** **U1 Space 퀵룩 오버레이 · U2 브레드크럼 드롭다운 · U3 탭 색상/잠금·탭을 새 창으로** 3기능. 기존 미리보기(D3·J5)·주소 표시줄(C1)·탭 관리(A1)를 확장한다.
 > 우선순위: U1 = **S(Should)**, U2 = **S(Should)**, U3 = **C(Could)**(탭 분리=새 창은 멀티 윈도우 복잡도).
-> 상태: **🔜 미착수(기획 신규 편입)**. 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
+> 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 🔜 미착수(M9·멀티 윈도우)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
-### U1. Space 퀵룩 오버레이 (S) 🔜
+### U1. Space 퀵룩 오버레이 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: macOS Quick Look처럼 Space로 선택 항목을 큰 미리보기 오버레이로 즉시 본다. (US-20.1)
 
 | 항목 | 동작 규칙 |
@@ -1408,14 +1409,14 @@
 
 **MVP 경계**: 1차 포함 = `Space` 오버레이·이미지/텍스트/코드/마크다운/메타·항목 간 이동·`Space`/`Esc` 닫기. 1차 제외 = 동영상/오디오 재생·PDF 다중 페이지 렌더·오버레이에서 직접 편집·여러 항목 동시 미리보기.
 
-**수용 기준** (🔜 미착수)
-- [ ] 항목 선택 후 `Space`로 큰 미리보기 오버레이가 열리고 `Space`/`Esc`로 닫힌다
-- [ ] 이미지·텍스트·코드·마크다운·기본 메타가 표시되고 미지원 형식은 메타+아이콘으로 폴백된다(D3/J5 재사용)
-- [ ] 오버레이를 연 채 키보드로 이전/다음 항목을 전환할 수 있다
-- [ ] 내용이 비동기 로드되어 목록을 막지 않고, 미리보기 안전 모델(CSP·DOMPurify·렌더러 직접 파일 접근 없음)을 따른다
-- [ ] (범위 밖) 동영상/오디오 재생·PDF 다중 페이지·오버레이 편집·다중 동시 미리보기는 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI 런타임 스모크 🟡)
+- [x] 항목 선택 후 `Space`로 큰 미리보기 오버레이가 열리고 `Space`/`Esc`로 닫힌다 *(코드·list 컨텍스트 한정·입력/오버레이 억제·실 GUI 🟡)*
+- [x] 이미지·텍스트·코드·마크다운·기본 메타가 표시되고 미지원 형식은 메타+아이콘으로 폴백된다(D3/J5 재사용) *(코드·`QuickLookOverlay`)*
+- [x] 오버레이를 연 채 키보드로 이전/다음 항목을 전환할 수 있다 *(코드·실 GUI 🟡)*
+- [x] 내용이 비동기 로드되어 목록을 막지 않고, 미리보기 안전 모델(CSP·DOMPurify·렌더러 직접 파일 접근 없음)을 따른다 *(코드·`preview:read` 재사용)*
+- [x] (범위 밖) 동영상/오디오 재생·PDF 다중 페이지·오버레이 편집·다중 동시 미리보기는 1차 제외
 
-### U2. 브레드크럼 드롭다운 (S) 🔜
+### U2. 브레드크럼 드롭다운 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: 주소 표시줄 각 세그먼트에서 형제 폴더 드롭다운으로 빠르게 이동한다. (US-20.2)
 
 | 항목 | 동작 규칙 |
@@ -1427,12 +1428,12 @@
 
 **MVP 경계**: 1차 포함 = 각 세그먼트 형제 폴더 드롭다운·선택 이동·키보드 내비·온디맨드 로드. 1차 제외 = 드롭다운 내 다단계(손자) 트리 펼침·드롭다운에서 파일까지 표시(폴더만)·드롭다운에서 즐겨찾기/최근 혼합.
 
-**수용 기준** (🔜 미착수)
-- [ ] 브레드크럼 각 구간에서 펼침 표식으로 그 구간의 형제 폴더 목록 드롭다운을 연다
-- [ ] 드롭다운 항목 선택 시 활성 패널이 그 폴더로 이동하고 현재 경로가 강조된다
-- [ ] 드롭다운을 키보드(↑/↓·Enter·Esc)로 조작할 수 있고 형제가 많으면 스크롤/필터된다
-- [ ] 형제 폴더 목록이 온디맨드 비동기 로드되어 주소 표시줄을 막지 않고, 권한 없음/지연이 안내된다
-- [ ] (범위 밖) 다단계 트리 펼침·파일 표시·즐겨찾기/최근 혼합은 1차 제외
+**수용 기준** (구현 완료(코드)·실 GUI 런타임 스모크 🟡)
+- [x] 브레드크럼 각 구간에서 펼침 표식(▾)으로 그 구간의 형제 폴더 목록 드롭다운을 연다 *(코드·`BreadcrumbDropdown`·원격 경로는 ▾ 비표시·실 GUI 🟡)*
+- [x] 드롭다운 항목 선택 시 활성 패널이 그 폴더로 이동하고 현재 경로가 강조된다 *(코드·`breadcrumbDropdown` usecase)*
+- [x] 드롭다운을 키보드(↑/↓·Enter·Esc)로 조작할 수 있고 형제가 많으면 스크롤/필터된다 *(코드·실 GUI 🟡)*
+- [x] 형제 폴더 목록이 온디맨드 비동기 로드되어 주소 표시줄을 막지 않고, 권한 없음/지연이 안내된다 *(코드·`fs:tree-children` 재사용)*
+- [x] (범위 밖) 다단계 트리 펼침·파일 표시·즐겨찾기/최근 혼합은 1차 제외
 
 ### U3. 탭 색상 / 잠금 · 탭을 새 창으로 (C) 🔜
 **목적**: 탭에 색상·잠금(닫기 방지)을 주고, 탭을 분리해 새 창으로 연다. (US-20.3)
@@ -1455,3 +1456,58 @@
 - [ ] 탭을 "새 창으로 분리"하면 그 탭이 새 창으로 이동하고 원 창에서 제거된다
 - [ ] 탭 색상·잠금 상태가 세션에 영속되어 재시작 후 유지된다(US-5.5 연계 범위)
 - [ ] (범위 밖) 창 간 탭 드래그 이동·창별 독립 워크스페이스·탭 그룹화는 1차 제외
+
+---
+
+## W. 자세히 보기 컬럼 헤더 · 너비 조절 (2026-06-10 신규 기획 — 구현 완료(코드)·실 GUI 🟡)
+
+> 기존 **자세히(Details) 보기(B1, Must)** 를 **표시 UX 관점에서 비파괴 확장**하는 영역이다. 새로운 파일시스템 동작을 추가하는 것이 아니라, 자세히 보기에 **컬럼 헤더 막대를 더하고 컬럼 너비를 사용자가 직접 조절**하게 만들어, 긴 파일명·메타를 보기 좋게 펼치는 **렌더러 UX 기능**이다. 그 전에는 자세히 보기에 헤더가 없고 컬럼 폭이 고정이었다.
+> 2026-06-10 사용자 직접 요청으로 정식 편입. 우선순위는 **S(Should)** — 핵심 가치(다중 디렉토리 작업)와 독립적이나 일상 가독성을 높이는 상단 고정(O1)·즐겨찾기 별칭(J7)과 동급의 소규모 표시 UX 개선이다(우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-10 §W)"](./PRD.md#6-범위와-우선순위-moscow)).
+> **기존 정합**: 조절한 컬럼 폭은 상단 고정(O1 `pinnedByDir`)·미리보기 폭(J6 `ui.previewWidth`)과 **동일한 하위호환 선택 필드 영속 패턴**을 따라 `SessionSnapshot.ui.detailsColumnWidths`(+coerce)로 세션에 저장한다(기존 스냅샷 데이터 비파괴·`SESSION_SCHEMA_VERSION` 무변경). 컬럼 폭 적용은 자세히 보기 렌더 계층에만 작용해 정렬(B2)·필터 동작을 바꾸지 않는다. 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(분리자 드래그·분리자 포커스 방향키로만 조작·전역 키 미배정).
+> 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-10 상태] W1 ✅ 구현 완료(코드)**(코드 정합·verify 충족 — `verify:domain` 컬럼 폭 24케이스: `clampColumnWidth`/`coerceDetailsColumnWidths`). **렌더러+세션 영속만·신규 IPC 채널 0·신규 npm 의존성 0·`SESSION_SCHEMA_VERSION` 무변경.** **실 GUI 동작(헤더 4컬럼 렌더·분리자 드래그 리사이즈·분리자 포커스 방향키 리사이즈·재시작 후 폭 유지)은 헤드리스로 미증명 → 런타임 스모크 권장 🟡**(✅ 위장 아님·각 수용 기준 옆 "※ 실 GUI 🟡" 부기).
+
+### W1. 자세히 보기 컬럼 헤더 + 너비 드래그 조절 (S) ✅ 구현 완료 (실 GUI 동작 런타임 스모크 🟡)
+**목적**: 자세히(details) 보기에 **컬럼 헤더 막대**를 두고 **컬럼 너비를 직접 조절**하게 해, 긴 파일명·유형·날짜를 잘림 없이 보기 좋게 펼친다. 조절한 폭은 다시 열어도 유지되어 매번 다시 맞출 필요가 없다. (US-21.1)
+
+> 본 기능은 **자세히(details) 보기 한정**이다 — 그리드(아이콘)·목록(list) 보기는 컬럼 구조가 없어 해당하지 않는다. **헤더는 컬럼 너비 조절·레이블 표시 전용**이며, 헤더 클릭으로 정렬 기준을 바꾸는 동작은 **1차 범위 밖**이다(정직 표기 — 정렬은 기존 B2 경로 유지).
+
+**헤더·컬럼 구성**
+| 항목 | 동작 규칙 |
+|---|---|
+| 헤더 막대 | 자세히 보기 목록 **상단에 컬럼 헤더 막대**(이름 | 크기 | 유형 | 수정한 날짜)를 표시한다. 상단 고정(O1) sticky 밴드보다 **위**의 sticky 헤더 밴드로 둔다(스크롤해도 헤더가 상단에 붙어 보임) |
+| 컬럼 4종 | **이름 · 크기 · 유형 · 수정한 날짜** 4개 컬럼. 기본 너비 = 크기 90 · 유형 60 · 수정한 날짜 140(px) |
+| 이름 컬럼 신축 | **`이름` 컬럼은 고정 폭을 갖지 않고 남는 가로 폭을 채워 신축(flex)** 한다(나머지 3개 컬럼 폭을 뺀 나머지). 패널 폭이 바뀌면 `이름` 컬럼이 늘고 줄어든다 |
+
+**너비 조절 규칙**
+| 항목 | 동작 규칙 |
+|---|---|
+| 분리자 드래그 | 컬럼 **사이 분리자(divider)** 를 마우스로 좌우 드래그하면 그 컬럼 너비가 실시간으로 바뀐다 |
+| 키보드 리사이즈 | 분리자에 **포커스**(`role="separator"`)를 둔 상태에서 **방향키(←/→)** 로 너비를 한 단계씩 조절한다(접근성 대체수단·분리자 포커스 한정·전역 키 미배정) |
+| 컬럼별 최소 너비 | 각 컬럼은 **최소 너비(48px) 이하로 줄어들지 않으며 최대(600px)를 넘지 않는다**(`clampColumnWidth`) — 컬럼이 사라지거나 레이블이 완전히 가려지지 않음 |
+| 접근성 | 분리자는 `role="separator"` · `aria-orientation="vertical"` 를 가지며 키보드 포커스·방향키 조절이 가능하다 |
+
+**영속 규칙**
+| 항목 | 동작 규칙 |
+|---|---|
+| 세션 영속 | 조절한 컬럼 폭은 **세션(`SessionSnapshot.ui.detailsColumnWidths`)에 영속**되어 **앱 재시작 후에도 유지**된다. **전역 설정**(세션 단위 1벌)으로, J6 미리보기 폭(`ui.previewWidth`)·O1 고정(`pinnedByDir`)과 동격의 하위호환 선택 필드 |
+| 하위호환·정규화 | 기존 세션에 필드가 없으면 **기본 너비로 동작**하고, 복원 시 값은 **min/max로 클램프**해 보존한다(`coerceDetailsColumnWidths`). **`SESSION_SCHEMA_VERSION`은 변경하지 않는다**(`pinnedByDir`/`previewWidth` 선례와 동일한 선택 필드 추가) |
+
+**범위 밖 (1차 — 정직 표기)**
+| 항목 | 사유 |
+|---|---|
+| 헤더 클릭 정렬 | 본 기능은 **너비 조절·레이블 표시 전용**. 컬럼 헤더 클릭으로 정렬 기준/방향을 바꾸는 동작은 1차 범위 밖(정렬은 기존 B2 경로 유지) |
+| 컬럼 표시/숨김·순서 변경 | 컬럼을 켜고 끄거나(토글) 컬럼 순서를 드래그로 바꾸는 것은 1차 범위 밖(4컬럼 고정) |
+| 보기별 적용 | 그리드·목록 보기 컬럼 조절은 해당 없음(자세히 보기 한정) |
+
+**수용 기준** (✅ 구현 완료 — 코드 정합·verify 충족 / 실 GUI 동작은 🟡)
+- [x] 자세히(details) 보기에 **컬럼 헤더 막대(이름 | 크기 | 유형 | 수정한 날짜)** 가 표시된다 — `ui/panel/views/FileListView.tsx`(헤더 sticky 밴드·O1 고정 밴드 위). ※ 실 GUI 🟡
+- [x] 컬럼 **사이 분리자를 드래그**하면 그 컬럼 너비가 실시간으로 바뀐다 — `FileListView.tsx` 분리자 + `columnsSlice` 폭 상태. ※ 실 GUI 🟡
+- [x] 각 컬럼은 **최소 너비(48px) 이하로 줄어들지 않고 최대(600px)를 넘지 않는다** — `domain/rules/columnWidths.ts#clampColumnWidth`(`verify:domain` 24케이스)
+- [x] **`이름` 컬럼은 남는 가로 폭을 채워 신축**되고, 나머지 3개 컬럼(크기/유형/수정한 날짜)이 조절한 폭을 갖는다(기본 90/60/140) — `FileListView.tsx` 레이아웃(이름 flex·나머지 고정 폭)
+- [x] 분리자에 **포커스를 둔 상태에서 방향키(←/→)로 너비를 조절**할 수 있다(분리자 `role="separator"`·`aria-orientation="vertical"`·접근성 대체수단·전역 키 미배정) — `FileListView.tsx` 분리자 키 핸들러. ※ 실 GUI 🟡
+- [x] 조절한 컬럼 폭이 **세션에 영속**되어 앱 재시작 후에도 유지된다(전역 설정·1벌) — `app/usecases/session.ts`·`main/persistence/defaults.ts`·`SessionSnapshot.ui.detailsColumnWidths`(`coerceDetailsColumnWidths`·`verify:domain`). ※ 재시작 후 유지 육안 🟡
+- [x] 기존 세션에 컬럼 폭 필드가 없어도 **기본 너비로 동작**하고, 복원 시 값은 min/max로 클램프되어 보존된다 — `coerceDetailsColumnWidths`·**`SESSION_SCHEMA_VERSION` 무변경**(`pinnedByDir`/`previewWidth` 선례)
+- [x] 신규 IPC 채널·신규 npm 의존성 없이 렌더러+세션 영속만으로 동작하며, 기존 정렬(B2)·필터·보기(J3)·상단 고정(O1) 동작과 충돌·회귀가 없다 — 신규 채널 0·의존성 0·컬럼 폭은 자세히 보기 렌더 계층에만 작용(정렬/필터 로직 불변)
+- [x] 본 기능은 **자세히 보기 한정**이며 그리드·목록 보기에는 적용되지 않는다 — `FileListView.tsx` details 분기 한정
+- [ ] 헤더 클릭으로 정렬 기준/방향 변경 — **1차 범위 밖**(너비 조절·레이블 표시 전용)
+- [ ] 컬럼 표시/숨김·순서 변경 — **1차 범위 밖**(4컬럼 고정)

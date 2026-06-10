@@ -1,13 +1,13 @@
 {
   "name": "agt-finder",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev --watch",
+    "dev": "npm run clean && electron-vite dev",
     "clean": "node scripts/clean.mjs out",
     "prebuild": "npm run clean",
     "build": "npm run typecheck && electron-vite build",
@@ -16,7 +16,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "lint": "eslint . --ext .ts,.tsx,.cjs",
-    "start": "electron-vite preview",
+    "start": "npm run clean && electron-vite build && electron .",
     "verify:fs": "esbuild scripts/verify-fs.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-fs.cjs && node ./out/verify-fs.cjs",
     "verify:ops": "esbuild scripts/verify-ops.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-ops.cjs && node ./out/verify-ops.cjs",
     "verify:worker": "esbuild scripts/verify-worker.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --outfile=./out/verify-worker.mjs && node ./out/verify-worker.mjs",
@@ -24,6 +24,7 @@
     "verify:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-scan.cjs && node ./out/verify-scan.cjs",
     "verify:hash": "esbuild scripts/verify-hash.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-hash.cjs && node ./out/verify-hash.cjs",
     "verify:queue": "esbuild scripts/verify-queue.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-queue.cjs && node ./out/verify-queue.cjs",
+    "verify:search": "esbuild scripts/verify-search.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-search.cjs && node ./out/verify-search.cjs",
     "verify:perf": "esbuild scripts/verify-perf.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-perf.cjs && node ./out/verify-perf.cjs",
     "verify:fmatrix": "esbuild scripts/verify-fmatrix.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-fmatrix.cjs && node ./out/verify-fmatrix.cjs",
     "verify:contrast": "esbuild scripts/verify-contrast.ts --bundle --platform=node --format=cjs --alias:@shared=./src/shared --outfile=./out/verify-contrast.cjs && node ./out/verify-contrast.cjs",
@@ -44,7 +45,9 @@
     "verify:credentials": "esbuild scripts/verify-credentials.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-credentials.cjs && node ./out/verify-credentials.cjs",
     "verify:remote": "esbuild scripts/verify-remote.ts --bundle --platform=node --format=cjs --external:electron --external:ssh2-sftp-client --external:basic-ftp --external:ssh2 --external:cpu-features --alias:@shared=./src/shared --outfile=./out/verify-remote.cjs && node ./out/verify-remote.cjs",
     "verify:remote-trust": "esbuild scripts/verify-remote-trust.ts --bundle --platform=node --format=cjs --external:electron --external:ssh2-sftp-client --external:basic-ftp --external:ssh2 --external:cpu-features --alias:@shared=./src/shared --outfile=./out/verify-remote-trust.cjs && node ./out/verify-remote-trust.cjs",
-    "verify:remote-route": "esbuild scripts/verify-remote-route.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-remote-route.mjs && node ./out/verify-remote-route.mjs"
+    "verify:remote-route": "esbuild scripts/verify-remote-route.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-remote-route.mjs && node ./out/verify-remote-route.mjs",
+    "verify:palette": "esbuild tests/palette.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/palette.verify.mjs && node ./out/palette.verify.mjs",
+    "verify:contentsearch": "esbuild tests/contentsearch.verify.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/contentsearch.verify.mjs && node ./out/contentsearch.verify.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",

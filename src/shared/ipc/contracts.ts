@@ -23,6 +23,7 @@ import type {
   DupGroupDTO,
   FileEntryDTO,
   FileOpErrorCode,
+  GrepMatchDTO,
   HashAlgo,
   ListStreamChunk,
   ListStreamDone,
@@ -486,6 +487,32 @@ export interface QueueSetConcurrencyReq {
   readonly maxConcurrent: number
 }
 
+// ── search:content:* 내용 검색 grep (신규 M8 — ADR-010 결정⑤) ──────────────
+// root 는 핸들러가 guardPath 로 정규화·상위이탈 차단·디렉토리 검증·원격 prefix 거부(로컬 한정).
+/** grep 시작 요청. query 는 문자열(부분 일치) 또는 정규식(isRegex). */
+export interface SearchContentStartReq {
+  /** 검색 루트 폴더(현재 패널 경로). 핸들러가 guardPath·디렉토리 검증. */
+  readonly root: string
+  /** 검색어(문자열 또는 정규식 소스). 빈 문자열 불가(핸들러 거부). */
+  readonly query: string
+  /** true=query 를 정규식으로 컴파일(실패 시 Result.err·throw 0). false=리터럴 부분 일치. */
+  readonly isRegex: boolean
+  /** true=하위 폴더 재귀 스캔. false=현재 폴더 1단계만. */
+  readonly recursive: boolean
+  /** true=숨김/시스템 파일 포함. 미지정=false(기본 제외). */
+  readonly includeHidden?: boolean
+  /** 파일 크기 상한(바이트). 초과 파일은 스캔 스킵. 미지정=엔진 기본 상한. */
+  readonly maxFileBytes?: number
+}
+/** grep 시작 응답 — 이후 progress/match/done 을 묶는 jobId. */
+export interface SearchContentStartRes {
+  readonly jobId: string
+}
+/** grep 잡 취소(jobId 협조취소·멱등). */
+export interface SearchContentCancelReq {
+  readonly jobId: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
@@ -607,6 +634,10 @@ export interface IpcRequestMap {
   [CHANNELS.QUEUE_RESUME]: { req: QueueResumeReq; res: Result<void> }
   [CHANNELS.QUEUE_RETRY]: { req: QueueRetryReq; res: Result<void> }
   [CHANNELS.QUEUE_SET_CONCURRENCY]: { req: QueueSetConcurrencyReq; res: Result<void> }
+
+  // search:content:* (신규 M8 — ADR-010, 핸들러/GrepManager impl: S1)
+  [CHANNELS.SEARCH_CONTENT_START]: { req: SearchContentStartReq; res: Result<SearchContentStartRes> }
+  [CHANNELS.SEARCH_CONTENT_CANCEL]: { req: SearchContentCancelReq; res: Result<void> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -732,6 +763,29 @@ export interface AppOpenPathEvt {
   readonly path: string
 }
 
+// ── search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 — 소비측 필터) ──
+/** 진행률(200ms 스로틀) — 누적 스캔 파일/일치 파일 + 현재 경로. */
+export interface SearchContentProgressEvt {
+  readonly jobId: string
+  /** 지금까지 스캔(텍스트 후보)한 파일 수. */
+  readonly scannedFiles: number
+  /** 지금까지 1건 이상 일치한 파일 수. */
+  readonly matchedFiles: number
+  readonly currentPath: string
+}
+/** 파일 단위 증분 결과 — 가상 스크롤이 적재. file=절대경로, lines=일치 줄(파일별 상한까지). */
+export interface SearchContentMatchEvt {
+  readonly jobId: string
+  readonly file: GrepMatchDTO['file']
+  readonly lines: GrepMatchDTO['lines']
+}
+/** grep 완료 — 총 일치 수 + 상한(파일/줄/총 결과) 도달로 잘렸는지(정직 표기). */
+export interface SearchContentDoneEvt {
+  readonly jobId: string
+  readonly totalMatches: number
+  readonly truncated: boolean
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -770,6 +824,11 @@ export interface IpcEventMap {
 
   // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기")
   [CHANNELS.APP_OPEN_PATH]: AppOpenPathEvt
+
+  // search:content:* 푸시 evt (신규 M8 — ADR-010)
+  [CHANNELS.SEARCH_CONTENT_PROGRESS]: SearchContentProgressEvt
+  [CHANNELS.SEARCH_CONTENT_MATCH]: SearchContentMatchEvt
+  [CHANNELS.SEARCH_CONTENT_DONE]: SearchContentDoneEvt
 }
 
 export type EventChannel = keyof IpcEventMap

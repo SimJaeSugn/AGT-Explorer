@@ -28,9 +28,16 @@ import { isThumbnailableExt, thumbSizeFor } from '@renderer/domain/image'
 import { commitRename } from '@renderer/app/usecases/fileOps'
 import { openEmptyContextMenu, openRowContextMenu } from '@renderer/app/usecases/contextMenu'
 import { highlightRange } from '@renderer/domain/rules/filter'
+import { tagColorOf, type TagKey } from '@renderer/domain/rules/tags'
+import {
+  getCachedFolderSize,
+  requestFolderSize,
+  subscribeFolderSize
+} from '@renderer/app/usecases/folderSize'
 import { normalizeRect, indicesInRect } from '@renderer/domain/rules/boxSelect'
 import type { SelectionState } from '@renderer/domain/rules/selection'
 import { tokens, gridCellFor } from '@renderer/ui/theme/tokens'
+import type { DetailsColumn, DetailsColumnWidths } from '@renderer/domain/rules/columnWidths'
 import {
   useDragSource,
   useExternalDragSource,
@@ -41,12 +48,25 @@ import {
 import { computeWindow } from './windowing'
 
 const OVERSCAN = 6
+/**
+ * 자세히 보기 열 헤더 밴드 높이(px). 스크롤 컨테이너 최상단에 sticky 로 고정되며,
+ * 핀(고정) sticky 밴드는 이 높이만큼 아래로 밀려 헤더 아래에 쌓인다(헤더가 위).
+ * 키보드 스크롤 보정도 이 상수를 더해 행이 헤더 뒤로 숨지 않게 한다.
+ */
+const HEADER_H = 24
+/** 행/헤더 공통 좌측 패딩(px) — 헤더 라벨이 행 내용과 같은 x 에서 시작하도록 일치. */
+const ROW_PAD_X = 8
+/** 행/헤더 공통 아이콘 폭(px) + 아이콘~이름 gap(px). 헤더 이름 라벨 정렬용 선행 spacer. */
+const ROW_ICON_W = 16
+const ROW_ICON_GAP = 6
 /** 박스 선택 시작 임계(클릭과 구분). DnD threshold 와 동일. */
 const BOX_THRESHOLD = 5
 /** 자동 스크롤 임계 영역(뷰포트 상/하단 px). */
 const AUTOSCROLL_EDGE = 24
 /** 자동 스크롤 1프레임당 이동 px. */
 const AUTOSCROLL_STEP = 12
+/** 태그 없는 행에 넘길 안정 빈 배열(매 렌더 새 배열 방지 — FileRow memo 안정). */
+const EMPTY_TAGS: readonly TagKey[] = []
 
 interface Props {
   readonly panelId: string
@@ -87,8 +107,14 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const panelPath = useRootStore((s) => s.panels[panelId]?.path ?? '')
   // 상단 고정: 이 패널 경로의 고정 항목 배열(변경 시 재렌더 + computeVisible 재계산).
   const pinnedHere = useRootStore((s) => s.pinnedByDir[s.panels[panelId]?.path ?? ''])
+  // T1: 태그 맵·활성 태그 필터. 둘 다 변경 시 재렌더 + computeVisible 재계산(태그 필터/배지).
+  const tagsByPath = useRootStore((s) => s.tagsByPath)
+  const activeTags = useRootStore((s) => s.activeTagsByPanel[panelId])
   const selection = useRootStore((s) => s.selection[panelId])
   const showExtensions = useRootStore((s) => s.showExtensions)
+  // 자세히 보기 열 너비(전역 설정·드래그 조절). 행/헤더가 동일 폭을 공유해 정렬 유지.
+  const colWidths = useRootStore((s) => s.detailsColumnWidths)
+  const setDetailsColumnWidth = useRootStore((s) => s.setDetailsColumnWidth)
   const renameTarget = useRootStore((s) => s.renameTarget)
   // J2: 워처발 갱신 시 1회성 스크롤 복원 플래그(보존). null=평상시 no-op.
   const pendingScrollRestore = useRootStore((s) => s.panels[panelId]?.pendingScrollRestore ?? null)
@@ -152,7 +178,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     () => (panel ? computeVisible(panel) : []),
     // directory.entries/view/filter 가 바뀌면 panel 참조도 immer 로 갱신됨.
     // pinnedHere 는 고정 토글 시 참조가 바뀌어 재계산(applyPins)을 유발한다.
-    [panel, directory?.entries, view, filter, pinnedHere]
+    // tagsByPath/activeTags 는 태그 필터·배지 변경 시 재계산/재렌더(computeVisible 도 소비).
+    [panel, directory?.entries, view, filter, pinnedHere, tagsByPath, activeTags]
   )
   const visiblePaths = useMemo(() => visible.map((e) => e.path), [visible])
 
@@ -177,6 +204,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
 
   const viewMode = view?.viewMode ?? 'details'
   const isGrid = viewMode.startsWith('icons-')
+  // 자세히 보기에서만 열 헤더 밴드를 그린다. 헤더 높이만큼 콘텐츠가 아래로 밀린다.
+  const isDetails = viewMode === 'details'
+  const headerH = isDetails ? HEADER_H : 0
   const rowH = tokens.rowHeight
   const gridCell = isGrid ? gridCellFor(viewMode) : null
 
@@ -305,9 +335,11 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         const el = scrollRef.current
         if (el) {
           const top = Math.floor(next / colCount) * cellH
-          // sticky 고정 밴드가 상단 stickyBandH 만큼을 가리므로, 위로 스크롤 시 그만큼
-          // 더 올려 대상 행이 밴드 뒤에 가리지 않게 한다(고정 행 자신은 max(0)로 0 → 밴드에 표시).
-          if (top < el.scrollTop + stickyBandH) el.scrollTop = Math.max(0, top - stickyBandH)
+          // 상단 가림 영역 = 열 헤더(headerH·자세히 전용) + 핀 sticky 밴드(stickyBandH).
+          // 위로 스크롤 시 그만큼 더 올려 대상 행이 헤더/밴드 뒤로 가리지 않게 한다
+          // (고정 행 자신은 max(0)로 0 → 밴드에 표시).
+          const topOcclusion = headerH + stickyBandH
+          if (top < el.scrollTop + topOcclusion) el.scrollTop = Math.max(0, top - topOcclusion)
           else if (top + cellH > el.scrollTop + el.clientHeight) {
             el.scrollTop = top + cellH - el.clientHeight
           }
@@ -348,6 +380,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       cellW,
       colCount,
       stickyBandH,
+      headerH,
       selectAll,
       active,
       setActivePanel,
@@ -380,6 +413,10 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   geomRef.current = { colCount, cellH, cellW, count: visible.length }
   const visiblePathsRef = useRef(visiblePaths)
   visiblePathsRef.current = visiblePaths
+  // 본문 행이 열 헤더(headerH)만큼 아래로 밀려 있으므로, 박스선택 인덱스 매핑은
+  // 헤더 높이를 뺀 콘텐츠-Y 로 계산한다(시각 사각형은 헤더 포함 raw 좌표 유지).
+  const headerHRef = useRef(headerH)
+  headerHRef.current = headerH
 
   const applyBox = useCallback(() => {
     const d = dragRef.current
@@ -392,7 +429,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     const r = normalizeRect(d.startX, d.startY, curX, curY)
     setBoxRect({ top: r.top, left: r.left, width: r.right - r.left, height: r.bottom - r.top })
     const g = geomRef.current
-    const indices = indicesInRect(r, g)
+    // 행 좌표계로 환산(헤더 높이만큼 위로) 후 인덱스 매핑. 시각 사각형은 위 raw 좌표 유지.
+    const h = headerHRef.current
+    const indices = indicesInRect({ ...r, top: r.top - h, bottom: r.bottom - h }, g)
     boxSelect(panelId, visiblePathsRef.current, indices, d.mode, d.base)
   }, [boxSelect, panelId])
 
@@ -557,10 +596,12 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   }
 
   // FileRow 1개 생성(윈도 본문 + sticky 밴드 공용).
-  function renderRow(i: number, entry: FileEntryDTO): JSX.Element {
+  // topOffset: 본문 행은 열 헤더(headerH)만큼 아래로 민다. 핀 밴드 행은 0(밴드가 이미
+  // sticky top:headerH 로 헤더 아래에 위치 — 밴드 내부 좌표는 헤더 무관).
+  function renderRow(i: number, entry: FileEntryDTO, topOffset = 0): JSX.Element {
     const row = Math.floor(i / colCount)
     const col = i % colCount
-    const top = row * cellH
+    const top = topOffset + row * cellH
     const selected = selection?.selectedPaths.has(entry.path) ?? false
     const pinned = pinnedHere?.includes(entry.path) ?? false
     const renaming = renameTarget?.panelId === panelId && renameTarget.path === entry.path
@@ -570,6 +611,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       drag.target?.panelId === panelId &&
       drag.target.overEntryPath === entry.path &&
       drag.allowed
+    // T1: 이 항목의 태그(없으면 빈 배열). tagsByPath 변경 시 visible 메모가 무효화되어
+    // renderRow 가 다시 호출되므로 배지가 갱신된다.
+    const entryTags = tagsByPath[entry.path] ?? EMPTY_TAGS
     return (
       <FileRow
         key={entry.path}
@@ -582,8 +626,10 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         height={cellH}
         selected={selected}
         pinned={pinned}
+        tags={entryTags}
         active={active}
         details={view.viewMode === 'details'}
+        colWidths={colWidths}
         grid={gridCell ? { icon: gridCell.icon } : null}
         showExt={showExtensions}
         query={filter?.open ? filter.query : ''}
@@ -616,7 +662,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
     const entry = visible[i]
     if (!entry) continue
     if (sticky && i < stickyCount) continue
-    rows.push(renderRow(i, entry))
+    // 본문 행은 열 헤더(headerH) 아래에서 시작하도록 headerH 만큼 내린다.
+    rows.push(renderRow(i, entry, headerH))
   }
 
   return (
@@ -647,12 +694,20 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         boxShadow: panelDropHighlight ? `inset 0 0 0 2px ${tokens.color.accent}` : undefined
       }}
     >
-      <div style={{ height: totalHeight, position: 'relative' }}>
+      <div style={{ height: totalHeight + headerH, position: 'relative' }}>
+        {isDetails && (
+          <ColumnHeader
+            widths={colWidths}
+            height={HEADER_H}
+            onResize={setDetailsColumnWidth}
+          />
+        )}
         {sticky && stickyCount > 0 && (
           <div
             style={{
               position: 'sticky',
-              top: 0,
+              // 열 헤더 밴드(headerH) 아래에 핀 밴드가 쌓이도록 헤더 높이만큼 내린다.
+              top: headerH,
               zIndex: 3,
               height: stickyBandH,
               // 고정 영역을 본문과 구분되게: 대체 배경(bgAlt·헤더/툴바 색) + 강조 하단 구분선.
@@ -716,8 +771,12 @@ interface RowProps {
   selected: boolean
   /** 상단 고정 여부(목록 최상단 배치 + 핀 표식). */
   pinned: boolean
+  /** 이 항목에 붙은 태그 키(색상 배지·T1). 빈 배열이면 배지 없음. */
+  tags: readonly TagKey[]
   active: boolean
   details: boolean
+  /** 자세히 보기 고정폭 열 너비(헤더와 공유 — 정렬 유지). */
+  colWidths: DetailsColumnWidths
   /** 아이콘 그리드 셀 모드(J4). null 이면 list/details 행. icon=아이콘 px. */
   grid: { icon: number } | null
   showExt: boolean
@@ -744,8 +803,10 @@ function FileRow({
   height,
   selected,
   pinned,
+  tags,
   active,
   details,
+  colWidths,
   grid,
   showExt,
   query,
@@ -851,6 +912,8 @@ function FileRow({
             📌
           </span>
         )}
+        {/* T1: 그리드 태그 코너 점(셀 우상단). */}
+        <TagDots tags={tags} variant="grid" />
         <span
           style={{
             flex: '0 0 auto',
@@ -959,29 +1022,43 @@ function FileRow({
         <span
           style={{
             flex: details ? '1 1 40%' : '1 1 auto',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            overflow: 'hidden'
           }}
         >
-          <HighlightedName name={name} query={query} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+            <HighlightedName name={name} query={query} />
+          </span>
+          {/* T1: 이름 옆 태그 색상 점(자세히·목록 공통). */}
+          <TagDots tags={tags} variant="details" />
         </span>
       )}
       {details && (
         <>
+          {/* 고정폭 열은 헤더(ColumnHeader)와 동일한 colWidths 를 읽어 정렬을 유지한다. */}
           <span
             style={{
-              flex: '0 0 90px',
+              flex: `0 0 ${colWidths.size}px`,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               textAlign: 'right',
               color: tokens.color.textMuted,
               fontVariantNumeric: 'tabular-nums'
             }}
           >
-            {formatSize(entry)}
+            {/* T2: 폴더는 lazy 스캔 총 용량, 파일은 자기 크기(formatSize). */}
+            {entry.isDir ? <FolderSize path={entry.path} /> : formatSize(entry)}
           </span>
           <span
             style={{
-              flex: '0 0 60px',
-              textAlign: 'left',
+              flex: `0 0 ${colWidths.type}px`,
+              boxSizing: 'border-box',
+              paddingRight: 6,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              textAlign: 'right',
               color: tokens.color.textMuted
             }}
           >
@@ -989,8 +1066,12 @@ function FileRow({
           </span>
           <span
             style={{
-              flex: '0 0 140px',
-              textAlign: 'left',
+              flex: `0 0 ${colWidths.mtime}px`,
+              boxSizing: 'border-box',
+              paddingRight: 6,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              textAlign: 'right',
               color: tokens.color.textMuted,
               fontVariantNumeric: 'tabular-nums'
             }}
@@ -1000,6 +1081,191 @@ function FileRow({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * ColumnHeader — 자세히(details) 보기 열 헤더 밴드(이름 | 크기 | 유형 | 수정한 날짜).
+ *
+ * 스크롤 컨테이너 최상단에 `position: sticky; top: 0` 으로 고정되며 핀(고정) sticky
+ * 밴드(top: headerH)보다 위(zIndex 4 > 3)에 쌓인다. **행 레이아웃과 정확히 동일한**
+ * 좌측 패딩(ROW_PAD_X)·아이콘폭+gap(ROW_ICON_W+ROW_ICON_GAP) 선행 spacer 로 "이름"
+ * 라벨을 행의 파일명과 같은 x 에 정렬한다. 고정폭 3열은 행과 같은 colWidths·textAlign 을
+ * 쓴다. 각 고정폭 열 왼쪽 경계(이름↔크기 포함)에 드래그 가능한 구분자를 둔다.
+ *
+ * a11y: 헤더는 presentational(role 없음·포커스 트랩 없음 — role="grid" 무간섭).
+ * 구분자만 role="separator" aria-orientation="vertical" + 화살표키 ±8px 리사이즈.
+ */
+function ColumnHeader({
+  widths,
+  height,
+  onResize
+}: {
+  widths: DetailsColumnWidths
+  height: number
+  onResize: (col: DetailsColumn, px: number) => void
+}): JSX.Element {
+  const labelStyle = (align: 'left' | 'right' | 'center'): React.CSSProperties => ({
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: align,
+    color: tokens.color.textMuted,
+    fontWeight: 600
+  })
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'sticky',
+        top: 0,
+        // 헤더는 핀 밴드(zIndex 3)·본문 위. 박스선택 오버레이(2)·본문보다 항상 위.
+        zIndex: 4,
+        height,
+        display: 'flex',
+        alignItems: 'center',
+        gap: ROW_ICON_GAP,
+        padding: `0 ${ROW_PAD_X}px`,
+        boxSizing: 'border-box',
+        fontSize: 12,
+        userSelect: 'none',
+        whiteSpace: 'nowrap',
+        // 본문을 가리도록 불투명(헤더/툴바 색) + 하단 강조 구분선.
+        background: tokens.color.bgAlt,
+        boxShadow: `inset 0 -1px 0 ${tokens.color.borderStrong}`
+      }}
+    >
+      {/* 행 아이콘(ROW_ICON_W) 자리 — 행 파일명과 같은 x 기준 선행 spacer. */}
+      <span style={{ flex: '0 0 auto', width: ROW_ICON_W, height: ROW_ICON_W }} />
+      {/* 이름 열: 남은 공간 flex(행의 name span flex '1 1 40%' 과 동일 비중)·헤더명 왼쪽 정렬. */}
+      <span style={{ ...labelStyle('left'), flex: '1 1 40%' }}>이름</span>
+      {/* 크기 열(왼쪽 경계에 이름↔크기 구분자)·헤더명 중앙정렬. */}
+      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.size}px`, position: 'relative' }}>
+        <ColumnDivider col="size" widthNow={widths.size} onResize={onResize} />
+        크기
+      </span>
+      {/* 유형 열·헤더명 중앙정렬. */}
+      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.type}px`, position: 'relative' }}>
+        <ColumnDivider col="type" widthNow={widths.type} onResize={onResize} />
+        유형
+      </span>
+      {/* 수정한 날짜 열·헤더명 중앙정렬. */}
+      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.mtime}px`, position: 'relative' }}>
+        <ColumnDivider col="mtime" widthNow={widths.mtime} onResize={onResize} />
+        수정한 날짜
+      </span>
+    </div>
+  )
+}
+
+/**
+ * ColumnDivider — 열 왼쪽 경계의 드래그 리사이즈 핸들(자세히 헤더).
+ *
+ * 해당 열의 **왼쪽 경계**를 끌어 그 열의 px 너비를 조절한다(왼쪽으로 끌면 넓어짐).
+ * 포인터: pointerdown 에서 setPointerCapture → pointermove 로 delta 반영 → pointerup.
+ * 키보드: 좌/우 화살표 ±8px(WCAG 2.1.1). clampColumnWidth(슬라이스 setter)가 하한/상한
+ * 보장. role="separator" aria-orientation="vertical".
+ */
+function ColumnDivider({
+  col,
+  widthNow,
+  onResize
+}: {
+  col: DetailsColumn
+  widthNow: number
+  onResize: (col: DetailsColumn, px: number) => void
+}): JSX.Element {
+  // 드래그 세션 상태(시작 X·시작 너비). pointer capture 로 window 리스너 불요.
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null)
+  const [activeDrag, setActiveDrag] = useState(false)
+  const [hover, setHover] = useState(false)
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLSpanElement>) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      e.stopPropagation() // 컨테이너 박스선택 시작 방지.
+      dragRef.current = { startX: e.clientX, startW: widthNow }
+      setActiveDrag(true)
+      e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    [widthNow]
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLSpanElement>) => {
+      const d = dragRef.current
+      if (!d) return
+      // 열 왼쪽 경계를 끌므로 오른쪽 이동(+dx)은 열을 좁게(−), 왼쪽 이동은 넓게(+).
+      const dx = e.clientX - d.startX
+      onResize(col, d.startW - dx)
+    },
+    [col, onResize]
+  )
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
+    dragRef.current = null
+    setActiveDrag(false)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+  }, [])
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLSpanElement>) => {
+      // 화살표 ±8px(WCAG 2.1.1 키보드 조작 대안). 다른 키는 전역 디스패처로 통과.
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopPropagation()
+        onResize(col, widthNow - 8)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        e.stopPropagation()
+        onResize(col, widthNow + 8)
+      }
+    },
+    [col, widthNow, onResize]
+  )
+
+  // 평상시에도 보이는 구분선(borderStrong) → 어디를 잡는지 명확. hover/드래그 시 accent·굵게.
+  const emphasize = activeDrag || hover
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="열 너비 조절"
+      title="열 너비 조절 (드래그하거나 ←/→)"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onKeyDown={onKeyDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'absolute',
+        top: 0,
+        // 경계 중앙에 넓은 잡기 영역(폭 11px·중앙 정렬)으로 드래그를 쉽게 한다.
+        left: -5,
+        width: 11,
+        height: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        cursor: 'col-resize',
+        background: 'transparent',
+        touchAction: 'none'
+      }}
+    >
+      {/* 항상 보이는 세로 구분선(헤더 전체 높이). 평상시 borderStrong, 강조 시 accent·3px. */}
+      <span
+        aria-hidden
+        style={{
+          width: emphasize ? 3 : 1,
+          height: '100%',
+          background: emphasize ? tokens.color.accent : tokens.color.borderStrong,
+          pointerEvents: 'none'
+        }}
+      />
+    </span>
   )
 }
 
@@ -1167,6 +1433,99 @@ function RenameInput({
       }}
     />
   )
+}
+
+/**
+ * TagDots — 행의 태그 색상 점(T1). details=이름 뒤 인라인 작은 점들, grid=좌상단 코너 점.
+ * 각 점은 aria-label("태그: 빨강")로 스크린리더에 고지한다(role="grid" 무간섭 — span).
+ */
+function TagDots({
+  tags,
+  variant
+}: {
+  tags: readonly TagKey[]
+  variant: 'details' | 'grid'
+}): JSX.Element | null {
+  if (tags.length === 0) return null
+  const size = variant === 'grid' ? 8 : 7
+  if (variant === 'grid') {
+    // 그리드: 좌상단 코너에 점들을 세로로 약간 겹쳐 쌓는다(셀 콘텐츠 위 절대배치).
+    return (
+      <span
+        style={{
+          position: 'absolute',
+          top: 3,
+          right: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          pointerEvents: 'none'
+        }}
+      >
+        {tags.map((k) => (
+          <Dot key={k} k={k} size={size} />
+        ))}
+      </span>
+    )
+  }
+  // 자세히: 이름 뒤 인라인 점들(가로).
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, flex: '0 0 auto' }}>
+      {tags.map((k) => (
+        <Dot key={k} k={k} size={size} />
+      ))}
+    </span>
+  )
+}
+
+/** 단일 태그 색상 점(aria-label 고지). */
+function Dot({ k, size }: { k: TagKey; size: number }): JSX.Element {
+  const meta = tagColorOf(k)
+  return (
+    <span
+      role="img"
+      aria-label={`태그: ${meta?.name ?? k}`}
+      title={meta?.name ?? k}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        flex: '0 0 auto',
+        background: meta?.color ?? tokens.color.textMuted,
+        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)'
+      }}
+    />
+  )
+}
+
+/**
+ * FolderSize — 자세히 보기 폴더 행의 크기 열 인라인 총 용량(T2). lazy 캐시(folderSize)를
+ * useSyncExternalStore 로 구독한다(썸네일/아이콘 캐시 동형). 미캐시면 1회 요청하고 산출
+ * 전까지 "—" 폴백(렌더 비차단). 가시 윈도에 실제 렌더되는 폴더 행만 요청(eager 금지).
+ */
+function FolderSize({ path }: { path: string }): JSX.Element {
+  const bytes = useSyncExternalStore(subscribeFolderSize, () => getCachedFolderSize(path))
+
+  useEffect(() => {
+    if (getCachedFolderSize(path) === undefined) void requestFolderSize(path)
+  }, [path])
+
+  if (bytes === undefined) {
+    return (
+      <span aria-label="폴더 용량 계산 중" style={{ color: tokens.color.textMuted }}>
+        —
+      </span>
+    )
+  }
+  return <>{formatBytes(bytes)}</>
+}
+
+/** 바이트 사람친화 표기(폴더 합계용 — formatSize 와 동일 단위 규칙). */
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`
+  return `${(b / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
 /** 검색어 매칭 구간을 하이라이트해 이름을 렌더(부분일치 쿼리만). */

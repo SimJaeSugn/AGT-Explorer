@@ -23,6 +23,17 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return false
 }
 
+/**
+ * U1: 포커스가 **파일 목록 그리드(role="grid")** 안에 있는지.
+ * Space 퀵룩은 목록 포커스에서만 가로채야 한다 — 버튼/체크박스/링크 등 다른
+ * 포커서블에서의 Space(클릭·스크롤)를 보존하기 위한 추가 게이트(컨텍스트만으로는
+ * 비-편집 요소를 구분하지 못함). 목록 그리드 자신 또는 그 내부면 true.
+ */
+function isInFileListGrid(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.closest('[role="grid"]') !== null
+}
+
 /** 개발 모드 여부(devtools·리로드 등은 dev 에서 허용). */
 const IS_DEV = import.meta.env.DEV
 
@@ -63,6 +74,12 @@ export function KeyboardDispatcher(): null {
         }
         const commandId = keyBindingRegistry.resolve(ctx, chord)
         if (commandId) {
+          // U1: Space 퀵룩은 목록 그리드 포커스에서만 가로챈다(버튼/체크박스/스크롤
+          // 등 다른 포커서블의 Space 보존). 오버레이/입력 컨텍스트는 위 ctx 분기로
+          // 이미 차단됨(dialog/addressEdit/...). 목록 밖 Space 면 네이티브에 양보.
+          if (chord === 'space' && !isInFileListGrid(e.target)) {
+            return
+          }
           // 앱이 쓰는 단축키 → 앱이 처리(브라우저 기본은 자동으로 막힘).
           if (execCommand(commandId)) {
             e.preventDefault()

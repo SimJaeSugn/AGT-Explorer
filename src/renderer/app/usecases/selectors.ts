@@ -10,6 +10,7 @@ import type { FileEntryDTO } from '@shared/dto'
 import type { Panel } from '@renderer/domain/entities'
 import { applyPins, sortEntries } from '@renderer/domain/rules/sort'
 import { filterEntries } from '@renderer/domain/rules/filter'
+import { matchesTags, type TagKey } from '@renderer/domain/rules/tags'
 import { store } from '@renderer/app/stores/rootStore'
 
 interface MemoSlot {
@@ -20,18 +21,26 @@ interface MemoSlot {
   query: string
   /** 이 패널 경로의 고정 항목 배열(참조 동일성으로 메모 무효화 판정). */
   pinned: readonly string[]
+  /** 활성 태그 필터 Set(참조 동일성으로 메모 무효화 판정 — T1). */
+  activeTags: ReadonlySet<TagKey>
+  /** tagsByPath 맵 참조(태그 재할당 시 결과 무효화 — T1). */
+  tagsByPath: Record<string, TagKey[]>
   result: FileEntryDTO[]
 }
 
 const memo = new Map<string, MemoSlot>()
 
-/** 패널의 가시 엔트리(정렬+필터). 메모 적중 시 동일 참조 반환. */
+/** 패널의 가시 엔트리(정렬+이름필터+태그필터). 메모 적중 시 동일 참조 반환. */
 export function computeVisible(panel: Panel): FileEntryDTO[] {
   const { entries } = panel.directory
   const { sortKey, sortDir, folderFirst } = panel.view
   const query = panel.filter.open ? panel.filter.query : ''
   // 이 패널 경로에 고정된 항목(상단 고정 기능). 변경 시에만 새 배열 참조로 메모 무효화.
-  const pinned = store.getState().pinnedIn(panel.path)
+  const st = store.getState()
+  const pinned = st.pinnedIn(panel.path)
+  // T1: 활성 태그 필터(패널별)·태그 맵. 참조 동일성으로 메모 무효화(둘 다 변경 시 새 참조).
+  const activeTags = st.activeTagsOf(panel.id)
+  const tagsByPath = st.tagsByPath
 
   const slot = memo.get(panel.id)
   if (
@@ -41,16 +50,31 @@ export function computeVisible(panel: Panel): FileEntryDTO[] {
     slot.sortDir === sortDir &&
     slot.folderFirst === folderFirst &&
     slot.query === query &&
-    slot.pinned === pinned
+    slot.pinned === pinned &&
+    slot.activeTags === activeTags &&
+    slot.tagsByPath === tagsByPath
   ) {
     return slot.result
   }
 
   // 이름 부분일치 필터(빈 쿼리면 원본 참조 그대로 반환 — 메모 친화).
-  const filtered = filterEntries(entries, query)
+  const named = filterEntries(entries, query)
+  // T1: 태그 필터 합성(이름필터 AND 태그필터). 활성 태그 0개면 항등(matchesTags=true).
+  const filtered =
+    activeTags.size === 0 ? named : named.filter((e) => matchesTags(tagsByPath[e.path], activeTags))
   const sorted = sortEntries(filtered, sortKey, sortDir, folderFirst)
   const result = applyPins(sorted, new Set(pinned))
-  memo.set(panel.id, { entries, sortKey, sortDir, folderFirst, query, pinned, result })
+  memo.set(panel.id, {
+    entries,
+    sortKey,
+    sortDir,
+    folderFirst,
+    query,
+    pinned,
+    activeTags,
+    tagsByPath,
+    result
+  })
   return result
 }
 

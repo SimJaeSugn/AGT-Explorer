@@ -38,6 +38,7 @@ import {
   DEFAULT_COMPARE_OPTIONS
 } from '../src/renderer/domain/rules/compare'
 import { summarizeVerify, verifyMessage } from '../src/renderer/domain/rules/checksumVerdict'
+import { shapeBreadcrumbSiblings } from '../src/renderer/domain/rules/breadcrumbSiblings'
 import {
   keepCandidate,
   selectAllButOne,
@@ -49,7 +50,37 @@ import {
   totalWastedBytes,
   countSelected
 } from '../src/renderer/domain/rules/dupGroup'
+import {
+  clampColumnWidth,
+  coerceDetailsColumnWidths,
+  COLUMN_MIN_WIDTH,
+  COLUMN_MAX_WIDTH,
+  DEFAULT_DETAILS_COLUMN_WIDTHS
+} from '../src/renderer/domain/rules/columnWidths'
 import type { ComparePairDTO, DupGroupDTO, FileEntryDTO, VerifyMismatchDTO } from '../src/shared/dto'
+// M8 T1/T2: 태그 순수 규칙 + folderSize 키 헬퍼 + 세션 coerce(coerceTagsByPath).
+import {
+  TAG_PALETTE,
+  isTagKey,
+  tagColorOf,
+  tagDisplayName,
+  normalizeTags,
+  matchesTags,
+  type TagKey
+} from '../src/renderer/domain/rules/tags'
+import { folderSizeKeyFor } from '../src/renderer/app/usecases/folderSize'
+import { coerceTagsByPath } from '../src/main/persistence/defaults'
+
+/**
+ * T2 폴더 용량 표기 미러(FileListView.formatBytes 와 동일 단위 규칙 — 사적 함수라
+ * 헤드리스 verify 가 직접 import 불가하므로 동일 로직을 재현해 표기 규칙만 검증).
+ */
+function formatBytesT2(b: number): string {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`
+  return `${(b / 1024 / 1024 / 1024).toFixed(1)} GB`
+}
 
 const mk = (name: string, isDir: boolean, size = 0, mtime = 0): FileEntryDTO => ({
   name,
@@ -645,6 +676,147 @@ eq(
   eq('R2 sortGroupsByWaste 큰낭비먼저', sortGroupsByWaste(groups).map((g) => g.hash), ['hB', 'hA'])
 
   eq('R2 countSelected', countSelected(groups, new Set(['C:\\x\\b.txt', 'C:\\y\\z.txt'])), 2)
+}
+
+// ── U2 브레드크럼 드롭다운 형제 형상화 ─────────────────────────────────────
+{
+  // mk 는 path='C:\\x\\'+name 으로 만든다 → currentChildPath 도 그 규칙으로.
+  const raw = [
+    mk('zeta', true),
+    mk('readme.txt', false), // 파일 → 제외
+    mk('alpha', true),
+    mk('item10', true),
+    mk('item2', true)
+  ]
+  // 폴더만 + 자연 정렬(item2 < item10).
+  const shaped = shapeBreadcrumbSiblings(raw, 'C:\\x\\alpha')
+  eq('U2 폴더만통과·파일제외', shaped.map((s) => s.name), ['alpha', 'item2', 'item10', 'zeta'])
+  eq('U2 current 표식(거쳐온 자식)', shaped.find((s) => s.name === 'alpha')?.current, true)
+  eq('U2 비현재 자식 current=false', shaped.find((s) => s.name === 'zeta')?.current, false)
+  // current 비교는 대소문자 무시 + 끝 슬래시 정규화(Windows FS).
+  const shaped2 = shapeBreadcrumbSiblings([mk('Alpha', true)], 'c:\\x\\alpha\\')
+  eq('U2 current 대소문자/슬래시 정규화', shaped2[0]?.current, true)
+  // currentChildPath=null 이면 아무 것도 current 아님.
+  eq('U2 current 없음', shapeBreadcrumbSiblings(raw, null).some((s) => s.current), false)
+  // 빈 입력 → 빈 결과.
+  eq('U2 빈입력', shapeBreadcrumbSiblings([], 'C:\\x').length, 0)
+}
+
+// ── 자세히 보기 열 너비(columnWidths) — clampColumnWidth + coerce 검증 ──────
+{
+  // clampColumnWidth: 정상값은 반올림, 범위밖은 클램프, 비유한수는 min 폴백.
+  eq('COL clamp 정상 반올림', clampColumnWidth(90.4), 90)
+  eq('COL clamp 정상 반올림 up', clampColumnWidth(90.6), 91)
+  eq('COL clamp 하한', clampColumnWidth(10), COLUMN_MIN_WIDTH)
+  eq('COL clamp 하한 경계', clampColumnWidth(COLUMN_MIN_WIDTH), COLUMN_MIN_WIDTH)
+  eq('COL clamp 상한', clampColumnWidth(9999), COLUMN_MAX_WIDTH)
+  eq('COL clamp 상한 경계', clampColumnWidth(COLUMN_MAX_WIDTH), COLUMN_MAX_WIDTH)
+  eq('COL clamp NaN→min', clampColumnWidth(NaN), COLUMN_MIN_WIDTH)
+  eq('COL clamp Infinity→min', clampColumnWidth(Infinity), COLUMN_MIN_WIDTH)
+  eq('COL clamp 음수→min', clampColumnWidth(-50), COLUMN_MIN_WIDTH)
+  // 커스텀 min/max 인자.
+  eq('COL clamp 커스텀 min', clampColumnWidth(30, 40, 200), 40)
+  eq('COL clamp 커스텀 max', clampColumnWidth(300, 40, 200), 200)
+
+  // coerceDetailsColumnWidths: 누락/손상/배열/null 은 전부 기본값.
+  eq('COL coerce null→기본', coerceDetailsColumnWidths(null), DEFAULT_DETAILS_COLUMN_WIDTHS)
+  eq('COL coerce 배열→기본', coerceDetailsColumnWidths([1, 2, 3]), DEFAULT_DETAILS_COLUMN_WIDTHS)
+  eq('COL coerce 원시값→기본', coerceDetailsColumnWidths(42), DEFAULT_DETAILS_COLUMN_WIDTHS)
+  eq('COL coerce 빈객체→기본', coerceDetailsColumnWidths({}), DEFAULT_DETAILS_COLUMN_WIDTHS)
+  // 정상 객체는 그대로(클램프 통과).
+  eq('COL coerce 정상', coerceDetailsColumnWidths({ size: 120, type: 80, mtime: 160 }), {
+    size: 120,
+    type: 80,
+    mtime: 160
+  })
+  // 일부 키 누락 → 해당 키만 기본값.
+  eq('COL coerce 부분누락', coerceDetailsColumnWidths({ size: 200 }), {
+    size: 200,
+    type: DEFAULT_DETAILS_COLUMN_WIDTHS.type,
+    mtime: DEFAULT_DETAILS_COLUMN_WIDTHS.mtime
+  })
+  // 범위밖·비유한수·비숫자 값은 클램프/기본 폴백.
+  eq('COL coerce 범위밖 클램프', coerceDetailsColumnWidths({ size: 5, type: 9999, mtime: 140 }), {
+    size: COLUMN_MIN_WIDTH,
+    type: COLUMN_MAX_WIDTH,
+    mtime: 140
+  })
+  eq('COL coerce NaN→기본', coerceDetailsColumnWidths({ size: NaN, type: 60, mtime: 140 }), {
+    size: DEFAULT_DETAILS_COLUMN_WIDTHS.size,
+    type: 60,
+    mtime: 140
+  })
+  eq('COL coerce 문자열→기본', coerceDetailsColumnWidths({ size: '90', type: 60, mtime: 140 }), {
+    size: DEFAULT_DETAILS_COLUMN_WIDTHS.size,
+    type: 60,
+    mtime: 140
+  })
+  // 소수 입력은 반올림.
+  eq('COL coerce 소수 반올림', coerceDetailsColumnWidths({ size: 90.7, type: 60.2, mtime: 140 }), {
+    size: 91,
+    type: 60,
+    mtime: 140
+  })
+  // 기본값 자체는 round-trip 동등(비파괴).
+  eq(
+    'COL coerce 기본값 round-trip',
+    coerceDetailsColumnWidths(DEFAULT_DETAILS_COLUMN_WIDTHS),
+    DEFAULT_DETAILS_COLUMN_WIDTHS
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M8 T1/T2 추가 블록 — 태그 순수 규칙(domain/rules/tags) + 폴더용량 헬퍼(folderSize)
+//   + 세션 coerce(coerceTagsByPath). 신규 채널 0·스키마 미상향(비파괴).
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  // T1: 태그 팔레트·키 검증·정규화·필터 술어(순수).
+  eq('TAG 팔레트 7색', TAG_PALETTE.length, 7)
+  eq(
+    'TAG 팔레트 키 순서',
+    TAG_PALETTE.map((c) => c.key),
+    ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']
+  )
+  eq('TAG isTagKey 유효', isTagKey('blue'), true)
+  eq('TAG isTagKey 무효', isTagKey('cyan'), false)
+  eq('TAG isTagKey 비문자열', isTagKey(3), false)
+  eq('TAG tagColorOf red', tagColorOf('red')?.name, '빨강')
+  eq('TAG tagDisplayName', tagDisplayName('purple'), '보라')
+
+  // normalizeTags: 무효 제거·중복 제거·팔레트 순서.
+  eq('TAG normalize 무효제거', normalizeTags(['blue', 'cyan', 'red']), ['red', 'blue'])
+  eq('TAG normalize 중복제거', normalizeTags(['red', 'red', 'green']), ['red', 'green'])
+  eq('TAG normalize 빈', normalizeTags([]), [])
+  eq('TAG normalize 순서정렬', normalizeTags(['gray', 'red', 'yellow']), ['red', 'yellow', 'gray'])
+
+  // matchesTags: 활성 비면 항상 true(항등), OR 매칭, 태그 없는 항목은 활성 시 제외.
+  eq('TAG match 활성0 항등', matchesTags(['red'], new Set()), true)
+  eq('TAG match 활성0 빈항목 항등', matchesTags(undefined, new Set()), true)
+  eq('TAG match OR 적중', matchesTags(['red', 'green'], new Set<TagKey>(['green'])), true)
+  eq('TAG match OR 미적중', matchesTags(['red'], new Set<TagKey>(['blue'])), false)
+  eq('TAG match 빈항목 활성시 제외', matchesTags(undefined, new Set<TagKey>(['red'])), false)
+  eq('TAG match 빈배열 활성시 제외', matchesTags([], new Set<TagKey>(['red'])), false)
+
+  // T2: folderSize 키 헬퍼 + 바이트 포맷.
+  eq('FSIZE key 항등(경로 그대로)', folderSizeKeyFor('C:\\a\\b'), 'C:\\a\\b')
+  eq('FSIZE format B', formatBytesT2(512), '512 B')
+  eq('FSIZE format KB', formatBytesT2(2048), '2.0 KB')
+  eq('FSIZE format MB', formatBytesT2(5 * 1024 * 1024), '5.0 MB')
+  eq('FSIZE format GB', formatBytesT2(3 * 1024 * 1024 * 1024), '3.0 GB')
+  eq('FSIZE format 0', formatBytesT2(0), '0 B')
+
+  // coerceTagsByPath(세션 영속 정규화 미러): 무효키·빈배열·비배열 제거, 유효키만 팔레트순.
+  eq('TAG coerce null→빈', coerceTagsByPath(null), {})
+  eq('TAG coerce 배열→빈', coerceTagsByPath([1, 2]), {})
+  eq('TAG coerce 정상', coerceTagsByPath({ 'C:\\a': ['blue', 'red'] }), { 'C:\\a': ['red', 'blue'] })
+  eq('TAG coerce 무효키 제거', coerceTagsByPath({ 'C:\\a': ['red', 'cyan'] }), { 'C:\\a': ['red'] })
+  eq('TAG coerce 빈배열 키 제외', coerceTagsByPath({ 'C:\\a': [], 'C:\\b': ['green'] }), {
+    'C:\\b': ['green']
+  })
+  eq('TAG coerce 비배열 값 제외', coerceTagsByPath({ 'C:\\a': 'red', 'C:\\b': ['gray'] }), {
+    'C:\\b': ['gray']
+  })
+  eq('TAG coerce 전무효→빈맵', coerceTagsByPath({ 'C:\\a': ['cyan', 1] }), {})
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -29,8 +29,28 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
+  // 1차: 정상 경로 — 렌더러 첫 페인트 준비 시 표시.
   window.on('ready-to-show', () => {
     window.show()
+  })
+
+  // 폴백 — 일부 환경/타이밍에서 ready-to-show 가 지연·누락돼 창이 영영 숨겨지는 문제 방지.
+  //  ① 렌더러 로드 완료 시, ② 3초 타임아웃 시에도 (아직 안 보이면) 강제 표시.
+  const showOnce = (): void => {
+    if (!window.isDestroyed() && !window.isVisible()) window.show()
+  }
+  window.webContents.once('did-finish-load', showOnce)
+  const showFallback = setTimeout(showOnce, 3000)
+  window.on('show', () => clearTimeout(showFallback))
+  window.on('closed', () => clearTimeout(showFallback))
+
+  // 렌더러 로드 실패 진단(흰 화면/창 미표시 원인 추적) — 터미널에 사유 출력 + 창은 띄워서 오류 노출.
+  window.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error(`[mainWindow] did-fail-load: code=${code} desc=${desc} url=${url}`)
+    showOnce()
+  })
+  window.webContents.on('render-process-gone', (_e, details) => {
+    console.error(`[mainWindow] render-process-gone: reason=${details.reason} code=${details.exitCode}`)
   })
 
   // 외부 링크는 새 BrowserWindow 대신 OS 기본 브라우저로 (원격 콘텐츠 로드 차단)

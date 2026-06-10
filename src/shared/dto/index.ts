@@ -322,6 +322,13 @@ export interface SidebarSnapshot {
    * 없으면 빈 맵(고정 없음). coerce 가 빈 배열 키·비문자열 항목을 정리. 스키마 버전 미상향.
    */
   readonly pinnedByDir?: Record<string, string[]>
+  /**
+   * 파일 태그/색상 라벨 맵(T1·US-19.1 — path → 태그 키 배열). 비파괴 추가: 없으면
+   * 빈 맵(태그 없음). coerce(coerceTagsByPath)가 유효 팔레트 키만·빈 배열 키는 정리한다.
+   * 한 경로에 다중 태그 가능. 스키마 버전 미상향(구버전 세션 호환). 정규화 단일 출처는
+   * renderer domain/rules/tags(normalizeTags·isTagKey)와 defaults.ts 미러.
+   */
+  readonly tagsByPath?: Record<string, string[]>
   readonly recent: string[]
   readonly width: number
   readonly collapsed: boolean
@@ -338,7 +345,24 @@ export interface SessionSnapshot {
     readonly previewOpen: boolean
     /** 미리보기 패널 폭(px, J7). 미지정 시 복원 측 320 폴백. coerce 클램프 240~720. */
     readonly previewWidth?: number
+    /**
+     * 자세히(details) 보기 고정폭 열 너비(px·전역 설정). 비파괴 추가: 없으면 복원 측
+     * 기본값(size 90/type 60/mtime 140) 폴백. coerce 가 각 열을 48~600 클램프. 이름 열은
+     * flex 라 저장 폭 없음. 스키마 버전 미상향(구버전 세션 호환).
+     */
+    readonly detailsColumnWidths?: DetailsColumnWidthsDTO
   }
+}
+
+/**
+ * 자세히 보기 고정폭 열 너비 DTO(px). 세션 ui 에 optional 로 직렬화된다.
+ * 이름(name) 열은 남은 공간을 flex 로 채우므로 저장 폭이 없다. 정규화/클램프 단일
+ * 출처는 renderer domain/rules/columnWidths(coerceDetailsColumnWidths·48~600).
+ */
+export interface DetailsColumnWidthsDTO {
+  readonly size: number
+  readonly type: number
+  readonly mtime: number
 }
 
 /** 앱 설정 스냅샷(settings:get/set). features E6·F장(숨김/확장자 토글). */
@@ -506,6 +530,23 @@ export interface QueueItemDTO {
   readonly etaSec: number | null
   /** 큐 진입 시각(epoch ms, FIFO 정렬). */
   readonly enqueuedAt: number
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// 내용 검색 grep (search:content:* — 신규 M8 Should, US-18.1·ADR-010)
+// ────────────────────────────────────────────────────────────────────────
+
+/** 한 파일 내 일치 줄(라인 번호·발췌·하이라이트 구간). ranges 는 [start,end) end-exclusive. */
+export interface GrepLineDTO {
+  readonly lineNo: number
+  readonly text: string
+  readonly ranges: ReadonlyArray<readonly [number, number]>
+}
+
+/** 파일 단위 grep 결과(증분 푸시 단위). */
+export interface GrepMatchDTO {
+  readonly file: string
+  readonly lines: GrepLineDTO[]
 }
 
 // ────────────────────────────────────────────────────────────────────────

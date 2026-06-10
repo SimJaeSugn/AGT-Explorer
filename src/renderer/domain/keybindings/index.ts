@@ -237,6 +237,26 @@ const baseBindings: KeyBinding[] = [
     context: 'global',
     label: '미리보기 패널 토글(Should)',
     group: '미리보기'
+  },
+  {
+    // U1 Space 퀵룩: 목록 포커스에서만 활성(텍스트 입력·오버레이 컨텍스트에서는
+    // 'list' 가 아니므로 차단 — 스크롤/체크박스/버튼 Space 보존). 토글식.
+    chord: 'space',
+    commandId: 'quicklook.toggle',
+    context: 'list',
+    label: '퀵룩(미리보기 오버레이) 토글(Should)',
+    group: '미리보기'
+  },
+
+  // ── 명령 팔레트(Should, S2) ──────────────────────────────────────────
+  {
+    // S2 명령 팔레트: 전역에서 열되 텍스트 입력 컨텍스트(addressEdit/search/rename/
+    // dialog)에서는 isTextContext 차단으로 가로채지 않는다(타이핑 보존).
+    chord: 'ctrl+shift+p',
+    commandId: 'palette.open',
+    context: 'global',
+    label: '명령 팔레트 열기(Should)',
+    group: '명령 팔레트'
   }
 ]
 

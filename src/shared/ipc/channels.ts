@@ -176,7 +176,20 @@ export const CHANNELS = {
   // ── app:* 앱 연동 (신규 V2 — 탐색기 "AGT-Finder로 열기") ──────────────────
   // argv(최초 실행)·second-instance(중복 실행) 로 받은 탐색기 경로를 렌더러로 푸시한다.
   // Main→Renderer 단방향 이벤트(요청-응답 아님). 새 탭으로 해당 폴더/드라이브를 연다.
-  APP_OPEN_PATH: 'app:open-path' // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
+  APP_OPEN_PATH: 'app:open-path', // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
+
+  // ── search:content:* 내용 검색 grep (M8 — ADR-010, 신규 §S S1) ─────────────
+  // 현재 폴더(+하위 토글) 온디맨드 텍스트/정규식 grep. analyze:scan:*·hash:* 선례
+  // 동형(jobId 상관·SharedArrayBuffer 협조취소·200ms 스로틀 진행률·증분 결과 푸시).
+  // 전부 로컬 한정(원격/archive prefix 거부 — ADR-005). 외부 바이너리·spawn 없음
+  // (내장 Worker 스트리밍 스캔 — ADR-010 결정①). 신규 npm 의존성 0.
+  // 잡 시작 실패는 invoke Result.err, 진행/일치/완료는 jobId 상관 푸시 evt.
+  // M8 채널 동결, 핸들러/GrepManager impl: 본 단계(S1).
+  SEARCH_CONTENT_START: 'search:content:start', // invoke → Result<{ jobId }> (grep 시작)
+  SEARCH_CONTENT_PROGRESS: 'search:content:progress', // 푸시 evt (200ms 스로틀)
+  SEARCH_CONTENT_MATCH: 'search:content:match', // 푸시 evt (파일 단위 증분 결과)
+  SEARCH_CONTENT_DONE: 'search:content:done', // 푸시 evt (총 일치 수·truncated)
+  SEARCH_CONTENT_CANCEL: 'search:content:cancel' // invoke → Result<void> (jobId 협조취소)
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -213,7 +226,11 @@ export const EVENT_CHANNELS = [
   // queue:* 푸시 evt (신규 M7 — ADR-011, 디바운스 큐 스냅샷, impl: W2)
   CHANNELS.QUEUE_STATE,
   // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기" 경로 전달)
-  CHANNELS.APP_OPEN_PATH
+  CHANNELS.APP_OPEN_PATH,
+  // search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 진행/일치/완료)
+  CHANNELS.SEARCH_CONTENT_PROGRESS,
+  CHANNELS.SEARCH_CONTENT_MATCH,
+  CHANNELS.SEARCH_CONTENT_DONE
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

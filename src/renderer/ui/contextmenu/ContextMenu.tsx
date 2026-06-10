@@ -32,6 +32,8 @@ export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [activeIdx, setActiveIdx] = useState<number>(-1)
+  // 열린 하위 메뉴(태그 등) 인덱스. -1=없음. hover/→ 로 열고 ←/다른 항목 hover 로 닫는다.
+  const [openSub, setOpenSub] = useState<number>(-1)
 
   // 항목 산출: 메뉴 열림 시점의 panelId·targetPath 로 1회 계산(셀렉터 입력 고정).
   // 단일 선택 entry(파일/폴더 구분)는 buildMenuItems 가 visibleEntries 로 재해석한다.
@@ -43,9 +45,12 @@ export function ContextMenu(): JSX.Element | null {
   // 첫 번째 실행 가능한(구분선 아닌) 항목 인덱스.
   const firstSelectable = useMemo(() => items.findIndex((it) => !it.separator), [items])
 
-  // 메뉴가 새로 열릴 때 활성 인덱스 초기화(키보드 진입 시 첫 항목).
+  // 메뉴가 새로 열릴 때 활성 인덱스/하위 메뉴 초기화(키보드 진입 시 첫 항목).
   useEffect(() => {
-    if (contextMenu) setActiveIdx(-1)
+    if (contextMenu) {
+      setActiveIdx(-1)
+      setOpenSub(-1)
+    }
   }, [contextMenu])
 
   // 경계 보정: 실제 메뉴 크기를 측정해 뷰포트 안으로 클램프(오른쪽/아래 넘침 반전).
@@ -102,12 +107,28 @@ export function ContextMenu(): JSX.Element | null {
 
   const run = useCallback(
     (item: MenuItem) => {
-      if (item.separator || !item.run) return
+      if (item.separator) return
+      // 하위 메뉴 보유 항목은 실행이 아니라 플라이아웃을 연다(닫지 않음).
+      if (item.children && item.children.length > 0) {
+        setOpenSub((cur) => (cur === items.indexOf(item) ? -1 : items.indexOf(item)))
+        return
+      }
+      if (!item.run) return
       // 먼저 닫고 실행(실행이 새 inputContext 를 설정할 수 있으므로 순서 중요:
       // 예) file.rename → startRename 이 inputContext='rename' 설정. closeContextMenu
       // 는 다른 다이얼로그/편집 없을 때만 'list' 로 돌리므로 안전).
       closeContextMenu()
       item.run()
+    },
+    [closeContextMenu, items]
+  )
+
+  /** 하위 메뉴 항목 실행(태그 토글 등) — 토글류는 메뉴를 닫고 적용한다. */
+  const runChild = useCallback(
+    (child: MenuItem) => {
+      if (child.separator || !child.run) return
+      closeContextMenu()
+      child.run()
     },
     [closeContextMenu]
   )
@@ -140,12 +161,32 @@ export function ContextMenu(): JSX.Element | null {
         case 'ArrowDown':
           e.preventDefault()
           e.stopPropagation()
+          setOpenSub(-1)
           setActiveIdx((cur) => step(cur < 0 ? -1 : cur, 1))
           break
         case 'ArrowUp':
           e.preventDefault()
           e.stopPropagation()
+          setOpenSub(-1)
           setActiveIdx((cur) => step(cur < 0 ? 0 : cur, -1))
+          break
+        case 'ArrowRight': {
+          // 하위 메뉴 보유 항목이면 플라이아웃 열기(첫 자식으로 진입은 마우스 hover 기준 유지).
+          const idx = activeIdx >= 0 ? activeIdx : firstSelectable
+          const it = items[idx]
+          if (it?.children && it.children.length > 0) {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpenSub(idx)
+          }
+          break
+        }
+        case 'ArrowLeft':
+          if (openSub >= 0) {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpenSub(-1)
+          }
           break
         case 'Home':
           e.preventDefault()
@@ -178,7 +219,7 @@ export function ContextMenu(): JSX.Element | null {
     }
     window.addEventListener('keydown', onKey, { capture: true })
     return () => window.removeEventListener('keydown', onKey, { capture: true })
-  }, [contextMenu, items, activeIdx, firstSelectable, step, run, closeContextMenu])
+  }, [contextMenu, items, activeIdx, firstSelectable, step, run, closeContextMenu, openSub])
 
   // 열린 직후 메뉴 컨테이너에 포커스(키보드 접근 — 스크린리더 menu 역할 인지).
   useEffect(() => {
@@ -236,20 +277,129 @@ export function ContextMenu(): JSX.Element | null {
             role="menuitem"
             tabIndex={-1}
             aria-disabled={false}
-            onMouseEnter={() => setActiveIdx(idx)}
+            aria-haspopup={item.children && item.children.length > 0 ? 'menu' : undefined}
+            aria-expanded={item.children && item.children.length > 0 ? openSub === idx : undefined}
+            aria-checked={item.checked !== undefined ? item.checked : undefined}
+            style={{ position: 'relative' }}
+            onMouseEnter={() => {
+              setActiveIdx(idx)
+              // 하위 메뉴 보유 항목 hover 시 즉시 펼치고, 다른 항목 hover 시 닫는다.
+              setOpenSub(item.children && item.children.length > 0 ? idx : -1)
+            }}
             onClick={() => run(item)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: ITEM_H,
-              padding: '0 14px',
-              cursor: 'default',
-              whiteSpace: 'nowrap',
-              color: item.danger ? tokens.color.danger : tokens.color.text,
-              background: idx === activeIdx ? tokens.color.bgHover : 'transparent'
+          >
+            <MenuRow item={item} active={idx === activeIdx} hasSub={!!item.children?.length} />
+            {item.children && item.children.length > 0 && openSub === idx && (
+              <Flyout items={item.children} onRun={runChild} />
+            )}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+/** 메뉴 행 내용(점·체크·라벨·하위표식). 분리해 본문/플라이아웃이 공유. */
+function MenuRow({
+  item,
+  active,
+  hasSub
+}: {
+  item: MenuItem
+  active: boolean
+  hasSub: boolean
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        height: ITEM_H,
+        padding: '0 14px',
+        cursor: 'default',
+        whiteSpace: 'nowrap',
+        color: item.danger ? tokens.color.danger : tokens.color.text,
+        background: active ? tokens.color.bgHover : 'transparent'
+      }}
+    >
+      {/* 체크 마커(토글 항목) — 자리 고정(미체크도 폭 유지해 라벨 정렬). */}
+      <span aria-hidden style={{ width: 12, textAlign: 'center', flex: '0 0 auto', fontSize: 12 }}>
+        {item.checked ? '✓' : ''}
+      </span>
+      {/* 색상 점(태그 색상). */}
+      {item.dotColor && (
+        <span
+          aria-hidden
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            flex: '0 0 auto',
+            background: item.dotColor,
+            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)'
+          }}
+        />
+      )}
+      <span style={{ flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {item.label}
+      </span>
+      {hasSub && (
+        <span aria-hidden style={{ flex: '0 0 auto', color: tokens.color.textMuted }}>
+          ▸
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** 하위 메뉴 플라이아웃(태그 색상 목록 등). 부모 항목 우측에 펼친다. */
+function Flyout({
+  items,
+  onRun
+}: {
+  items: MenuItem[]
+  onRun: (child: MenuItem) => void
+}): JSX.Element {
+  const [activeIdx, setActiveIdx] = useState(-1)
+  return (
+    <div
+      role="menu"
+      aria-label="하위 메뉴"
+      style={{
+        position: 'absolute',
+        top: -PAD_Y,
+        left: '100%',
+        minWidth: 160,
+        maxWidth: 260,
+        padding: `${PAD_Y}px 0`,
+        background: tokens.color.bg,
+        border: `1px solid ${tokens.color.borderStrong}`,
+        borderRadius: 8,
+        boxShadow: '0 8px 28px rgba(0,0,0,0.22)',
+        zIndex: 1201
+      }}
+    >
+      {items.map((child, i) =>
+        child.separator ? (
+          <div
+            key={child.id}
+            role="separator"
+            style={{ height: 1, margin: '4px 8px', background: tokens.color.border }}
+          />
+        ) : (
+          <div
+            key={child.id}
+            role="menuitemcheckbox"
+            aria-checked={child.checked !== undefined ? child.checked : undefined}
+            tabIndex={-1}
+            onMouseEnter={() => setActiveIdx(i)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRun(child)
             }}
           >
-            {item.label}
+            <MenuRow item={child} active={i === activeIdx} hasSub={false} />
           </div>
         )
       )}

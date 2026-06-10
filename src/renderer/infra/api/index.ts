@@ -81,6 +81,11 @@ import type {
   HashErrorEvt,
   QueueListRes,
   QueueStateEvt,
+  SearchContentStartReq,
+  SearchContentStartRes,
+  SearchContentProgressEvt,
+  SearchContentMatchEvt,
+  SearchContentDoneEvt,
   Result,
   ShellIconReq,
   ShellIconRes,
@@ -470,6 +475,39 @@ export const queueApi = {
  */
 export function subscribeQueueStream(cb: (evt: QueueStateEvt) => void): Unsubscribe {
   return bridge().queue.onState(cb)
+}
+
+// ── search:content:* 어댑터 (M8 — ADR-010: 내용 검색 grep) ───────────────
+// hashApi/analyzeApi 동형 — invoke 래퍼 + raw 이벤트 구독. jobId 상관(필터)은 소비측 usecase.
+export const searchApi = {
+  /** search:content:start — 현재 폴더(+하위 토글) 내용 grep 시작(jobId 발급). */
+  contentStart: (req: SearchContentStartReq): Promise<Result<SearchContentStartRes>> =>
+    bridge().search.contentStart(req),
+  /** search:content:cancel — 진행 중 grep 잡 협조취소(jobId 멱등). */
+  contentCancel: (jobId: string): Promise<Result<void>> =>
+    bridge().search.contentCancel({ jobId })
+}
+
+/**
+ * search:content:* 진행률/증분 결과/완료 구독 묶음(jobId 상관은 소비측).
+ * subscribeScanStream 동형 — raw 이벤트를 그대로 콜백에 전달한다.
+ * 반환된 dispose 로 세 구독을 모두 해제한다(누수 방지).
+ */
+export interface ContentSearchStreamHandlers {
+  onProgress: (evt: SearchContentProgressEvt) => void
+  onMatch: (evt: SearchContentMatchEvt) => void
+  onDone: (evt: SearchContentDoneEvt) => void
+}
+export function subscribeContentSearchStream(h: ContentSearchStreamHandlers): Unsubscribe {
+  const api = bridge()
+  const offP = api.search.onContentProgress((evt) => h.onProgress(evt))
+  const offM = api.search.onContentMatch((evt) => h.onMatch(evt))
+  const offD = api.search.onContentDone((evt) => h.onDone(evt))
+  return () => {
+    offP()
+    offM()
+    offD()
+  }
 }
 
 // ── dialog:* 어댑터 (P4: 영구삭제 확인 모달) ────────────────────────────

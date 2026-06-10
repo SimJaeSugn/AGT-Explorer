@@ -19,7 +19,9 @@ export default defineConfig({
           // I장: Top10 디스크 사용량 스캔 Worker(별도 청크 out/main/scanWorker.js).
           scanWorker: resolve('src/main/workers/scanWorker.ts'),
           // M7 W1: 공용 해시·비교 Worker(별도 청크 out/main/hashWorker.js).
-          hashWorker: resolve('src/main/workers/hashWorker.ts')
+          hashWorker: resolve('src/main/workers/hashWorker.ts'),
+          // M8 S1: 내용 검색 grep Worker(별도 청크 out/main/grepWorker.js — ADR-010).
+          grepWorker: resolve('src/main/workers/grepWorker.ts')
         },
         output: {
           entryFileNames: '[name].js'

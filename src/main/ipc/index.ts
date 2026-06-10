@@ -17,6 +17,7 @@ import { registerOpHandlers } from './op.handlers'
 import { registerPreviewHandlers } from './preview.handlers'
 import { registerQueueHandlers } from './queue.handlers'
 import { registerRemoteHandlers } from './remote.handlers'
+import { registerSearchHandlers } from './search.handlers'
 import { registerSessionHandlers } from './session.handlers'
 import { registerShellHandlers } from './shell.handlers'
 import { registerTrashHandlers } from './trash.handlers'
@@ -36,6 +37,7 @@ export function registerIpcHandlers(): void {
   registerTrashHandlers() // K장 K2: trash:list/restore/empty (휴지통 COM)
   registerHashHandlers() // M7 W1: hash:compare/dup/verify:start + cancel (+ progress/done/error 푸시)
   registerQueueHandlers() // M7 W2: queue:list/pause/resume/retry/set-concurrency (+ queue:state 푸시)
+  registerSearchHandlers() // M8 S1: search:content:start/cancel (+ progress/match/done 푸시 — ADR-010)
   registerClipboardHdropAndDndRemote()
 }
 

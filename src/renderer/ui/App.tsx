@@ -17,6 +17,7 @@ import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
 import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
+import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -37,6 +38,9 @@ import { BatchRenameDialog } from '@renderer/ui/rename/BatchRenameDialog'
 import { CompareMirrorDialog } from '@renderer/ui/compare/CompareMirrorDialog'
 import { DuplicatesDialog } from '@renderer/ui/dedup/DuplicatesDialog'
 import { QueuePanel } from '@renderer/ui/queue/QueuePanel'
+import { ContentSearchDialog } from '@renderer/ui/search/ContentSearchDialog'
+import { CommandPalette } from '@renderer/ui/palette/CommandPalette'
+import { QuickLookOverlay } from '@renderer/ui/quicklook/QuickLookOverlay'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
 import { ConflictDialog } from '@renderer/ui/dialogs/ConflictDialog'
@@ -74,6 +78,8 @@ export function App(): JSX.Element {
     initRemoteBridge()
     // V2: app:open-path 푸시 → 탐색기 "AGT-Finder로 열기" 경로를 새 탭으로(전역 1회 구독).
     initOpenPathBridge()
+    // M8 S1: search:content:* 푸시 → searchSlice 미러(내용 검색 grep·전역 1회 구독·jobId 상관).
+    initContentSearchBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독
@@ -140,6 +146,11 @@ export function App(): JSX.Element {
       <CompareMirrorDialog />
       <DuplicatesDialog />
       <QueuePanel />
+      {/* M8 S1: 내용 검색(grep) 모달 */}
+      <ContentSearchDialog />
+      {/* S2 명령 팔레트 · U1 Space 퀵룩(M8 Should) */}
+      <CommandPalette />
+      <QuickLookOverlay />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}
       <ProgressDialog />

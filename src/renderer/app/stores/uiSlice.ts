@@ -143,6 +143,12 @@ export interface UiSlice {
   /** 워크스페이스 관리 다이얼로그 열림 여부(US-5.8). */
   readonly workspaceOpen: boolean
 
+  // S2 명령 팔레트 / U1 퀵룩(Should, M8) ────────────────────────────────────
+  /** 명령 팔레트 오버레이 열림 여부(Ctrl+Shift+P, S2·US-18.2). */
+  readonly paletteOpen: boolean
+  /** 퀵룩(미리보기 오버레이) 열림 시 대상 경로(닫혀 있으면 null, U1·US-20.1). */
+  readonly quickLookPath: string | null
+
   // H-4b 클립보드 동기 상태(붙여넣기 활성조건) ──────────────────────────────
   /**
    * OS 클립보드에 붙여넣을 파일이 있는지(경량 동기 플래그). 붙여넣기 버튼
@@ -232,6 +238,16 @@ export interface UiSlice {
   openWorkspace(): void
   closeWorkspace(): void
 
+  // S2 명령 팔레트 / U1 퀵룩 액션(Should, M8) ───────────────────────────────
+  /** 명령 팔레트 열기(inputContext='dialog' — 전역 단축키 차단·자체 키 처리, S2). */
+  openPalette(): void
+  /** 명령 팔레트 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closePalette(): void
+  /** 퀵룩 오버레이 열기(대상 경로 지정·inputContext='dialog', U1). */
+  openQuickLook(path: string): void
+  /** 퀵룩 오버레이 닫힘 시 다른 모달 없으면 inputContext='list' 복귀. */
+  closeQuickLook(): void
+
   // H-4b 클립보드 동기 상태 액션 ───────────────────────────────────────────
   /** 클립보드에 붙여넣을 파일 존재 여부 설정(syncClipboardState·copy/cut 성공). */
   setClipboardHasFiles(v: boolean): void
@@ -284,6 +300,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   previewOpen: false,
   previewWidth: 320,
   workspaceOpen: false,
+  paletteOpen: false,
+  quickLookPath: null,
   clipboardHasFiles: false,
 
   applySettings(snapshot, telemetryOptIn) {
@@ -609,6 +627,99 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     set((s) => {
       s.workspaceOpen = false
       if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen && !s.trashOpen) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openPalette() {
+    set((s) => {
+      // 다른 모달이 떠 있으면 무시(모달 우선·중첩 방지).
+      if (
+        s.confirmDelete ||
+        s.settingsOpen ||
+        s.workspaceOpen ||
+        s.dashboardOpen ||
+        s.trashOpen ||
+        s.remoteDialogOpen ||
+        s.batchRenameOpen ||
+        s.compareMirrorConfirm ||
+        s.dedupOpen ||
+        s.queuePanelOpen ||
+        s.contextMenu ||
+        s.renameTarget ||
+        s.quickLookPath
+      ) {
+        return
+      }
+      s.paletteOpen = true
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closePalette() {
+    set((s) => {
+      s.paletteOpen = false
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.dedupOpen &&
+        !s.queuePanelOpen &&
+        !s.quickLookPath
+      ) {
+        s.inputContext = 'list'
+      }
+    })
+  },
+
+  openQuickLook(path) {
+    set((s) => {
+      // 다른 모달이 떠 있으면 무시(모달 우선). 빈 경로는 무동작.
+      if (!path) return
+      if (
+        s.confirmDelete ||
+        s.settingsOpen ||
+        s.workspaceOpen ||
+        s.dashboardOpen ||
+        s.trashOpen ||
+        s.remoteDialogOpen ||
+        s.batchRenameOpen ||
+        s.compareMirrorConfirm ||
+        s.dedupOpen ||
+        s.queuePanelOpen ||
+        s.contextMenu ||
+        s.renameTarget ||
+        s.paletteOpen
+      ) {
+        return
+      }
+      s.quickLookPath = path
+      s.inputContext = 'dialog'
+    })
+  },
+
+  closeQuickLook() {
+    set((s) => {
+      s.quickLookPath = null
+      if (
+        !s.confirmDelete &&
+        !s.renameTarget &&
+        !s.settingsOpen &&
+        !s.dashboardOpen &&
+        !s.workspaceOpen &&
+        !s.trashOpen &&
+        !s.remoteDialogOpen &&
+        !s.batchRenameOpen &&
+        !s.dedupOpen &&
+        !s.queuePanelOpen &&
+        !s.paletteOpen
+      ) {
         s.inputContext = 'list'
       }
     })

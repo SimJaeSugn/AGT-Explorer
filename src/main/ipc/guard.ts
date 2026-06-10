@@ -324,3 +324,18 @@ export const zQueueOperationReq = z.object({ operationId: z.string().min(1) })
 export const zQueueSetConcurrencyReq = z.object({
   maxConcurrent: z.number().int().min(1).max(16)
 })
+
+// ── M8: search:content:* (내용 검색 grep — ADR-010) ───────────────────────
+// root 는 형태(min1)만 1차 검증하고, 핸들러가 guardPath 정규화·상위이탈 차단·디렉토리
+// 검증·원격 prefix 거부(로컬 한정). query 는 비어 있지 않은 검색어(상한 4KB — 거대 정규식
+// 폭주 입구 차단). isRegex 컴파일 실패는 GrepManager 가 Result.err(throw 0)로 격리한다.
+// maxFileBytes 는 양의 정수(상한 미지정 시 엔진 기본). includeHidden 미지정=false.
+export const zSearchContentStartReq = z.object({
+  root: zPath,
+  query: z.string().min(1).max(4096),
+  isRegex: z.boolean(),
+  recursive: z.boolean(),
+  includeHidden: z.boolean().optional(),
+  maxFileBytes: z.number().int().positive().optional()
+})
+export const zSearchContentCancelReq = z.object({ jobId: z.string().min(1) })

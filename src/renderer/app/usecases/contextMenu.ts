@@ -11,6 +11,7 @@
 import type { FileEntryDTO } from '@shared/dto'
 import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc } from '@renderer/domain/paths'
+import { TAG_PALETTE, type TagKey } from '@renderer/domain/rules/tags'
 import { execCommand } from './commandBus'
 import { openTerminalAt, openWithEntry, showPropertiesFor } from './open'
 import { comparePanelsOf } from './compare'
@@ -26,7 +27,16 @@ export interface MenuItem {
   readonly separator?: boolean
   /** 위험 동작(삭제) 강조 표시. */
   readonly danger?: boolean
-  /** 클릭/Enter 시 실행(separator 는 없음). */
+  /** 체크 상태(토글 메뉴 — 태그 on/off). 표시는 ✓ 마커(undefined=비체크 미표시). */
+  readonly checked?: boolean
+  /** 앞쪽 색상 점(태그 색상 등). CSS color — 있으면 라벨 앞에 작은 점 표시. */
+  readonly dotColor?: string
+  /**
+   * 하위 메뉴(있으면 이 항목 hover/→ 시 플라이아웃). 가지면 run 은 보통 없다.
+   * 태그("태그") 색상 토글 목록을 담는다(T1).
+   */
+  readonly children?: MenuItem[]
+  /** 클릭/Enter 시 실행(separator·children 보유 항목은 없을 수 있음). */
   readonly run?: () => void
 }
 
@@ -58,6 +68,49 @@ function cmd(commandId: string): () => void {
   return () => {
     execCommand(commandId)
   }
+}
+
+/**
+ * "태그" 하위 메뉴(T1) — 선택 경로(들)에 색상 라벨 토글. 다중 선택 시 모든 선택 항목에
+ * 동일하게 토글한다. 체크 기준: 단일은 그 항목, 다중은 **모든** 항목에 해당 태그가
+ * 있으면 체크(부분 적용은 미체크 — 토글하면 전부 추가). 신규 채널 0(렌더러 store 전용).
+ */
+function buildTagSubmenu(paths: string[]): MenuItem {
+  const st = store.getState()
+  const allHave = (key: TagKey): boolean =>
+    paths.length > 0 && paths.every((p) => st.tagsFor(p).includes(key))
+  const children: MenuItem[] = TAG_PALETTE.map((c) => {
+    const checked = allHave(c.key)
+    return {
+      id: `tag-${c.key}`,
+      label: c.name,
+      dotColor: c.color,
+      checked,
+      run: () => {
+        const s = store.getState()
+        // 모두 체크면 전부 제거, 아니면 전부 추가(일관 토글).
+        for (const p of paths) {
+          const has = s.tagsFor(p).includes(c.key)
+          if (checked && has) s.toggleTag(p, c.key)
+          else if (!checked && !has) s.toggleTag(p, c.key)
+        }
+      }
+    }
+  })
+  // "태그 지우기" — 선택 항목의 모든 태그 제거(어느 항목에든 태그가 있을 때만 노출).
+  const anyTagged = paths.some((p) => st.tagsFor(p).length > 0)
+  if (anyTagged) {
+    children.push({ id: 'tag-sep', separator: true })
+    children.push({
+      id: 'tag-clear',
+      label: '태그 지우기',
+      run: () => {
+        const s = store.getState()
+        for (const p of paths) s.clearTags(p)
+      }
+    })
+  }
+  return { id: 'tags', label: '태그', children }
 }
 
 /**
@@ -152,6 +205,12 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   // §R1: 다중 선택(2+) 시 "고급 이름변경…"(단일은 위 인라인 F2). Ctrl+Shift+R 과 동일 경로.
   if (multi) {
     items.push({ id: 'batchRename', label: '고급 이름변경…', run: cmd('file.batchRename') })
+  }
+
+  // ── 태그 그룹(T1) — 단일/다중 선택 모두. 색상 라벨 토글 하위 메뉴. ────────
+  {
+    const tagPaths = single ? [single.path] : [...ctx.selectedPaths]
+    if (tagPaths.length > 0) items.push(buildTagSubmenu(tagPaths))
   }
 
   // ── 삭제 그룹 ─────────────────────────────────────────────────────────

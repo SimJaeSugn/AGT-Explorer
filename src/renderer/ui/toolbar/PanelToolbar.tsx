@@ -14,6 +14,7 @@ import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { isRemotePath, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
+import { BreadcrumbDropdown } from '@renderer/ui/toolbar/BreadcrumbDropdown'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 interface Props {
@@ -233,26 +234,40 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
               fontSize: 13
             }}
           >
-            {crumbs.map((c, i) => (
-              <span key={c.path} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                {i > 0 && <span style={{ color: tokens.color.textMuted, margin: '0 2px' }}>›</span>}
-                <button
-                  onClick={() => navigate(panelId, c.path, true)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    color: tokens.color.text,
-                    fontSize: 13,
-                    padding: '2px 4px',
-                    borderRadius: 3,
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {resolveDriveLabel(c.path, tree, c.label)}
-                </button>
-              </span>
-            ))}
+            {crumbs.map((c, i) => {
+              // ▾ 형제 드롭다운(U2): 로컬 경로 + 마지막(현재) 세그먼트가 아닐 때만.
+              // 원격(sftp://·ftp://)은 로컬 fs:tree-children 대상이 아니므로 비표시.
+              // currentChildPath = 다음 세그먼트(사용자가 실제 거쳐온 자식) — current 표식용.
+              const next = crumbs[i + 1]
+              const showDropdown = !remoteLoc && next !== undefined
+              return (
+                <span key={c.path} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  {i > 0 && <span style={{ color: tokens.color.textMuted, margin: '0 2px' }}>›</span>}
+                  <button
+                    onClick={() => navigate(panelId, c.path, true)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: tokens.color.text,
+                      fontSize: 13,
+                      padding: '2px 4px',
+                      borderRadius: 3,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {resolveDriveLabel(c.path, tree, c.label)}
+                  </button>
+                  {showDropdown && (
+                    <BreadcrumbDropdown
+                      segmentPath={c.path}
+                      currentChildPath={next.path}
+                      onNavigate={(p) => navigate(panelId, p, true)}
+                    />
+                  )}
+                </span>
+              )
+            })}
           </div>
         )}
       </div>

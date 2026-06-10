@@ -90,6 +90,12 @@ import type {
   QueueRetryReq,
   QueueSetConcurrencyReq,
   QueueStateEvt,
+  SearchContentStartReq,
+  SearchContentStartRes,
+  SearchContentCancelReq,
+  SearchContentProgressEvt,
+  SearchContentMatchEvt,
+  SearchContentDoneEvt,
   TrashRestoreReq,
   TrashEmptyReq,
   PreviewReadReq,
@@ -325,6 +331,15 @@ export interface ExplorerApi {
     setConcurrency(req: QueueSetConcurrencyReq): Promise<Result<void>>
     onState(cb: (evt: QueueStateEvt) => void): Unsubscribe
   }
+
+  // ── search:content:* 내용 검색 grep (신규 M8, 핸들러 impl: S1) ──
+  readonly search: {
+    contentStart(req: SearchContentStartReq): Promise<Result<SearchContentStartRes>>
+    contentCancel(req: SearchContentCancelReq): Promise<Result<void>>
+    onContentProgress(cb: (evt: SearchContentProgressEvt) => void): Unsubscribe
+    onContentMatch(cb: (evt: SearchContentMatchEvt) => void): Unsubscribe
+    onContentDone(cb: (evt: SearchContentDoneEvt) => void): Unsubscribe
+  }
 }
 
 export const api: ExplorerApi = {
@@ -476,6 +491,14 @@ export const api: ExplorerApi = {
     retry: (req) => invoke(CHANNELS.QUEUE_RETRY, req),
     setConcurrency: (req) => invoke(CHANNELS.QUEUE_SET_CONCURRENCY, req),
     onState: (cb) => subscribe(CHANNELS.QUEUE_STATE, cb)
+  },
+
+  search: {
+    contentStart: (req) => invoke(CHANNELS.SEARCH_CONTENT_START, req),
+    contentCancel: (req) => invoke(CHANNELS.SEARCH_CONTENT_CANCEL, req),
+    onContentProgress: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_PROGRESS, cb),
+    onContentMatch: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_MATCH, cb),
+    onContentDone: (cb) => subscribe(CHANNELS.SEARCH_CONTENT_DONE, cb)
   }
 }
 

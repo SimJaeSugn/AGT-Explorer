@@ -63,11 +63,19 @@ export function buildSessionSnapshot(): SessionSnapshot {
       favorites: [...s.favorites],
       favoriteLabels: { ...s.favoriteLabels },
       pinnedByDir: { ...s.pinnedByDir },
+      // T1: 파일 태그 라벨(path→키 배열). coerce 가 폴백 보장(스키마 미상향).
+      tagsByPath: { ...s.tagsByPath },
       recent: [...s.recent],
       width: s.sidebarWidth,
       collapsed: s.sidebarCollapsed
     },
-    ui: { theme: s.theme, previewOpen: s.previewOpen, previewWidth: s.previewWidth }
+    ui: {
+      theme: s.theme,
+      previewOpen: s.previewOpen,
+      previewWidth: s.previewWidth,
+      // 자세히 보기 열 너비(전역). 항상 직렬화(기본값과 동일해도 안정 — coerce 가 폴백 보장).
+      detailsColumnWidths: { ...s.detailsColumnWidths }
+    }
   }
 }
 
@@ -90,10 +98,14 @@ export function applySnapshot(snap: SessionSnapshot): boolean {
     width: snap.sidebar.width,
     collapsed: snap.sidebar.collapsed
   })
+  // T1: 파일 태그 라벨 복원(누락/손상은 hydrateTags 가 빈 맵 폴백 — 스키마 미상향).
+  s.hydrateTags(snap.sidebar.tagsByPath)
   const restored = s.restoreWindows(snap.windows)
-  // ui(previewOpen·previewWidth) 복원(테마는 settings 채널이 별도 관리).
+  // ui(previewOpen·previewWidth·열너비) 복원(테마는 settings 채널이 별도 관리).
   store.getState().setPreviewOpen(snap.ui.previewOpen)
   store.getState().setPreviewWidth(snap.ui.previewWidth ?? 320)
+  // 자세히 보기 열 너비(전역). 누락/손상은 hydrateColumns 가 기본값 폴백(coerce).
+  store.getState().hydrateColumns(snap.ui.detailsColumnWidths)
   return restored
 }
 

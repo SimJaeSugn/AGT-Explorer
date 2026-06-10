@@ -1055,5 +1055,74 @@ if (sid) {
   s()._queueState([])
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// M8 T1 추가 블록 — tagsSlice(태그 토글/일괄설정/지우기·활성 태그 필터·hydrate/persist).
+//   신규 채널 0·세션 메타(tagsByPath) 영속·스키마 미상향(비파괴).
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const P = 'C:\\t\\file.txt'
+  const Q = 'C:\\t\\dir'
+
+  // 초기 빈 상태(안정 빈 배열·참조 동일).
+  s().clearTags(P)
+  s().clearTags(Q)
+  ok('TAG 초기 빈', s().tagsFor(P).length === 0)
+  ok('TAG 빈배열 참조 안정', s().tagsFor(P) === s().tagsFor(Q))
+
+  // toggleTag 추가/제거.
+  s().toggleTag(P, 'red')
+  ok('TAG toggle 추가', JSON.stringify(s().tagsFor(P)) === JSON.stringify(['red']))
+  s().toggleTag(P, 'blue')
+  // 팔레트 순서(red < blue) 보장.
+  ok('TAG toggle 다중·팔레트순', JSON.stringify(s().tagsFor(P)) === JSON.stringify(['red', 'blue']))
+  s().toggleTag(P, 'red')
+  ok('TAG toggle 제거', JSON.stringify(s().tagsFor(P)) === JSON.stringify(['blue']))
+  s().toggleTag(P, 'blue')
+  ok('TAG toggle 마지막 제거→키삭제', s().tagsByPath[P] === undefined)
+
+  // setTags 정규화(무효/중복 제거·빈배열은 키 삭제).
+  s().setTags(P, ['green', 'green', 'red'] as never)
+  ok('TAG setTags 정규화', JSON.stringify(s().tagsFor(P)) === JSON.stringify(['red', 'green']))
+  s().setTags(P, [])
+  ok('TAG setTags 빈→키삭제', s().tagsByPath[P] === undefined)
+
+  // clearTags.
+  s().toggleTag(Q, 'purple')
+  s().clearTags(Q)
+  ok('TAG clearTags', s().tagsByPath[Q] === undefined)
+
+  // 활성 태그 필터(패널별·휘발).
+  const tpanel = 'tagpanel'
+  s().clearActiveTags(tpanel)
+  ok('TAG 활성 초기 빈', s().activeTagsOf(tpanel).size === 0)
+  s().toggleActiveTag(tpanel, 'red')
+  ok('TAG 활성 추가', s().activeTagsOf(tpanel).has('red'))
+  s().toggleActiveTag(tpanel, 'blue')
+  ok('TAG 활성 다중', s().activeTagsOf(tpanel).size === 2)
+  s().toggleActiveTag(tpanel, 'red')
+  ok('TAG 활성 제거', !s().activeTagsOf(tpanel).has('red') && s().activeTagsOf(tpanel).size === 1)
+  s().clearActiveTags(tpanel)
+  ok('TAG 활성 전체해제', s().activeTagsOf(tpanel).size === 0)
+
+  // hydrateTags(세션 복원) — 무효키·빈배열 제거·정규화.
+  s().hydrateTags({ 'C:\\h\\a': ['blue', 'cyan', 'red'], 'C:\\h\\b': [], 'C:\\h\\c': 'x' })
+  ok('TAG hydrate 정규화', JSON.stringify(s().tagsFor('C:\\h\\a')) === JSON.stringify(['red', 'blue']))
+  ok('TAG hydrate 빈배열 제외', s().tagsByPath['C:\\h\\b'] === undefined)
+  ok('TAG hydrate 비배열 제외', s().tagsByPath['C:\\h\\c'] === undefined)
+  s().hydrateTags(null)
+  ok('TAG hydrate null→빈맵', Object.keys(s().tagsByPath).length === 0)
+
+  // 세션 round-trip: buildSessionSnapshot 에 tagsByPath 직렬화 → hydrate 복원(applySnapshot 동형).
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  s().toggleTag('C:\\r\\x', 'orange')
+  const snap = buildSessionSnapshot()
+  ok('TAG 세션 직렬화', JSON.stringify(snap.sidebar.tagsByPath?.['C:\\r\\x']) === JSON.stringify(['orange']))
+  s().hydrateTags({}) // 초기화
+  ok('TAG 세션 초기화', s().tagsFor('C:\\r\\x').length === 0)
+  s().hydrateTags(snap.sidebar.tagsByPath) // 복원 경로(applySnapshot 동형)
+  ok('TAG 세션 round-trip 복원', JSON.stringify(s().tagsFor('C:\\r\\x')) === JSON.stringify(['orange']))
+  s().hydrateTags({})
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail) process.exit(1)

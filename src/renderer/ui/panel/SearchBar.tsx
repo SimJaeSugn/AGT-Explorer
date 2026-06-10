@@ -14,6 +14,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible } from '@renderer/app/usecases/selectors'
+import { openContentSearch } from '@renderer/app/usecases/contentSearch'
+import { TAG_PALETTE, type TagKey } from '@renderer/domain/rules/tags'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 const DEBOUNCE_MS = 80
@@ -56,12 +58,16 @@ export function SearchBar({ panelId }: { panelId: string }): JSX.Element {
   return (
     <div
       style={{
+        borderBottom: `1px solid ${tokens.color.border}`,
+        background: tokens.color.bgAlt
+      }}
+    >
+    <div
+      style={{
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 6px',
-        borderBottom: `1px solid ${tokens.color.border}`,
-        background: tokens.color.bgAlt
+        padding: '4px 6px'
       }}
     >
       <span style={{ fontSize: 12, color: tokens.color.textMuted }}>🔍</span>
@@ -95,6 +101,27 @@ export function SearchBar({ panelId }: { panelId: string }): JSX.Element {
         }}
       />
       <SearchCount panelId={panelId} />
+      {/* S1: 이름 검색 → 내용 검색(grep) 모드 전환. 현재 입력을 검색어로 시드. */}
+      <button
+        type="button"
+        onClick={() => openContentSearch(local.trim())}
+        title="내용 검색 (파일 안 텍스트 grep)"
+        aria-label="내용 검색 열기"
+        style={{
+          flex: '0 0 auto',
+          height: 22,
+          padding: '0 8px',
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: 4,
+          background: tokens.color.bg,
+          color: tokens.color.text,
+          cursor: 'pointer',
+          fontSize: 11,
+          whiteSpace: 'nowrap'
+        }}
+      >
+        내용 검색
+      </button>
       <button
         onClick={close}
         style={{
@@ -109,8 +136,97 @@ export function SearchBar({ panelId }: { panelId: string }): JSX.Element {
         ✕
       </button>
     </div>
+      {/* T1: 태그 칩 필터(활성 태그로 목록 좁히기 — OR 합성·이름필터와 AND). */}
+      <TagChips panelId={panelId} />
+    </div>
   )
 }
+
+/**
+ * TagChips — 색상 태그 필터 칩(T1·US-19.1). 칩 토글로 panelId 의 활성 태그 필터를
+ * on/off 한다. 활성 태그가 있으면 computeVisible 이 이름필터 AND 태그필터(OR)로 좁힌다.
+ * 모두 끄면 태그 필터 비활성(전체). 검색바 하단에 작은 색상 점 칩 줄로 둔다.
+ */
+function TagChips({ panelId }: { panelId: string }): JSX.Element {
+  const activeTags = useRootStore((s) => s.activeTagsByPanel[panelId])
+  const toggleActiveTag = useRootStore((s) => s.toggleActiveTag)
+  const clearActiveTags = useRootStore((s) => s.clearActiveTags)
+  const active = activeTags ?? EMPTY_ACTIVE
+
+  return (
+    <div
+      role="group"
+      aria-label="태그 필터"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '0 6px 4px',
+        flexWrap: 'wrap'
+      }}
+    >
+      <span style={{ fontSize: 11, color: tokens.color.textMuted, marginRight: 2 }}>태그:</span>
+      {TAG_PALETTE.map((c) => {
+        const on = active.has(c.key)
+        return (
+          <button
+            key={c.key}
+            type="button"
+            aria-pressed={on}
+            aria-label={`태그 필터 ${c.name}${on ? ' 켜짐' : ''}`}
+            title={c.name}
+            onClick={() => toggleActiveTag(panelId, c.key)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              height: 20,
+              padding: '0 7px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              fontSize: 11,
+              color: tokens.color.text,
+              background: on ? tokens.color.bgSelected : tokens.color.bg,
+              border: `1px solid ${on ? tokens.color.accentBorder : tokens.color.border}`
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                background: c.color,
+                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)'
+              }}
+            />
+            {c.name}
+          </button>
+        )
+      })}
+      {active.size > 0 && (
+        <button
+          type="button"
+          onClick={() => clearActiveTags(panelId)}
+          aria-label="태그 필터 모두 해제"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            color: tokens.color.textMuted,
+            fontSize: 11,
+            textDecoration: 'underline'
+          }}
+        >
+          해제
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** 활성 태그 미존재 시 안정 빈 Set(참조 안정). */
+const EMPTY_ACTIVE: ReadonlySet<TagKey> = new Set<TagKey>()
 
 /** 검색 결과 개수 인라인 표기(상태바와 별개로 즉시 확인용). */
 function SearchCount({ panelId }: { panelId: string }): JSX.Element | null {
