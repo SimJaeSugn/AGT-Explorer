@@ -37,6 +37,8 @@ import { CANCEL_FLAG_INDEX, FLAG_WORD_COUNT, PAUSE_FLAG_INDEX } from '../workers
 import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from '../workers/protocol'
 import { TransferQueue } from './TransferQueue'
 import type { ProgressSnapshot, QueueEntry } from './TransferQueue'
+import { runRobocopyCopy } from '../os/robocopy'
+import type { RobocopyHandle } from '../os/robocopy'
 
 /** 진행률 스로틀 간격(ms). roadmap P4 DoD: 200ms 이내 갱신. */
 const PROGRESS_THROTTLE_MS = 200
@@ -49,6 +51,45 @@ function summarizeSources(sources: readonly string[]): string {
   if (sources.length === 0) return ''
   if (sources.length === 1) return win32.basename(sources[0] ?? '')
   return `${win32.basename(sources[0] ?? '')} 외 ${sources.length - 1}개`
+}
+
+/**
+ * shell.trashItem 실패를 사용자 친화 OpFailure 로 변환한다.
+ *
+ * Electron 의 trashItem 은 errno 없는 일반 오류("Failed to perform delete operation")를
+ * 던져 EUNKNOWN+영어 원문이 그대로 노출된다. trashItem 은 **폴더 단위 원자 연산**이라
+ * 내부에 사용 중/잠긴 파일이 하나라도 있으면 통째로 실패한다(흔한 원인). 원인을 추정해
+ * 실행 가능한 한국어 메시지로 바꾼다. 알려진 errno(EACCES 등)는 그대로 보존한다.
+ */
+async function describeTrashFailure(src: string, e: unknown): Promise<OpFailure> {
+  const base = toFileOpError(e, src)
+  if (base.code !== 'EUNKNOWN') {
+    return { path: src, code: base.code, message: base.message }
+  }
+  // EUNKNOWN(= trashItem 일반 오류): lstat 으로 원인 추정.
+  try {
+    const st = await fsp.lstat(src)
+    if (st.isSymbolicLink()) {
+      return {
+        path: src,
+        code: 'EUNKNOWN',
+        message:
+          '정션/심볼릭 링크는 휴지통으로 이동할 수 없습니다. Shift+Delete(영구 삭제)로 링크만 제거하세요.'
+      }
+    }
+    return {
+      path: src,
+      code: 'EUNKNOWN',
+      message:
+        '휴지통으로 보낼 수 없습니다. 항목이 다른 프로그램에서 사용 중이거나 보호된 시스템 폴더일 수 있습니다 — 사용 중인 프로그램을 닫고 다시 시도하거나, Shift+Delete로 영구 삭제하세요.'
+    }
+  } catch {
+    return {
+      path: src,
+      code: 'EUNKNOWN',
+      message: '휴지통으로 보낼 수 없습니다(항목을 찾을 수 없거나 접근 권한이 없습니다).'
+    }
+  }
 }
 
 type OpState = 'running' | 'conflict' | 'cancelling' | 'done'
@@ -512,8 +553,7 @@ export class OperationManager {
               })
             }
           } catch (e) {
-            const fe = toFileOpError(e, src)
-            failures.push({ path: src, code: fe.code, message: fe.message })
+            failures.push(await describeTrashFailure(src, e))
           }
         }
         this.finish(op, {
@@ -706,6 +746,52 @@ export class OperationManager {
 
   private push(wc: WebContents, channel: string, payload: unknown): void {
     if (!wc.isDestroyed()) wc.send(channel, payload)
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // robocopy 고속 미러(V3) — 폴더 비교 미러의 "복사" 측을 Windows robocopy 로 실행한다.
+  //   외부 op 로 등록(registerExternalOperation 재사용) → 진행률 200ms 스로틀·op:cancel·
+  //   op:done 규약을 그대로 탄다. /PURGE 없음(삭제 미수행 — 삭제는 trash op 가 undo 보존).
+  //   복사분은 robocopy 가 복사 파일 집합을 앱이 정확히 추적하지 않으므로 undo 미제공
+  //   (호출부 startRobocopyMirror 가 undoMeta 없이 registerOperation).
+  // ──────────────────────────────────────────────────────────────────
+
+  /** robocopy 복사-전용 미러 실행. win32 외 플랫폼은 즉시 err(폴백 없음 — 호출부도 검사). */
+  startRobocopyMirror(
+    srcDir: string,
+    dstDir: string,
+    expectedItems: number,
+    wc: WebContents
+  ): Result<{ operationId: string }> {
+    if (process.platform !== 'win32') {
+      return err(fileOpError('EUNKNOWN', 'robocopy 고속 미러는 Windows 에서만 지원됩니다.'))
+    }
+    let runner: RobocopyHandle | null = null
+    // 외부 op 등록(취소 시 자식 프로세스 종료). 진행/완료/큐 표시는 기존 경로 재사용.
+    const handle = this.registerExternalOperation('copy', wc, () => runner?.cancel())
+    runner = runRobocopyCopy(srcDir, dstDir, (p) => {
+      handle.reportProgress({
+        processedBytes: p.copiedBytes,
+        totalBytes: 0, // robocopy 총량 사전 불명 → 분모는 항목 수(expectedItems)로 표시.
+        processedItems: p.copiedItems,
+        totalItems: expectedItems,
+        currentName: p.currentName
+      })
+    })
+    void runner.promise.then((r) => {
+      handle.finishOp({
+        operationId: handle.operationId,
+        kind: 'copy',
+        succeededItems: r.copied,
+        failedItems: r.failed ? 1 : 0,
+        canceled: r.canceled,
+        failures:
+          r.failed && !r.canceled
+            ? [{ path: srcDir, code: 'EUNKNOWN', message: r.errorMessage ?? 'robocopy 실패' }]
+            : []
+      })
+    })
+    return ok({ operationId: handle.operationId })
   }
 
   // ──────────────────────────────────────────────────────────────────

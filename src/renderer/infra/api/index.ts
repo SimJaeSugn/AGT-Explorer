@@ -24,6 +24,7 @@ import type {
   WorkspaceInfo
 } from '@shared/dto'
 import type {
+  AppOpenPathEvt,
   ClipboardFilesReadRes,
   ClipboardHasFilesRes,
   ClipboardReadRes,
@@ -59,6 +60,7 @@ import type {
   OpDoneEvt,
   OpProgressEvt,
   OpResolveReq,
+  OpRobocopyStartReq,
   OpStartReq,
   OpStartRes,
   AnalyzeScanStartReq,
@@ -161,12 +163,17 @@ export const shellApi = {
   /** shell:icon — OS 파일 아이콘 dataUrl 조회(확장자/폴더/드라이브 캐시, H6). */
   icon: (req: ShellIconReq): Promise<Result<ShellIconRes>> => bridge().shell.icon(req),
   /** shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4). */
-  openTerminal: (cwd: string): Promise<Result<void>> => bridge().shell.openTerminal({ cwd })
+  openTerminal: (cwd: string): Promise<Result<void>> => bridge().shell.openTerminal({ cwd }),
+  /** shell:open-external — 검증된 http/https URL 을 OS 기본 브라우저로 연다(V1). */
+  openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url })
 }
 
 // ── op:* 어댑터 (P4: 파일 작업 시작/취소/충돌해소) ──────────────────────
 export const opApi = {
   start: (req: OpStartReq): Promise<Result<OpStartRes>> => bridge().op.start(req),
+  /** op:robocopy:start — 폴더 비교 고속 미러(robocopy 복사 전용, V3). */
+  robocopyStart: (req: OpRobocopyStartReq): Promise<Result<OpStartRes>> =>
+    bridge().op.robocopyStart(req),
   resolve: (req: OpResolveReq): Promise<Result<void>> => bridge().op.resolve(req),
   cancel: (operationId: string): Promise<Result<void>> => bridge().op.cancel({ operationId })
 }
@@ -247,6 +254,12 @@ export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
     offEvent()
     offError()
   }
+}
+
+// ── app:* 어댑터 (V2: 탐색기 "AGT-Finder로 열기" 경로 푸시 구독) ──────────
+/** Main 이 argv/second-instance 로 받은 경로를 푸시하면 콜백. 반환값으로 구독 해제. */
+export function subscribeOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe {
+  return bridge().app.onOpenPath(cb)
 }
 
 // ── trash:* 어댑터 (K장 K2: 휴지통 관리 — 핸들러/recycleBin impl: K장 다음 단계) ──

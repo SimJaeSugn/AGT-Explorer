@@ -13,7 +13,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CategoryUsage, ScanEntry } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
-import { cancelScan, loadDriveUsage, startScan } from '@renderer/app/usecases/dashboard'
+import {
+  askGoogleAiAboutEntry,
+  cancelScan,
+  jumpToScanEntry,
+  loadDriveUsage,
+  startScan
+} from '@renderer/app/usecases/dashboard'
 import { isMyPc } from '@renderer/domain/paths'
 import { DiskDonut } from '@renderer/ui/dashboard/charts/DiskDonut'
 import { TopBar } from '@renderer/ui/dashboard/charts/TopBar'
@@ -57,6 +63,20 @@ const tdStyle: React.CSSProperties = {
   color: tokens.color.text
 }
 const tdNum: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+// 스캔결과 표 행별 동작 버튼(위치 이동·AI 질의). 표 안에 들어가는 컴팩트 아이콘 버튼.
+const rowActionBtn: React.CSSProperties = {
+  height: 22,
+  minWidth: 26,
+  padding: '0 5px',
+  marginLeft: 4,
+  borderRadius: 4,
+  border: `1px solid ${tokens.color.border}`,
+  background: tokens.color.bg,
+  color: tokens.color.text,
+  cursor: 'pointer',
+  fontSize: 12,
+  lineHeight: '20px'
+}
 
 function insightChip(label: string, value: string): JSX.Element {
   return (
@@ -158,6 +178,7 @@ function TopTable({
           <th style={{ ...thStyle, width: 28 }} scope="col">#</th>
           <th style={thStyle} scope="col">이름</th>
           <th style={{ ...thStyle, textAlign: 'right' }} scope="col">크기</th>
+          <th style={{ ...thStyle, textAlign: 'center', width: 86 }} scope="col">동작</th>
         </tr>
       </thead>
       <tbody>
@@ -168,11 +189,31 @@ function TopTable({
               {e.name}
             </th>
             <td style={tdNum}>{formatBytes(e.bytes)}</td>
+            <td style={{ ...tdStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>
+              <button
+                type="button"
+                onClick={() => jumpToScanEntry(e)}
+                title={`${e.isDir ? '이 폴더' : '상위 폴더'}로 이동`}
+                aria-label={`${e.name} 위치로 이동`}
+                style={rowActionBtn}
+              >
+                📂
+              </button>
+              <button
+                type="button"
+                onClick={() => void askGoogleAiAboutEntry(e)}
+                title="Google AI 모드로 질의"
+                aria-label={`${e.name} Google AI 모드로 질의`}
+                style={rowActionBtn}
+              >
+                ✨
+              </button>
+            </td>
           </tr>
         ))}
         {entries.length === 0 && (
           <tr>
-            <td style={tdStyle} colSpan={3}>
+            <td style={tdStyle} colSpan={4}>
               항목이 없습니다.
             </td>
           </tr>

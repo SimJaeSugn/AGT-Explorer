@@ -16,6 +16,7 @@ import { initCompareBridge } from '@renderer/app/usecases/compare'
 import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
 import { initRemoteBridge } from '@renderer/app/usecases/remote'
+import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -69,6 +70,8 @@ export function App(): JSX.Element {
     initWatchBridge()
     // §M M3: remote:host-key·remote:session-error 푸시 → remoteSlice 브리지(전역 1회 구독).
     initRemoteBridge()
+    // V2: app:open-path 푸시 → 탐색기 "AGT-Finder로 열기" 경로를 새 탭으로(전역 1회 구독).
+    initOpenPathBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 세션 복원(탭/사이드바) → 자동저장 구독

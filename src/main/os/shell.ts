@@ -20,6 +20,22 @@ export async function openPath(normalizedPath: string): Promise<OpenResult> {
 }
 
 /**
+ * 검증된 http/https URL 을 OS 기본 브라우저로 연다(shell:open-external, V1 · ADR-005).
+ *
+ * 호출부(shell.handlers)가 프로토콜 화이트리스트(http/https)를 강제한 뒤에만 위임한다
+ * (file:/커스텀 스킴/임의 경로 실행 차단 — ADR-005 §3.3-4). shell.openExternal 의
+ * rejection(미지원 스킴·OS 실패)은 Result.err 로 전파되도록 errorMessage 로 흡수한다.
+ */
+export async function openExternalUrl(url: string): Promise<OpenResult> {
+  try {
+    await shell.openExternal(url)
+    return { errorMessage: '' }
+  } catch (e) {
+    return { errorMessage: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
  * Windows "연결 프로그램" 대화상자 호출(shell:open-with, ADR-005).
  *
  * Electron 은 "Open With" 동사를 직접 노출하지 않으므로, Windows 표준 셸 동사

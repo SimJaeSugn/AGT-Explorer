@@ -100,11 +100,23 @@ export const zOpResolveReq = z.object({
 })
 export const zOpCancelReq = z.object({ operationId: z.string().min(1) })
 
+// ── V3: op:robocopy:start (폴더 비교 고속 미러 — robocopy 복사) ────────────
+// srcDir/dstDir 는 형태(min1)만 1차 검증, 핸들러가 guardPath 정규화·디렉토리 존재 재검증.
+export const zOpRobocopyStartReq = z.object({
+  srcDir: zPath,
+  dstDir: zPath,
+  expectedItems: z.number().int().nonnegative().optional()
+})
+
 export const zClipboardFilesReq = z.object({ paths: z.array(zPath).min(1) })
 export const zClipboardPasteTargetReq = z.object({ destDir: zPath })
 export const zDialogConfirmPermanentDeleteReq = z.object({ paths: z.array(zPath).min(1) })
 export const zShellShowPropertiesReq = z.object({ path: zPath })
 export const zShellOpenWithReq = z.object({ path: zPath })
+
+// ── V1: shell:open-external (외부 브라우저 — http/https 만, 핸들러가 프로토콜 재검증) ──
+// 형태(min1·상한)만 1차 검증하고, 프로토콜 화이트리스트(http/https)는 핸들러가 URL 파싱으로 강제.
+export const zShellOpenExternalReq = z.object({ url: z.string().min(1).max(8192) })
 
 // ── H4/H6: shell:open-terminal / shell:icon ──────────────────────────────
 // open-terminal: cwd 는 항상 실존 디렉토리(핸들러가 stat 으로 추가 검증).

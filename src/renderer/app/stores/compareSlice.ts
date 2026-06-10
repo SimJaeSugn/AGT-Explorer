@@ -40,6 +40,12 @@ export interface CompareSlice {
   readonly compareDiffOnly: boolean
   /** 동기 스크롤 토글(좌/우 패널 스크롤 연동). */
   readonly syncScroll: boolean
+  /**
+   * "고속 미러(robocopy)" 토글(V3). on 이면 미러의 복사 측을 Windows robocopy 로 실행한다
+   * (대용량 전체폴더 가속). 단 해시 비교(useHash) 모드에선 robocopy 가 앱의 정밀 diff 를
+   * 못 살리므로 무시되고 기존 op:* 복사로 폴백한다. 삭제는 항상 휴지통(undo 보존).
+   */
+  readonly compareFastMirror: boolean
   /** 비교 기준 옵션(메타·대소문자·허용오차·useHash·recursive). */
   readonly compareOptions: CompareOptions
 
@@ -83,6 +89,8 @@ export interface CompareSlice {
   toggleDiffOnly(): void
   /** 동기 스크롤 토글. */
   toggleSyncScroll(): void
+  /** "고속 미러(robocopy)" 토글(V3). */
+  toggleFastMirror(): void
   /** 비교 옵션 갱신 후 재계산이 필요하면 호출측이 recomputeCompare 호출. */
   setCompareOptions(opts: Partial<CompareOptions>): void
 
@@ -110,6 +118,7 @@ export const createCompareSlice: SliceCreator<CompareSlice> = (set, get) => ({
   compareSummary: null,
   compareDiffOnly: false,
   syncScroll: true,
+  compareFastMirror: false,
   compareOptions: DEFAULT_COMPARE_OPTIONS,
   compareHashStatus: 'idle',
   compareJobId: null,
@@ -167,6 +176,12 @@ export const createCompareSlice: SliceCreator<CompareSlice> = (set, get) => ({
   toggleSyncScroll() {
     set((s) => {
       s.syncScroll = !s.syncScroll
+    })
+  },
+
+  toggleFastMirror() {
+    set((s) => {
+      s.compareFastMirror = !s.compareFastMirror
     })
   },
 

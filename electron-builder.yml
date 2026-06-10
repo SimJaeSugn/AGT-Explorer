@@ -38,6 +38,9 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: AGT-Finder
+  # 탐색기 우클릭 "AGT-Finder로 열기" 등록(V2). customInstall/customUnInstall 매크로로
+  # HKCU\Software\Classes 에 폴더·배경·드라이브·파일 메뉴를 설치/제거한다(UTF-8 BOM).
+  include: resources/installer.nsh
 
 # 로컬 전용 앱 — 자동 업데이트 게시 비활성(향후 도입)
 publish: null

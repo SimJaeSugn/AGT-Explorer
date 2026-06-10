@@ -20,7 +20,7 @@ import type { Result, ShellIconRes } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import { fileOpError, toFileOpError } from '../fs/errors'
 import { getFileIconDataUrl } from '../os/icon'
-import { openPath, openTerminal, openWith, showProperties } from '../os/shell'
+import { openExternalUrl, openPath, openTerminal, openWith, showProperties } from '../os/shell'
 import {
   guardPath,
   isTrustedSender,
@@ -28,6 +28,7 @@ import {
   untrustedSenderError,
   zPath,
   zShellIconReq,
+  zShellOpenExternalReq,
   zShellOpenTerminalReq,
   zShellOpenWithReq,
   zShellShowPropertiesReq
@@ -174,6 +175,35 @@ export function registerShellHandlers(): void {
     const r = await openTerminal(cwd)
     if (r.errorMessage) {
       return err(fileOpError('EUNKNOWN', `터미널을 열 수 없습니다: ${r.errorMessage}`, cwd))
+    }
+    return ok(undefined)
+  })
+
+  // ── shell:open-external (외부 브라우저, V1 · ADR-005) ───────────────
+  // URL 프로토콜 화이트리스트(http/https)만 허용 — file:/커스텀 스킴/임의 경로 실행은
+  // 차단(ADR-005 §3.3-4). URL 파싱 실패는 EINVAL, 비허용 스킴은 ESECURITY 로 실행 없이
+  // 거부하고, 검증 통과 URL 만 shell.openExternal 에 위임한다(사용량 대시보드 "AI 질의").
+  ipcMain.handle(CHANNELS.SHELL_OPEN_EXTERNAL, async (event, raw): Promise<Result<void>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+
+    const parsed = parseArgs(zShellOpenExternalReq, raw)
+    if (!parsed.ok) return parsed as Result<void>
+    const { url } = parsed.value
+
+    // 프로토콜 화이트리스트: http/https 만. URL 파싱 실패·기타 스킴은 실행 없이 거부.
+    let protocol = ''
+    try {
+      protocol = new URL(url).protocol
+    } catch {
+      return err(fileOpError('EINVAL', '유효하지 않은 URL 입니다.', url))
+    }
+    if (protocol !== 'http:' && protocol !== 'https:') {
+      return err(fileOpError('ESECURITY', '허용되지 않은 URL 프로토콜입니다.', url))
+    }
+
+    const r = await openExternalUrl(url)
+    if (r.errorMessage) {
+      return err(fileOpError('EUNKNOWN', `링크를 열 수 없습니다: ${r.errorMessage}`, url))
     }
     return ok(undefined)
   })

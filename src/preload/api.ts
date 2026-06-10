@@ -12,6 +12,7 @@
 import { ipcRenderer } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
 import type {
+  AppOpenPathEvt,
   ClipboardFilesReadRes,
   ClipboardFilesReq,
   ClipboardHasFilesRes,
@@ -41,6 +42,7 @@ import type {
   OpDoneEvt,
   OpProgressEvt,
   OpResolveReq,
+  OpRobocopyStartReq,
   OpStartReq,
   OpStartRes,
   RemoteConnectReq,
@@ -95,6 +97,7 @@ import type {
   SettingsSetReq,
   ShellIconReq,
   ShellIconRes,
+  ShellOpenExternalReq,
   ShellOpenReq,
   ShellOpenTerminalReq,
   ShellOpenWithReq,
@@ -147,6 +150,11 @@ export interface ExplorerApi {
   /** 빌드 식별용. */
   readonly version: string
 
+  // ── app:* (V2 — 탐색기 "AGT-Finder로 열기" 경로 푸시 수신) ──────
+  readonly app: {
+    onOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe
+  }
+
   readonly fs: {
     // ── 읽기 계열 (구현 P1) ──────────────────────────────────────
     list(req: FsListReq): Promise<Result<DirListResult>>
@@ -181,11 +189,13 @@ export interface ExplorerApi {
     showProperties(req: ShellShowPropertiesReq): Promise<Result<void>>
     icon(req: ShellIconReq): Promise<Result<ShellIconRes>>
     openTerminal(req: ShellOpenTerminalReq): Promise<Result<void>>
+    openExternal(req: ShellOpenExternalReq): Promise<Result<void>>
   }
 
   // ── op:* (타입만 노출, impl: P4) ───────────────────────────────
   readonly op: {
     start(req: OpStartReq): Promise<Result<OpStartRes>>
+    robocopyStart(req: OpRobocopyStartReq): Promise<Result<OpStartRes>>
     resolve(req: OpResolveReq): Promise<Result<void>>
     cancel(req: OpCancelReq): Promise<Result<void>>
     onProgress(cb: (evt: OpProgressEvt) => void): Unsubscribe
@@ -315,6 +325,10 @@ export interface ExplorerApi {
 export const api: ExplorerApi = {
   version: '0.1.0',
 
+  app: {
+    onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb)
+  },
+
   fs: {
     list: (req) => invoke(CHANNELS.FS_LIST, req),
     stat: (req) => invoke(CHANNELS.FS_STAT, req),
@@ -343,11 +357,13 @@ export const api: ExplorerApi = {
     openWith: (req) => invoke(CHANNELS.SHELL_OPEN_WITH, req),
     showProperties: (req) => invoke(CHANNELS.SHELL_SHOW_PROPERTIES, req),
     icon: (req) => invoke(CHANNELS.SHELL_ICON, req),
-    openTerminal: (req) => invoke(CHANNELS.SHELL_OPEN_TERMINAL, req)
+    openTerminal: (req) => invoke(CHANNELS.SHELL_OPEN_TERMINAL, req),
+    openExternal: (req) => invoke(CHANNELS.SHELL_OPEN_EXTERNAL, req)
   },
 
   op: {
     start: (req) => invoke(CHANNELS.OP_START, req),
+    robocopyStart: (req) => invoke(CHANNELS.OP_ROBOCOPY_START, req),
     resolve: (req) => invoke(CHANNELS.OP_RESOLVE, req),
     cancel: (req) => invoke(CHANNELS.OP_CANCEL, req),
     onProgress: (cb) => subscribe(CHANNELS.OP_PROGRESS, cb),

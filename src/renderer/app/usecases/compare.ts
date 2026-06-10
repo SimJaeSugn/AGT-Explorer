@@ -14,7 +14,7 @@ import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc } from '@renderer/domain/paths'
 import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { planMirror, type MirrorDirection, type MirrorPlan } from '@renderer/domain/rules/compare'
-import { startOperation } from './fileOps'
+import { startOperation, startRobocopyMirror } from './fileOps'
 
 /** 해시/재귀 옵션이 하나라도 켜져 있는지(백엔드 잡 사용 여부 판정). */
 function hashModeEnabled(): boolean {
@@ -261,13 +261,24 @@ export async function applyMirrorConfirmed(): Promise<void> {
   const rid = s.compareRightPanelId
   const sourceDir = confirm.direction === 'l2r' ? s.panels[lid ?? '']?.path : s.panels[rid ?? '']?.path
 
-  // 복사 미러: 없는 것 + 다른 것을 dest 로 copy(충돌 시 D4 질의·K1 undo 자동 적재).
+  // 복사 미러: 없는 것 + 다른 것을 dest 로 copy.
+  // 고속 미러(robocopy): 토글 on + 메타 모드(해시 비교 아님) + 원본 폴더 확인 시 robocopy 로
+  //   전체폴더 복사(가속). 해시 모드면 앱 정밀 diff 를 못 살리므로 기존 op:* 복사로 폴백.
+  //   robocopy 복사분은 undo 미제공(삭제분은 아래 trash 로 휴지통·undo 보존).
+  const fastMirror = s.compareFastMirror && !hashModeEnabled() && !!sourceDir
   if (plan.copyPaths.length > 0) {
-    await startOperation('copy', plan.copyPaths, plan.destDir, [plan.destDir, sourceDir ?? ''], {
-      kind: 'copy',
-      sources: [...plan.copyPaths],
-      destDir: plan.destDir
-    })
+    if (fastMirror && sourceDir) {
+      await startRobocopyMirror(sourceDir, plan.destDir, plan.copyPaths.length, [
+        plan.destDir,
+        sourceDir
+      ])
+    } else {
+      await startOperation('copy', plan.copyPaths, plan.destDir, [plan.destDir, sourceDir ?? ''], {
+        kind: 'copy',
+        sources: [...plan.copyPaths],
+        destDir: plan.destDir
+      })
+    }
   }
   // 삭제 동기화(명시 선택 시): 기준에 없는 dest 항목 → 휴지통(K1 undo 자동 적재).
   if (plan.deletePaths.length > 0) {

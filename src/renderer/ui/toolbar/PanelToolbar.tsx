@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ViewMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
+import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { isRemotePath, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
 import { tokens } from '@renderer/ui/theme/tokens'
@@ -74,6 +75,9 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   }, [addressEditing, path])
 
   const crumbs = breadcrumbs(path)
+  // 드라이브 루트 세그먼트는 볼륨 라벨 포함 표기("Windows (C:)")로 — 트리 드라이브 노드
+  // label 재사용(미로드/비-드라이브 세그먼트는 기존 라벨 유지).
+  const tree = useRootStore((s) => s.tree)
 
   async function commitEdit(): Promise<void> {
     let target: string
@@ -245,7 +249,7 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  {c.label}
+                  {resolveDriveLabel(c.path, tree, c.label)}
                 </button>
               </span>
             ))}

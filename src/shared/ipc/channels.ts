@@ -42,6 +42,7 @@ export const CHANNELS = {
   SHELL_SHOW_PROPERTIES: 'shell:show-properties', // impl: P4
   SHELL_ICON: 'shell:icon', // impl: H6 (OS 파일 아이콘·확장자 캐시)
   SHELL_OPEN_TERMINAL: 'shell:open-terminal', // impl: H4 (wt.exe→PowerShell)
+  SHELL_OPEN_EXTERNAL: 'shell:open-external', // impl: V1 (http/https 화이트리스트 → 외부 브라우저)
 
   // ── op:* 파일 작업(비동기·취소·진행률) ─ 계약만 동결, impl: P4 ────────
   OP_START: 'op:start', // impl: P4
@@ -50,6 +51,7 @@ export const CHANNELS = {
   OP_RESOLVE: 'op:resolve', // impl: P4
   OP_DONE: 'op:done', // 푸시 evt · impl: P4
   OP_CANCEL: 'op:cancel', // impl: P4
+  OP_ROBOCOPY_START: 'op:robocopy:start', // impl: V3 (폴더 비교 고속 미러 — robocopy 복사, 진행/취소/완료는 기존 op:* 재사용)
 
   // ── clipboard:* OS 클립보드 파일 연동 ─ 계약만 동결, impl: P4 ─────────
   CLIPBOARD_COPY_FILES: 'clipboard:copy-files', // impl: P4
@@ -167,7 +169,12 @@ export const CHANNELS = {
   QUEUE_PAUSE: 'queue:pause', // invoke → Result<void>
   QUEUE_RESUME: 'queue:resume', // invoke → Result<void>
   QUEUE_RETRY: 'queue:retry', // invoke → Result<void>
-  QUEUE_SET_CONCURRENCY: 'queue:set-concurrency' // invoke → Result<void>
+  QUEUE_SET_CONCURRENCY: 'queue:set-concurrency', // invoke → Result<void>
+
+  // ── app:* 앱 연동 (신규 V2 — 탐색기 "AGT-Finder로 열기") ──────────────────
+  // argv(최초 실행)·second-instance(중복 실행) 로 받은 탐색기 경로를 렌더러로 푸시한다.
+  // Main→Renderer 단방향 이벤트(요청-응답 아님). 새 탭으로 해당 폴더/드라이브를 연다.
+  APP_OPEN_PATH: 'app:open-path' // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -202,7 +209,9 @@ export const EVENT_CHANNELS = [
   CHANNELS.HASH_VERIFY_DONE,
   CHANNELS.HASH_ERROR,
   // queue:* 푸시 evt (신규 M7 — ADR-011, 디바운스 큐 스냅샷, impl: W2)
-  CHANNELS.QUEUE_STATE
+  CHANNELS.QUEUE_STATE,
+  // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기" 경로 전달)
+  CHANNELS.APP_OPEN_PATH
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

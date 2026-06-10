@@ -47,6 +47,18 @@ export function ConfirmDialog(): JSX.Element | null {
     <div style={overlayStyle} role="dialog" aria-modal="true" aria-label="영구 삭제 확인">
       <div ref={panelRef} style={panelStyle}>
         <div style={titleStyle}>영구 삭제</div>
+        {confirmDelete.reason && (
+          <p
+            style={{
+              marginTop: 0,
+              marginBottom: 8,
+              fontSize: 12,
+              color: 'rgba(245,124,0,0.95)'
+            }}
+          >
+            ⚠ {confirmDelete.reason}
+          </p>
+        )}
         <p style={{ marginTop: 0 }}>
           {count === 1 ? (
             <>

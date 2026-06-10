@@ -210,18 +210,39 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   }
   const stickyBandH = stickyCount * cellH
 
-  const onRowClick = useCallback(
+  // 행 mousedown → 선택 갱신. 단, 수정자 없이 **이미 다중 선택된** 항목을 누르면 단일
+  // 붕괴를 mouseup(click)으로 미룬다 → 그래야 그 항목을 드래그할 때 선택 전체가 보존돼
+  // 다중 이동이 된다(드래그가 일어나면 click 이 발화하지 않으므로 다중 유지). A3 다중 D&D.
+  const onRowMouseDown = useCallback(
     (index: number, e: React.MouseEvent) => {
       // 우클릭(보조 버튼)은 선택 보정을 onContextMenu(openRowContextMenu) 가 전담한다.
-      // 여기서 처리하면 이미 다중 선택된 항목을 우클릭할 때 단일 선택으로 무너진다.
       if (e.button !== 0) return
       if (!active) {
         const tabId = activeTabId
         setActivePanel(tabId, panelId)
       }
-      clickSelect(panelId, visiblePaths, index, e.ctrlKey || e.metaKey, e.shiftKey)
+      const ctrl = e.ctrlKey || e.metaKey
+      const shift = e.shiftKey
+      if (!ctrl && !shift) {
+        const path = visiblePaths[index]
+        const cur = useRootStore.getState().selection[panelId]
+        if (path && cur && cur.selectedPaths.has(path) && cur.selectedPaths.size > 1) {
+          return // 미룸: 드래그면 다중 보존, 단순 클릭이면 onRowClickSelect 가 단일로 정리.
+        }
+      }
+      clickSelect(panelId, visiblePaths, index, ctrl, shift)
     },
     [active, activeTabId, setActivePanel, panelId, clickSelect, visiblePaths]
+  )
+
+  // 행 click(= mouseup·드래그 아님) → 미뤄둔 단일 선택 적용. 드래그였다면 click 이 발화하지
+  // 않아 호출되지 않는다(다중 보존). 수정자 클릭은 mousedown 이 이미 처리(중복 토글 방지).
+  const onRowClickSelect = useCallback(
+    (index: number, e: React.MouseEvent) => {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return
+      clickSelect(panelId, visiblePaths, index, false, false)
+    },
+    [panelId, clickSelect, visiblePaths]
   )
 
   const onRowDouble = useCallback(
@@ -570,7 +591,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         dropHighlight={dropHi}
         renaming={renaming}
         initialName={renaming ? renameTarget.initialName : ''}
-        onClick={onRowClick}
+        onMouseDownSelect={onRowMouseDown}
+        onClickSelect={onRowClickSelect}
         onDouble={onRowDouble}
         onContext={onRowContext}
         dragSourcesFor={dragSourcesFor}
@@ -704,7 +726,8 @@ interface RowProps {
   dropHighlight: boolean
   renaming: boolean
   initialName: string
-  onClick: (index: number, e: React.MouseEvent) => void
+  onMouseDownSelect: (index: number, e: React.MouseEvent) => void
+  onClickSelect: (index: number, e: React.MouseEvent) => void
   onDouble: (entry: FileEntryDTO) => void
   onContext: (index: number, entry: FileEntryDTO, e: React.MouseEvent) => void
   dragSourcesFor: (entry: FileEntryDTO) => string[]
@@ -730,7 +753,8 @@ function FileRow({
   dropHighlight,
   renaming,
   initialName,
-  onClick,
+  onMouseDownSelect,
+  onClickSelect,
   onDouble,
   onContext,
   dragSourcesFor
@@ -771,7 +795,8 @@ function FileRow({
         aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
         aria-posinset={index + 1}
         aria-setsize={setSize}
-        onMouseDown={(e) => onClick(index, e)}
+        onMouseDown={(e) => onMouseDownSelect(index, e)}
+        onClick={(e) => onClickSelect(index, e)}
         onContextMenu={(e) => onContext(index, entry, e)}
         onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
         draggable={renaming ? false : extDrag.draggable}
@@ -870,7 +895,8 @@ function FileRow({
       aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
       aria-posinset={index + 1}
       aria-setsize={setSize}
-      onMouseDown={(e) => onClick(index, e)}
+      onMouseDown={(e) => onMouseDownSelect(index, e)}
+      onClick={(e) => onClickSelect(index, e)}
       onContextMenu={(e) => onContext(index, entry, e)}
       onPointerDown={renaming ? undefined : dragSrc.onPointerDown}
       draggable={renaming ? false : extDrag.draggable}

@@ -1,6 +1,8 @@
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { CHANNELS } from '@shared/ipc/channels'
 import { createMainWindow } from './windows/mainWindow'
+import { extractPathArg } from './os/launchPath'
 import { registerIpcHandlers } from './ipc'
 import { initPersistence, sessionStore } from './persistence'
 import { initRemoteProfileStore } from './persistence/RemoteProfileStore'
@@ -18,11 +20,14 @@ if (!gotTheLock) {
 } else {
   let mainWindow: BrowserWindow | null = null
 
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
+  // 두 번째 실행(탐색기 "AGT-Finder로 열기" 포함): 기존 창을 포커스하고, argv 에
+  // 경로가 있으면 렌더러로 전달해 새 탭으로 연다(V2).
+  app.on('second-instance', (_e, argv) => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    const target = extractPathArg(argv)
+    if (target) mainWindow.webContents.send(CHANNELS.APP_OPEN_PATH, { path: target })
   })
 
   // 종료 직전 보류 중인 세션 스냅샷을 즉시 flush (디바운스 대기분 보존, SA §5.2).
@@ -94,6 +99,16 @@ if (!gotTheLock) {
     registerIpcHandlers()
 
     mainWindow = createMainWindow()
+
+    // V2: 최초 실행이 탐색기 "AGT-Finder로 열기"였다면 argv 경로를 렌더러로 전달한다
+    // (창 로드 완료 후 1회 — 렌더러가 새 탭으로 연다). 경로 없으면 무동작.
+    const launchTarget = extractPathArg(process.argv)
+    if (launchTarget) {
+      const win = mainWindow
+      win.webContents.once('did-finish-load', () => {
+        win.webContents.send(CHANNELS.APP_OPEN_PATH, { path: launchTarget })
+      })
+    }
 
     // 매핑 네트워크 드라이브 문자 캐시 1회 비동기 수집(J2). non-blocking — PowerShell 콜드스타트가
     // 부팅을 차단하지 않는다(trigger-and-forget). 실패해도 서비스 내부 격리(throw 0) → 부팅 영향 0.

@@ -125,6 +125,28 @@ export async function startOperation(
   return res.value.operationId
 }
 
+/**
+ * 폴더 비교 "고속 미러"의 복사 측 — robocopy(op:robocopy:start)로 srcDir→dstDir 복사.
+ * 진행률/취소/완료/새로고침은 기존 op:* 브리지가 그대로 처리한다(operationId 등록).
+ * **복사분은 undo 미제공**(robocopy 가 복사 파일 집합을 앱이 정확히 추적하지 않음) — 삭제분은
+ * 호출부가 별도 trash op 로 휴지통 경유(undo 보존).
+ */
+export async function startRobocopyMirror(
+  srcDir: string,
+  dstDir: string,
+  expectedItems: number,
+  refreshDirs: string[]
+): Promise<string | null> {
+  const s = store.getState()
+  const res = await opApi.robocopyStart({ srcDir, dstDir, expectedItems })
+  if (!res.ok) {
+    s.pushToast('error', `고속 미러를 시작할 수 없습니다: ${res.error.message}`)
+    return null
+  }
+  s.registerOperation(res.value.operationId, 'copy', refreshPanelIds(refreshDirs))
+  return res.value.operationId
+}
+
 /** Ctrl+C: 활성 패널 선택을 OS 클립보드에 복사. */
 export async function clipboardCopy(): Promise<void> {
   const { activePanelId } = panelPaths()

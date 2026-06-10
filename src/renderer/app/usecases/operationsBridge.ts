@@ -74,8 +74,20 @@ export function initOperationsBridge(): void {
       for (const pid of refreshPanels) {
         if (s.panels[pid]) s.refresh(pid)
       }
-      // 부분 실패면 요약 토스트(다이얼로그도 표시되지만 즉시 안내).
-      if (evt.summary.failedItems > 0) {
+      // 휴지통 실패 폴백: trash op 가 실패 항목을 남기면(사용 중·보호·대용량으로 휴지통
+      // 이동 불가) 그 항목들의 영구 삭제를 확인 모달로 제안한다(확정 시 op:start(delete) —
+      // engine 의 파일 단위 best-effort 삭제라 잠긴 일부만 실패로 보고). 사용자 결정 게이트.
+      const trashFailedPaths =
+        op?.kind === 'trash'
+          ? evt.summary.failures.map((f) => f.path).filter((p): p is string => !!p)
+          : []
+      if (trashFailedPaths.length > 0) {
+        s.openConfirmDelete(
+          trashFailedPaths,
+          `${trashFailedPaths.length}개 항목을 휴지통으로 보내지 못했습니다(사용 중이거나 보호된 항목일 수 있습니다). 영구 삭제할까요?`
+        )
+      } else if (evt.summary.failedItems > 0) {
+        // 그 외(copy/move/delete) 부분 실패는 요약 토스트(다이얼로그도 표시되지만 즉시 안내).
         s.pushToast(
           'error',
           `${evt.summary.succeededItems}개 완료, ${evt.summary.failedItems}개 실패.`

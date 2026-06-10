@@ -25,6 +25,8 @@ let toastSeq = 0
 export interface ConfirmDeleteState {
   /** 삭제 대상 경로. */
   readonly paths: string[]
+  /** 영구삭제 사유 안내(예: 휴지통 실패 폴백). 없으면 일반 영구삭제(Shift+Delete). */
+  readonly reason?: string
 }
 
 /**
@@ -224,8 +226,8 @@ export interface UiSlice {
   setClipboardHasFiles(v: boolean): void
 
   // P4 액션 ──────────────────────────────────────────────────────────────
-  /** 영구삭제 확인 모달 열기(inputContext='dialog'). */
-  openConfirmDelete(paths: string[]): void
+  /** 영구삭제 확인 모달 열기(inputContext='dialog'). reason 은 폴백 사유 안내(선택). */
+  openConfirmDelete(paths: string[], reason?: string): void
   /** 영구삭제 확인 모달 닫기(inputContext='list' 복귀). */
   closeConfirmDelete(): void
   /** 인라인 이름변경 시작(inputContext='rename'). */
@@ -588,9 +590,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     })
   },
 
-  openConfirmDelete(paths) {
+  openConfirmDelete(paths, reason) {
     set((s) => {
-      s.confirmDelete = { paths: [...paths] }
+      s.confirmDelete = { paths: [...paths], ...(reason ? { reason } : {}) }
       s.inputContext = 'dialog'
     })
   },

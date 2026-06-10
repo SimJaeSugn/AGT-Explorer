@@ -138,6 +138,19 @@ export interface ShellOpenTerminalReq {
   /** 터미널 작업 디렉토리(검증된 실존 폴더). */
   readonly cwd: string
 }
+export interface ShellOpenExternalReq {
+  /** 외부 브라우저로 열 URL. http/https 만 — 핸들러가 프로토콜을 재검증한다(ADR-005). */
+  readonly url: string
+}
+// ── op:robocopy:start (폴더 비교 고속 미러 — robocopy 복사 전용, V3) ──────────
+export interface OpRobocopyStartReq {
+  /** 복사 원본 디렉토리(미러 방향의 기준 폴더). */
+  readonly srcDir: string
+  /** 복사 대상 디렉토리. robocopy 가 srcDir 내용을 dstDir 로 복사(/PURGE 없음 — 삭제 미수행). */
+  readonly dstDir: string
+  /** 진행률 분모용 예상 복사 항목 수(앱 비교 계획 기준, 선택). */
+  readonly expectedItems?: number
+}
 export interface ShellIconReq {
   /** 경로 또는 확장자 중 하나(아이콘 캐시 키). */
   readonly path?: string
@@ -476,11 +489,13 @@ export interface IpcRequestMap {
   [CHANNELS.SHELL_SHOW_PROPERTIES]: { req: ShellShowPropertiesReq; res: Result<void> }
   [CHANNELS.SHELL_ICON]: { req: ShellIconReq; res: Result<ShellIconRes> }
   [CHANNELS.SHELL_OPEN_TERMINAL]: { req: ShellOpenTerminalReq; res: Result<void> }
+  [CHANNELS.SHELL_OPEN_EXTERNAL]: { req: ShellOpenExternalReq; res: Result<void> }
 
   // op:* (P4)
   [CHANNELS.OP_START]: { req: OpStartReq; res: Result<OpStartRes> }
   [CHANNELS.OP_RESOLVE]: { req: OpResolveReq; res: Result<void> }
   [CHANNELS.OP_CANCEL]: { req: OpCancelReq; res: Result<void> }
+  [CHANNELS.OP_ROBOCOPY_START]: { req: OpRobocopyStartReq; res: Result<OpStartRes> }
 
   // clipboard:* (P4)
   [CHANNELS.CLIPBOARD_COPY_FILES]: { req: ClipboardFilesReq; res: Result<void> }
@@ -685,6 +700,12 @@ export interface QueueStateEvt {
   readonly items: QueueItemDTO[]
 }
 
+// ── app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기") ─────────────────
+/** 탐색기 컨텍스트 메뉴로 전달된 경로(정규화된 로컬 폴더/드라이브/파일). 렌더러가 새 탭으로 연다. */
+export interface AppOpenPathEvt {
+  readonly path: string
+}
+
 export interface IpcEventMap {
   // fs:list:* 스트림 (구현 P1)
   [CHANNELS.FS_LIST_CHUNK]: ListStreamChunk
@@ -720,6 +741,9 @@ export interface IpcEventMap {
 
   // queue:* 푸시 evt (신규 M7 — ADR-011, 타입만 동결 / impl: W2)
   [CHANNELS.QUEUE_STATE]: QueueStateEvt
+
+  // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기")
+  [CHANNELS.APP_OPEN_PATH]: AppOpenPathEvt
 }
 
 export type EventChannel = keyof IpcEventMap

@@ -10,7 +10,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { execCommand } from '@renderer/app/usecases/commandBus'
-import { baseName, isDriveRoot, MY_PC_LABEL } from '@renderer/domain/paths'
+import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
+import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { tokens } from '@renderer/ui/theme/tokens'
 import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
 import {
@@ -353,7 +354,9 @@ function FavoriteRow({
   const activePath = useActivePanelPath()
   const selected = activePath === path
   const [editing, setEditing] = useState(false)
-  const display = label && label.trim() !== '' ? label : baseName(path)
+  // 별칭이 있으면 별칭, 없으면 드라이브 루트는 볼륨 라벨("Windows (C:)")·그 외 baseName.
+  const driveOrBase = useRootStore((s) => resolveDriveLabel(path, s.tree, baseName(path)))
+  const display = label && label.trim() !== '' ? label : driveOrBase
   const rowRef = useRef<HTMLDivElement | null>(null)
 
   if (editing) {
@@ -526,9 +529,8 @@ function RecentRow({ path }: { path: string }): JSX.Element {
   const activePath = useActivePanelPath()
   const selected = activePath === path
   // 드라이브 루트(C:\)는 볼륨 라벨("Windows (C:)")로 표시 — 트리 드라이브 노드의 label 재사용
-  // (드라이브 열거 시 fs:drives 가 채움). 미로드/비-드라이브면 baseName 폴백.
-  const driveLabel = useRootStore((s) => (isDriveRoot(path) ? s.tree[path]?.label : undefined))
-  const label = driveLabel ?? baseName(path)
+  // (드라이브 열거 시 fs:drives 가 채움). 미로드/비-드라이브면 baseName 폴백(공용 해석기).
+  const label = useRootStore((s) => resolveDriveLabel(path, s.tree, baseName(path)))
   return (
     <PinnedRow
       icon="🕘"

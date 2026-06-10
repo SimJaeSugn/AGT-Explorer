@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
+import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 export function TabBar(): JSX.Element {
@@ -94,7 +95,9 @@ function TabItem({
     const tab = s.tabs[tabId]
     if (!tab) return '탭'
     const path = s.panels[tab.activePanelId]?.path ?? ''
-    return path === '' ? MY_PC_LABEL : baseName(path)
+    if (path === '') return MY_PC_LABEL
+    // 드라이브 루트 탭은 볼륨 라벨 포함 표기("Windows (C:)")로 — 트리 label 재사용.
+    return resolveDriveLabel(path, s.tree, baseName(path))
   })
   const activateTab = useRootStore((s) => s.activateTab)
   const closeTab = useRootStore((s) => s.closeTab)

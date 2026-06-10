@@ -17,6 +17,10 @@ import { btn, overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/
 export function CompareMirrorDialog(): JSX.Element | null {
   const state = useRootStore((s) => s.compareMirrorConfirm)
   const close = useRootStore((s) => s.closeCompareMirrorConfirm)
+  // 고속 미러(robocopy) 적용 여부: 토글 on + 메타 모드(해시 비교 아님). 해시 모드면 폴백.
+  const fastMirror = useRootStore(
+    (s) => s.compareFastMirror && s.compareOptions.useHash !== true && s.compareOptions.recursive !== true
+  )
   const panelRef = useRef<HTMLDivElement | null>(null)
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null)
 
@@ -63,6 +67,12 @@ export function CompareMirrorDialog(): JSX.Element | null {
             ? ' 삭제는 휴지통을 거치며 되돌리기(Ctrl+Z)로 복구할 수 있습니다.'
             : ' 이 미러는 복사만 하며 항목을 삭제하지 않습니다.'}
         </p>
+        {fastMirror && (
+          <p style={{ fontSize: 12, color: 'rgba(245,124,0,0.95)', marginTop: 4 }}>
+            ⚡ 고속 미러(robocopy): 복사를 Windows robocopy 로 가속합니다. 복사분은 실행취소(Ctrl+Z)가
+            지원되지 않습니다{hasDeletes ? '(삭제분은 휴지통·복구 가능)' : ''}.
+          </p>
+        )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
           <button style={btn('default')} onClick={() => close()}>

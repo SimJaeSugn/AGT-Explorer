@@ -10,6 +10,7 @@
  */
 import { dialog, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
+import * as fsp from 'node:fs/promises'
 import { CHANNELS } from '@shared/ipc/channels'
 import type { DialogConfirmRes, OpStartRes, Result } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
@@ -27,8 +28,10 @@ import {
   zFsRenameReq,
   zOpCancelReq,
   zOpResolveReq,
+  zOpRobocopyStartReq,
   zOpStartReq
 } from './guard'
+import { fileOpError } from '../fs/errors'
 
 function handleGuarded<TSchema extends import('zod').ZodTypeAny, TVal>(
   channel: string,
@@ -88,6 +91,29 @@ export function registerOpHandlers(): void {
       sources,
       destDir,
       req.conflictPolicy,
+      event.sender
+    )
+  })
+
+  // ── op:robocopy:start (폴더 비교 고속 미러 — robocopy 복사, V3) ────
+  handleGuarded(CHANNELS.OP_ROBOCOPY_START, zOpRobocopyStartReq, async (req, event) => {
+    const gs = guardPath(req.srcDir)
+    if (!gs.ok) return gs as Result<OpStartRes>
+    const gd = guardPath(req.dstDir)
+    if (!gd.ok) return gd as Result<OpStartRes>
+    // 양쪽 모두 실존 디렉토리 검증(파일/미존재 거부 — robocopy 오용 방지).
+    for (const p of [gs.value, gd.value]) {
+      try {
+        const st = await fsp.stat(p)
+        if (!st.isDirectory()) return err(fileOpError('ENOTDIR', '폴더가 아닙니다.', p))
+      } catch {
+        return err(fileOpError('ENOENT', '대상을 찾을 수 없습니다.', p))
+      }
+    }
+    return operationManager.startRobocopyMirror(
+      gs.value,
+      gd.value,
+      req.expectedItems ?? 0,
       event.sender
     )
   })

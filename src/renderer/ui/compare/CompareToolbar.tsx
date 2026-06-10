@@ -46,6 +46,8 @@ export function CompareToolbar(): JSX.Element {
   // §P1 해시/재귀 옵션·진행 상태.
   const useHash = useRootStore((s) => s.compareOptions.useHash === true)
   const recursive = useRootStore((s) => s.compareOptions.recursive === true)
+  const fastMirror = useRootStore((s) => s.compareFastMirror)
+  const toggleFastMirror = useRootStore((s) => s.toggleFastMirror)
   const hashStatus = useRootStore((s) => s.compareHashStatus)
   const scannedItems = useRootStore((s) => s.compareScannedItems)
   const truncated = useRootStore((s) => s.compareTruncated)
@@ -140,6 +142,23 @@ export function CompareToolbar(): JSX.Element {
       )}
 
       <span style={{ width: 1, height: 18, background: tokens.color.border }} />
+
+      {/* 고속 미러(robocopy): 미러 복사 측을 Windows robocopy 로 가속(V3). 해시 모드면 무시
+          (앱 정밀 diff 못 살림) → 비활성 표시. 삭제는 항상 휴지통. */}
+      <button
+        type="button"
+        style={{ ...toggleStyle(fastMirror && !useHash), opacity: useHash ? 0.5 : 1 }}
+        aria-pressed={fastMirror && !useHash}
+        disabled={useHash}
+        onClick={() => toggleFastMirror()}
+        title={
+          useHash
+            ? '내용 비교(해시) 모드에서는 고속 미러를 쓸 수 없습니다(정밀 비교 우선).'
+            : '미러 복사를 Windows robocopy 로 가속합니다(대용량 전체폴더). 복사분은 실행취소 미지원·삭제는 휴지통.'
+        }
+      >
+        ⚡ 고속 미러
+      </button>
 
       <button
         type="button"
