@@ -4,7 +4,7 @@
  * shell.openPath 를 한 곳으로 모아 다중 OS 확장 시 교체 가능하게 한다(SW §9).
  * 호출부(shell.handlers)는 이미 경로 검증을 통과한 경로만 전달한다.
  */
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { win32 } from 'node:path'
 import { shell } from 'electron'
 
@@ -65,11 +65,61 @@ export async function openWith(normalizedPath: string): Promise<OpenResult> {
 }
 
 /**
+ * 동기 throw 를 흡수하는 detached spawn (터미널 실행용).
+ *
+ * Node 22+(libuv 1.48+)는 스토어 앱 실행 별칭(APPEXECLINK reparse point — 예:
+ * `%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe`)을 spawn 하면 콜백 오류(ENOENT)가
+ * 아니라 **동기적으로 EINVAL 을 throw** 한다. Promise executor 밖으로 새면 IPC
+ * 핸들러 오류(throw 금지 위반)가 되므로 try/catch 로 흡수해 폴백 신호(Error)로
+ * 변환한다. 'spawn' 이벤트(실행 성공) 시 즉시 unref·resolve — 터미널 프로세스
+ * 종료를 기다리지 않는다(기존 execFile 은 터미널을 닫을 때까지 invoke 가 대기).
+ */
+function spawnDetached(
+  file: string,
+  args: readonly string[],
+  options: { cwd?: string } = {}
+): Promise<Error | null> {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(file, [...args], {
+        ...options,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      })
+      child.once('error', (e) => resolve(e))
+      child.once('spawn', () => {
+        child.unref()
+        resolve(null)
+      })
+    } catch (e) {
+      resolve(e instanceof Error ? e : new Error(String(e)))
+    }
+  })
+}
+
+/** execFile 의 동기 throw 까지 콜백 오류로 흡수하는 래퍼 (spawnDetached 와 동일 사유). */
+function execFileNoThrow(
+  file: string,
+  args: readonly string[],
+  options: Parameters<typeof execFile>[2]
+): Promise<Error | null> {
+  return new Promise((resolve) => {
+    try {
+      execFile(file, [...args], options, (error) => resolve(error ?? null))
+    } catch (e) {
+      resolve(e instanceof Error ? e : new Error(String(e)))
+    }
+  })
+}
+
+/**
  * 검증된 디렉토리 경로에서 터미널을 연다(shell:open-terminal, H4 · ADR-005).
  *
- * Windows Terminal(`wt.exe -d <dir>`)을 우선 시도하고, 미설치(ENOENT)·spawn 실패
- * 시 `powershell.exe -NoExit`(cwd=경로) 로 폴백한다. 둘 다 셸(cmd)을 경유하지 않는
- * execFile + 인자 배열/cwd 옵션으로만 경로를 전달한다(명령행 문자열 합성 0 — ADR-005
+ * 3단 폴백: ① `wt.exe -d <dir>` 직접 spawn(비-스토어 설치본) → ② 스토어 별칭이면
+ * EINVAL 이므로 PowerShell `Start-Process` 릴레이로 wt 실행(ShellExecute 계열은
+ * 별칭을 정상 실행) → ③ wt 미설치면 `powershell.exe -NoExit`(cwd=경로) 창.
+ * 경로는 인자 배열/cwd/환경변수로만 전달한다(명령행 문자열 합성 0 — ADR-005
  * §3.3-4, 공백·한글·`&` 포함 경로도 주입 무해). 터미널은 보여야 하므로
  * windowsHide:false. 비-Windows 는 미지원 안내 반환(개발/CI 폴백, openWith 스타일).
  *
@@ -80,28 +130,37 @@ export async function openTerminal(normalizedDir: string): Promise<OpenResult> {
     return { errorMessage: '터미널 열기는 Windows 에서만 지원됩니다.' }
   }
 
-  // 1차: Windows Terminal. wt 는 런처라 즉시 반환(detach) — error 없으면 성공.
-  const wt = await new Promise<OpenResult | null>((resolve) => {
-    execFile('wt.exe', ['-d', normalizedDir], { windowsHide: false }, (error) => {
-      // wt.exe 부재(미설치/Server)는 ENOENT 등 → 폴백 신호로 null 반환.
-      if (error) resolve(null)
-      else resolve({ errorMessage: '' })
-    })
-  })
-  if (wt) return wt
+  // 1차: Windows Terminal 직접 spawn. 스토어 별칭이면 동기 EINVAL → 폴백.
+  if ((await spawnDetached('wt.exe', ['-d', normalizedDir])) === null) {
+    return { errorMessage: '' }
+  }
 
-  // 2차(폴백): PowerShell. -NoExit 로 창 유지, cwd 옵션으로 작업 디렉토리 지정
-  // (경로를 명령행 문자열로 합성하지 않음 — 주입 차단).
-  return new Promise<OpenResult>((resolve) => {
-    execFile(
-      'powershell.exe',
-      ['-NoExit'],
-      { cwd: normalizedDir, windowsHide: false },
-      (error) => {
-        resolve({ errorMessage: error ? error.message : '' })
-      }
-    )
-  })
+  // 2차: PowerShell 릴레이(스토어 별칭 폴백) — 터미널에서 `wt`를 직접 치는 것과
+  // 동일한 경로(PS→CreateProcess 는 별칭을 정상 실행). 경로는 env 로 전달해 보간
+  // 회피(showProperties 선례), 인자는 PS 가 배열로 전달(문자열 합성 0). 드라이브
+  // 루트(`E:\`) 등 후행 \ 는 PS 인용 시 `"...\"` 파손을 막기 위해 \\ 로 이스케이프.
+  // wt 미설치/실행 불가면 PS 가 비0 종료 → 3차.
+  const relayScript = [
+    "$ErrorActionPreference = 'Stop';",
+    '$d = $env:EXPLORER_TERMINAL_DIR;',
+    "if ($d.EndsWith('\\')) { $d += '\\' }",
+    'wt.exe -d $d;'
+  ].join(' ')
+  const relayError = await execFileNoThrow(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', relayScript],
+    {
+      windowsHide: true,
+      timeout: 8000,
+      env: { ...process.env, EXPLORER_TERMINAL_DIR: normalizedDir }
+    }
+  )
+  if (relayError === null) return { errorMessage: '' }
+
+  // 3차(최종 폴백): PowerShell 창. -NoExit 로 창 유지, cwd 옵션으로 작업 디렉토리
+  // 지정(경로를 명령행 문자열로 합성하지 않음 — 주입 차단).
+  const psError = await spawnDetached('powershell.exe', ['-NoExit'], { cwd: normalizedDir })
+  return { errorMessage: psError ? psError.message : '' }
 }
 
 /**
