@@ -18,6 +18,12 @@ import type { EngineHooks } from '../operations/engine'
 import { CANCEL_FLAG_INDEX, PAUSE_FLAG_INDEX } from './protocol'
 import type { WorkerInMsg, WorkerJob, WorkerOutMsg } from './protocol'
 
+// asar 비가상화: Electron 은 fs 를 패치해 `app.asar` 등 .asar 아카이브를 **가상 디렉토리**로
+// 펼친다(stat=디렉토리·readdir=내부 항목). 그러면 복사/이동/삭제 시 아카이브 내부 "가상
+// 파일"을 unlink 하려다 ENOENT(실제 파일 아님)가 난다. 파일 작업 워커는 앱 리소스를 로드하지
+// 않으므로(앱 번들 로딩과 무관) 여기서 asar 지원을 꺼 .asar 를 **일반 파일 1개**로 다룬다.
+;(process as NodeJS.Process & { noAsar?: boolean }).noAsar = true
+
 const port = parentPort
 const job = workerData as WorkerJob
 

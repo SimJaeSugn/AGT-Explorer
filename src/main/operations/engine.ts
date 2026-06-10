@@ -356,13 +356,9 @@ async function copyEntry(
       }
       await copyChild(d.name)
     }
-    // move: 자식까지 복사 끝났으면 원본 폴더 제거(읽기전용·정션·EPERM 견고 삭제).
+    // move: 자식까지 복사 끝났으면 원본 폴더 제거(견고 삭제·못 지운 항목만 보고).
     if (isMove && !result.canceled) {
-      try {
-        await forceRemove(src)
-      } catch (e) {
-        pushFailure(result, hooks, src, e)
-      }
+      await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
     }
   } else {
     // 파일: 덮어쓰기면 기존 제거 후 복사(크기별 하이브리드 — copyFile/스트림).
@@ -376,7 +372,7 @@ async function copyEntry(
       result.succeededItems++
       hooks.onProgress(counters.bytes, counters.items, name)
       if (isMove) {
-        await forceRemove(src)
+        await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
       }
     } catch (e) {
       // 취소로 인한 중단: 부분 파일 정리.
@@ -400,65 +396,97 @@ async function chmodWritable(p: string): Promise<void> {
   }
 }
 
-/** EPERM/EBUSY 면 읽기전용 해제 후 1회 재시도하는 rmdir/unlink. */
-async function removeWithRetry(p: string, dir: boolean): Promise<void> {
+/** EPERM/EBUSY 면 읽기전용 해제 후 1회 재시도하는 rmdir/unlink. ENOENT(이미 없음)는 성공 취급. */
+// rmdir/unlink 1회(+EPERM/EBUSY/EACCES 시 chmod 후 1회 재시도). 성공/ENOENT(이미 없음)면
+// null, 실패면 마지막 오류를 반환(throw 안 함 — 호출부가 보고/계속 결정).
+async function tryRemove(p: string, dir: boolean): Promise<unknown | null> {
   const remove = (): Promise<void> => (dir ? fsp.rmdir(p) : fsp.unlink(p))
   try {
     await remove()
+    return null
   } catch (e) {
     const code = (e as { code?: string }).code
+    if (code === 'ENOENT') return null
     if (code === 'EPERM' || code === 'EBUSY' || code === 'EACCES') {
       await chmodWritable(p)
-      await remove() // 재시도(여전히 실패하면 throw → 상위가 실패 보고)
-    } else {
-      throw e
+      try {
+        await remove()
+        return null
+      } catch (e2) {
+        return (e2 as { code?: string }).code === 'ENOENT' ? null : e2
+      }
     }
+    return e
   }
 }
 
 /**
- * 견고한 재귀 영구 삭제 — fsp.rm({force}) 가 Windows 에서 EPERM 으로 멈추는 경우를 보완한다.
+ * 견고한 재귀 영구 삭제 — best-effort 집계. 삭제 가능한 것은 모두 지우고, **못 지운 항목만**
+ * onFail 로 보고한다(한 항목 실패가 전체 작업을 중단시키지 않음). 반환: 완전 삭제 true.
  *
- *  - 읽기전용/시스템 속성 디렉토리·파일: chmod 로 쓰기 가능화 후 제거(EPERM 주원인 해소).
- *  - 정션/심볼릭 링크(디렉토리 포함): **대상으로 재귀하지 않고 링크 자체만 제거**한다
- *    (예: 재배치된 AppData 하위의 호환성 정션 — 대상 데이터 보존 + rmdir EPERM 회피).
- *  - rmdir/unlink EPERM·EBUSY 는 chmod 후 1회 재시도. ENOENT(이미 없음)는 성공 취급.
- *
- * 실패(권한·사용 중 등)는 throw 로 상위(runDelete/copyEntry)가 잡아 항목 실패로 보고한다.
+ *  - 읽기전용/시스템 속성: chmod 로 쓰기 가능화 후 제거(EPERM 주원인 해소).
+ *  - 정션/심볼릭 링크: **대상으로 재귀하지 않고 링크 자체만 제거**(대상 데이터 보존·EPERM 회피).
+ *  - EPERM/EBUSY/EACCES: chmod 후 1회 재시도(tryRemove).
+ *  - lstat 실패(EACCES 등·타입 불명): 소켓/파이프/보호 파일일 수 있음 → unlink→rmdir 순 제거 시도.
+ *  - readdir 실패(EACCES): 진입 불가 → rmdir 시도(빈 폴더일 수도), 실패 시 보고.
+ *  - ENOENT(이미 없음): 성공 취급. (asar 가상화는 워커 process.noAsar=true 로 비활성)
  */
-async function forceRemove(target: string): Promise<void> {
+async function forceRemove(
+  target: string,
+  onFail: (path: string, err: unknown) => void
+): Promise<boolean> {
   let st: import('node:fs').Stats
   try {
     st = await fsp.lstat(target)
   } catch (e) {
-    if ((e as { code?: string }).code === 'ENOENT') return // 이미 없음.
-    throw e
+    if ((e as { code?: string }).code === 'ENOENT') return true // 이미 없음.
+    // 타입 불명(EACCES 등): 그래도 제거 시도(파일/소켓/파이프 우선, 폴더 폴백).
+    await chmodWritable(target)
+    if ((await tryRemove(target, false)) === null) return true
+    if ((await tryRemove(target, true)) === null) return true
+    onFail(target, e)
+    return false
   }
+
   await chmodWritable(target)
 
-  // 정션/심볼릭 링크: 링크만 제거(대상 미재귀). 디렉토리 정션은 rmdir, 파일 링크는 unlink.
+  // 정션/심볼릭 링크: 링크만 제거(대상 미재귀). 파일 링크는 unlink, 디렉토리 정션은 rmdir.
   if (st.isSymbolicLink()) {
-    try {
-      await removeWithRetry(target, false)
-    } catch {
-      await removeWithRetry(target, true)
-    }
-    return
+    const e1 = await tryRemove(target, false)
+    if (e1 === null) return true
+    const e2 = await tryRemove(target, true)
+    if (e2 === null) return true
+    onFail(target, e1)
+    return false
   }
 
   if (st.isDirectory()) {
-    let kids: string[] = []
+    let kids: string[]
     try {
       kids = await fsp.readdir(target)
-    } catch {
-      kids = []
+    } catch (e) {
+      // 진입 불가: 그래도 rmdir 시도(비어 있을 수도). 실패면 readdir 오류로 보고.
+      const er = await tryRemove(target, true)
+      if (er === null) return true
+      onFail(target, e)
+      return false
     }
-    for (const k of kids) await forceRemove(win32.join(target, k))
-    await removeWithRetry(target, true)
-    return
+    let allRemoved = true
+    for (const k of kids) {
+      if (!(await forceRemove(win32.join(target, k), onFail))) allRemoved = false
+    }
+    if (!allRemoved) return false // 자식 잔존 → rmdir 생략(leaf 가 이미 보고함).
+    const er = await tryRemove(target, true)
+    if (er === null) return true
+    onFail(target, er)
+    return false
   }
 
-  await removeWithRetry(target, false)
+  // 일반 파일/소켓/파이프.
+  const ef = await tryRemove(target, false)
+  if (ef === null) return true
+  onFail(target, ef)
+  return false
 }
 
 function pushFailure(result: EngineResult, hooks: EngineHooks, path: string, e: unknown): void {
@@ -582,16 +610,16 @@ export async function runDelete(sources: string[], hooks: EngineHooks): Promise<
       break
     }
     const name = win32.basename(src)
-    try {
-      // 견고한 재귀 삭제(읽기전용 해제·정션 링크만 제거·EPERM 재시도) — fsp.rm({force}) 가
-      // Windows 보호/정션/읽기전용에서 EPERM 으로 멈추는 문제를 보완한다.
-      await forceRemove(src)
+    // 견고한 best-effort 재귀 삭제: 삭제 가능한 건 모두 지우고, 못 지운 항목(소켓·사용중·
+    // 권한·정션 등)만 failures 로 보고한다(한 항목 실패가 전체를 중단시키지 않음). 읽기전용
+    // 해제·정션 비재귀·EPERM/EACCES 재시도·lstat 실패 시도는 forceRemove 가 처리한다.
+    const before = result.failures.length
+    const fullyRemoved = await forceRemove(src, (p, e) => pushFailure(result, hooks, p, e))
+    if (fullyRemoved && result.failures.length === before) {
       counters.items++
       result.succeededItems++
-      hooks.onProgress(counters.bytes, counters.items, name)
-    } catch (e) {
-      pushFailure(result, hooks, src, e)
     }
+    hooks.onProgress(counters.bytes, counters.items, name)
   }
   return result
 }
