@@ -13,6 +13,7 @@ import { execCommand } from '@renderer/app/usecases/commandBus'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
 import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
 import {
   beginFavoriteReorder,
@@ -681,8 +682,10 @@ function TreeNodeView({ path, depth }: { path: string; depth: number }): JSX.Ele
         >
           {hasChevron ? (node.loading ? '…' : node.expanded ? '▾' : '▸') : ''}
         </span>
-        <span onClick={() => navigateActive(node.path)} style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0 }}>
-          <span>{node.kind === 'drive' ? '💽' : '📁'}</span>
+        <span onClick={() => navigateActive(node.path)} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'inline-flex', flex: '0 0 auto' }}>
+            {node.kind === 'drive' ? <DriveGlyph size={15} /> : <FolderGlyph size={15} />}
+          </span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label}
           </span>

@@ -47,6 +47,20 @@ export function iconKeyFor(entry: FileEntryDTO): string {
 }
 
 /**
+ * 링크(정션/심볼릭) 폴더 여부 — 드라이브 루트 제외. 링크 폴더는 **표준 폴더 아이콘 위에
+ * 바로가기 화살표를 덧그려** 표시한다(경로별 OS 아이콘은 정션 환경에서 디스크/엉뚱한
+ * 아이콘을 줘 들쭉날쭉했음 → 공유 '__dir__' 표준 폴더 아이콘 + 화살표 오버레이로 통일).
+ */
+export function isLinkFolder(entry: FileEntryDTO): boolean {
+  return entry.isDir && entry.attrs.symlink && !isDriveRoot(entry.path)
+}
+
+/** 드라이브 루트 폴더 여부(내 PC 의 드라이브 항목) — 디스크 아이콘 대상. */
+export function isDriveFolder(entry: FileEntryDTO): boolean {
+  return entry.isDir && isDriveRoot(entry.path)
+}
+
+/**
  * shell:icon 요청 빌더 — 항상 실존 경로를 담는다(키 분기와 짝, §3.1).
  * 폴더 { path, ext:'__dir__' }, 드라이브 { path, ext:'__drive__' }, 그 외 { path }.
  */
@@ -70,6 +84,9 @@ export function getCachedIcon(key: string): string | undefined {
  * 같은 키의 다음 가시 항목 경로로 재시도 가능(영구 폴백 방지).
  */
 export function requestIcon(entry: FileEntryDTO): Promise<void> {
+  // 링크 폴더는 자기(정션) 경로로 공유 '__dir__' 아이콘을 오염시키지 않도록 요청하지 않는다.
+  // 표준 폴더 아이콘은 일반 폴더가 채우고, 링크는 그 위에 화살표 오버레이로 표시(OSIcon).
+  if (isLinkFolder(entry)) return Promise.resolve()
   const key = iconKeyFor(entry)
   if (cache.has(key)) return Promise.resolve()
   const existing = inflight.get(key)

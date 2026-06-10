@@ -7,6 +7,8 @@
  */
 export {
   iconKeyFor,
+  isLinkFolder,
+  isDriveFolder,
   getCachedIcon,
   requestIcon,
   subscribeIcon

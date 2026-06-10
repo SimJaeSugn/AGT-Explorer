@@ -77,6 +77,9 @@ export function isRecycleBinPath(id: string): boolean {
  * 삭제일: ExtendedProperty('System.Recycle.DateDeleted') → DateTime → epoch ms.
  */
 const LIST_SCRIPT = [
+  // 한글(비-ASCII) 파일명·경로가 깨지지 않도록 stdout 을 UTF-8 로 출력(Node 가 utf8 로 디코드).
+  // 미설정 시 OEM 코드페이지(cp949 등)로 출력돼 ConvertTo-Json 한글이 깨진다(드라이브 볼륨명 스크립트 동형).
+  '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;',
   '$ErrorActionPreference = "Stop";',
   '$sh = New-Object -ComObject Shell.Application;',
   '$bin = $sh.NameSpace(0xA);',
@@ -109,6 +112,16 @@ const LIST_SCRIPT = [
 
 const PS_BASE_ARGS = ['-NoProfile', '-NonInteractive', '-Command'] as const
 
+/** stderr 첫 비어있지 않은 줄(실제 PowerShell 오류 메시지). 없으면 null. */
+function firstLine(stderr: unknown): string | null {
+  if (typeof stderr !== 'string') return null
+  const line = stderr
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l.length > 0)
+  return line ?? null
+}
+
 /**
  * 실제 PowerShell COM 열거 execFile 래퍼(모듈 비공개). raw stdout(JSON) resolve.
  * 비-Windows·실패·타임아웃 → '[]'(빈 목록 폴백). **throw 0**.
@@ -140,7 +153,9 @@ function defaultListFn(): Promise<string> {
  * 결과: 실패가 1건이라도 있으면 비0 exit(핸들러가 부분 실패로 Result.err 변환).
  */
 const RESTORE_SCRIPT = [
-  '$ErrorActionPreference = "Stop";',
+  // 전역 Stop 미사용: try 밖의 COM 호출(Verbs 등) 오류가 스크립트 전체를 중단시키지 않도록
+  // 항목 단위 try/catch 로 격리하고 실패만 $failed 로 집계한다.
+  '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;', // 한글 오류 메시지 깨짐 방지.
   '$raw = $env:EXPLORER_TRASH_IDS;',
   'if ([string]::IsNullOrEmpty($raw)) { exit 0 }',
   '$ids = $raw -split "`n" | Where-Object { $_ -ne "" };',
@@ -149,18 +164,22 @@ const RESTORE_SCRIPT = [
   'if ($null -eq $bin) { exit 2 }',
   '$failed = 0;',
   'foreach ($id in $ids) {',
-  '  $item = $null;',
-  '  foreach ($it in $bin.Items()) { if ([string]$it.Path -eq $id) { $item = $it; break } }',
-  '  if ($null -eq $item) { $failed++; continue }',
-  '  $verb = $item.Verbs() | Where-Object { ($_.Name -replace "&","") -match "^(복원|Restore)$" } | Select-Object -First 1;',
-  '  if ($null -ne $verb) { try { $verb.DoIt() } catch { $failed++ } continue }',
-  '  $deletedFrom = "";',
-  '  try { $deletedFrom = [string]$item.ExtendedProperty("System.Recycle.DeletedFrom") } catch {}',
-  '  if ([string]::IsNullOrEmpty($deletedFrom)) { $failed++; continue }',
-  '  $dest = Join-Path $deletedFrom $item.Name;',
-  '  if (Test-Path -LiteralPath $dest) { $failed++; continue }',
-  '  try { if (-not (Test-Path -LiteralPath $deletedFrom)) { New-Item -ItemType Directory -Path $deletedFrom -Force | Out-Null } } catch {}',
-  '  try { Move-Item -LiteralPath $item.Path -Destination $dest -ErrorAction Stop } catch { $failed++ }',
+  '  try {',
+  '    $item = $null;',
+  '    foreach ($it in $bin.Items()) { if ([string]$it.Path -eq $id) { $item = $it; break } }',
+  '    if ($null -eq $item) { $failed++; continue }',
+  '    $verb = $null;',
+  '    try { $verb = $item.Verbs() | Where-Object { ($_.Name -replace "&","") -match "(복원|restore)" } | Select-Object -First 1 } catch {}',
+  '    if ($null -ne $verb) { try { $verb.DoIt(); Start-Sleep -Milliseconds 150 } catch {} }',
+  '    if (-not (Test-Path -LiteralPath $id)) { continue }', // $R 사라짐 = 복원 성공.
+  '    $deletedFrom = "";',
+  '    try { $deletedFrom = [string]$item.ExtendedProperty("System.Recycle.DeletedFrom") } catch {}',
+  '    if ([string]::IsNullOrEmpty($deletedFrom)) { $failed++; continue }',
+  '    $dest = Join-Path $deletedFrom $item.Name;',
+  '    if (Test-Path -LiteralPath $dest) { $failed++; continue }',
+  '    if (-not (Test-Path -LiteralPath $deletedFrom)) { try { New-Item -ItemType Directory -Path $deletedFrom -Force | Out-Null } catch {} }',
+  '    try { Move-Item -LiteralPath $id -Destination $dest -ErrorAction Stop } catch { $failed++ }',
+  '  } catch { $failed++ }',
   '}',
   'if ($failed -gt 0) { exit (10 + $failed) }'
 ].join(' ')
@@ -183,9 +202,20 @@ function defaultRestoreFn(ids: string[]): Promise<RecycleInvokeResult> {
           timeout: QUERY_TIMEOUT_MS,
           env: { ...process.env, EXPLORER_TRASH_IDS: ids.join('\n') }
         },
-        (error) => {
-          if (error) resolve({ ok: false, message: error.message })
-          else resolve({ ok: true })
+        (error, _stdout, stderr) => {
+          if (!error) {
+            resolve({ ok: true })
+            return
+          }
+          // execFile 은 비0 종료 시 error.code = 종료코드. 스크립트 규약으로 사유 안내.
+          const code = typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : undefined
+          if (code === 2) resolve({ ok: false, message: '휴지통에 접근할 수 없습니다.' })
+          else if (code !== undefined && code >= 10)
+            resolve({
+              ok: false,
+              message: `${code - 10}개 항목을 복원하지 못했습니다(원래 위치에 같은 이름이 있거나 사용 중·권한 없음).`
+            })
+          else resolve({ ok: false, message: firstLine(stderr) ?? '복원에 실패했습니다.' })
         }
       )
     } catch (e) {
@@ -200,17 +230,20 @@ function defaultRestoreFn(ids: string[]): Promise<RecycleInvokeResult> {
  * 실패 시 COM(NameSpace(0xA) 각 항목 InvokeVerb 'Delete'|'삭제')로 폴백.
  */
 const EMPTY_SCRIPT = [
-  '$ErrorActionPreference = "Stop";',
-  'try { Clear-RecycleBin -Force -ErrorAction Stop; exit 0 } catch {}',
+  // 전역 Stop 미사용: COM 호출 오류가 스크립트를 중단시키지 않게 단계별 try/catch 로 격리.
+  '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;', // 한글 오류 메시지 깨짐 방지.
+  '$sh = New-Object -ComObject Shell.Application;',
+  '$bin = $sh.NameSpace(0xA);',
+  'if ($null -eq $bin) { exit 0 }',
+  'try { if (@($bin.Items()).Count -eq 0) { exit 0 } } catch {}', // 이미 비어 있음 = 성공.
+  'try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction Stop; exit 0 } catch {}',
+  // 폴백: COM 삭제 동사(로케일 — "삭제(&D)"/"Delete" 부분 매칭). 비운 뒤 재확인.
   'try {',
-  '  $sh = New-Object -ComObject Shell.Application;',
-  '  $bin = $sh.NameSpace(0xA);',
-  '  if ($null -eq $bin) { exit 2 }',
-  '  $items = @($bin.Items());',
-  '  foreach ($it in $items) {',
-  '    $v = $it.Verbs() | Where-Object { ($_.Name -replace "&","") -match "^(삭제|Delete)$" } | Select-Object -First 1;',
-  '    if ($null -ne $v) { $v.DoIt() }',
+  '  foreach ($it in @($bin.Items())) {',
+  '    try { $v = $it.Verbs() | Where-Object { ($_.Name -replace "&","") -match "(삭제|delete)" } | Select-Object -First 1; if ($null -ne $v) { $v.DoIt() } } catch {}',
   '  }',
+  '  Start-Sleep -Milliseconds 150;',
+  '  if (@($sh.NameSpace(0xA).Items()).Count -gt 0) { exit 3 }',
   '  exit 0',
   '} catch { exit 3 }'
 ].join(' ')
@@ -229,9 +262,18 @@ function defaultEmptyFn(): Promise<RecycleInvokeResult> {
         'powershell.exe',
         [...PS_BASE_ARGS, EMPTY_SCRIPT],
         { windowsHide: true, timeout: QUERY_TIMEOUT_MS },
-        (error) => {
-          if (error) resolve({ ok: false, message: error.message })
-          else resolve({ ok: true })
+        (error, _stdout, stderr) => {
+          if (!error) {
+            resolve({ ok: true })
+            return
+          }
+          const code = typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : undefined
+          if (code === 3)
+            resolve({
+              ok: false,
+              message: '일부 항목이 사용 중이거나 접근할 수 없어 휴지통을 완전히 비우지 못했습니다.'
+            })
+          else resolve({ ok: false, message: firstLine(stderr) ?? '휴지통 비우기에 실패했습니다.' })
         }
       )
     } catch (e) {

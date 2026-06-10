@@ -16,7 +16,8 @@ import type { FileEntryDTO } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
-import { getCachedIcon, iconKeyFor, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
+import { getCachedIcon, iconKeyFor, isDriveFolder, isLinkFolder, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
+import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
 import {
   getCachedThumbnail,
   requestThumbnail,
@@ -1003,21 +1004,27 @@ function FileRow({
 }
 
 /**
- * OSIcon — 항목의 OS 실제 아이콘(있으면 <img>, 로드 전/실패 시 이모지 폴백, H6).
+ * OSIcon — 항목 아이콘. **파일**은 OS 실제 아이콘(확장자 캐시, H6), **폴더/드라이브**는
+ * 결정적 SVG 글리프(노란 폴더 / 회색 디스크 / 링크 폴더+화살표).
  *
- * 전역 아이콘 캐시(infra/icon, app/usecases/icons 경유)를 useSyncExternalStore 로
- * 구독한다. 같은 키(확장자/폴더/드라이브)는 IPC 1회만(가상 스크롤 1만개 정합) —
- * in-flight 디듀프. 캐시는 패널 store 무관 전역이라 셀렉터 격리(SA §5.2)를 지킨다.
- * 아이콘 크기는 rowHeight(26) 안의 16×16 박스에 정합한다.
+ * 폴더/드라이브에 OS 아이콘을 쓰던 방식은 정션(재배치 AppData 등) 환경에서 공유 '__dir__'
+ * 캐시가 디스크 아이콘으로 오염돼 일반 폴더가 디스크로 보이는 문제가 있어 글리프로 표준화했다.
+ * 파일 OS 아이콘 캐시는 useSyncExternalStore 구독 유지(셀렉터 격리, SA §5.2).
  */
 function OSIcon({ entry, size = 16 }: { entry: FileEntryDTO; size?: number }): JSX.Element {
+  const isDir = entry.isDir
   const key = iconKeyFor(entry)
   const dataUrl = useSyncExternalStore(subscribeIcon, () => getCachedIcon(key))
 
   useEffect(() => {
-    if (!getCachedIcon(key)) void requestIcon(entry)
-    // key 변화(행 재사용으로 다른 항목 매핑)마다 미캐시면 로드 트리거.
-  }, [key, entry])
+    // 파일만 OS 아이콘 로드(폴더/드라이브는 결정적 SVG → 요청 불요).
+    if (!isDir && !getCachedIcon(key)) void requestIcon(entry)
+  }, [key, entry, isDir])
+
+  if (isDir) {
+    if (isDriveFolder(entry)) return <DriveGlyph size={size} />
+    return <FolderGlyph size={size} link={isLinkFolder(entry)} />
+  }
 
   if (dataUrl) {
     // OS 아이콘은 저해상도(16/32)일 수 있으나 그리드 셀 크기에 맞춰 확대 렌더.
@@ -1032,7 +1039,11 @@ function OSIcon({ entry, size = 16 }: { entry: FileEntryDTO; size?: number }): J
       />
     )
   }
-  return <span aria-hidden style={{ fontSize: size > 16 ? size * 0.8 : undefined }}>{entry.isDir ? '📁' : '📄'}</span>
+  return (
+    <span aria-hidden style={{ fontSize: size > 16 ? size * 0.8 : undefined }}>
+      📄
+    </span>
+  )
 }
 
 /**
