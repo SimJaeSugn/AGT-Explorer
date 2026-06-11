@@ -349,6 +349,12 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault()
         selectAll(panelId, visiblePaths)
+      } else if (e.key === 'Escape') {
+        // Esc 는 포커스를 "푼다" — 그리드(tabIndex=0)에 포커스를 주지 않는다.
+        // 그리드는 클릭만으로 이미 포커스를 갖지만 마우스 포커스라 :focus-visible 링이
+        // 없다가, Esc(키보드 입력) 순간 브라우저 휴리스틱이 링을 띄워 "포커스가 생긴 것"
+        // 처럼 보였다. blur 로 포커스를 해제해 링이 뜨지 않고 포커스가 풀리게 한다.
+        scrollRef.current?.blur()
       } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
         // 키보드 컨텍스트 메뉴 호출(WCAG 2.1.1): 활성 행 기준 위치에 메뉴를 연다.
         // 활성 행이 없으면(선택 없음) 빈 영역 메뉴를 패널 좌상단 부근에 연다.
