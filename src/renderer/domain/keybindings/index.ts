@@ -142,8 +142,10 @@ const baseBindings: KeyBinding[] = [
   },
 
   // ── 보기 ────────────────────────────────────────────────────────────
+  // 새로고침 단축키 = F5(Windows 탐색기 관례). 디스패처가 매핑된 chord 를 먼저
+  // 처리하므로 브라우저 리로드(F5) 대신 폴더 새로고침으로 가로챈다.
   {
-    chord: 'ctrl+r',
+    chord: 'f5',
     commandId: 'panel.refresh',
     context: 'global',
     label: '새로고침',
