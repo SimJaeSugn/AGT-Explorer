@@ -81,6 +81,7 @@ const fakeApi = {
 import { useRootStore } from '../src/renderer/app/stores/rootStore'
 import { ratioFromPoint } from '../src/renderer/ui/layout/splitMath'
 import { setConcurrency } from '../src/renderer/app/usecases/queue'
+import { resolveIconBarItems, ICON_BAR_ITEMS } from '../src/renderer/ui/toolbar/iconBarItems'
 import type { QueueItemDTO, WindowSnapshot } from '../src/shared/dto'
 
 let pass = 0
@@ -94,6 +95,28 @@ function ok(label: string, cond: boolean): void {
 }
 
 const s = () => useRootStore.getState()
+
+// ── 단축아이콘: resolveIconBarItems(순서 override·숨김·신규 항목 덧붙임) ──
+{
+  const allIds = ICON_BAR_ITEMS.map((it) => it.id)
+  // 기본(빈 설정): 정의 순서 그대로·전부 표시.
+  const base = resolveIconBarItems([], [])
+  ok('단축아이콘 기본=전체 표시', base.length === ICON_BAR_ITEMS.length)
+  ok('단축아이콘 기본 순서 보존', base[0]!.id === allIds[0] && base[base.length - 1]!.id === allIds[allIds.length - 1])
+  // 숨김: 해당 id 제외.
+  const hideCopy = resolveIconBarItems([], ['file.copy'])
+  ok('단축아이콘 숨김 제외', !hideCopy.some((it) => it.id === 'file.copy') && hideCopy.length === ICON_BAR_ITEMS.length - 1)
+  // 순서 override: 지정 항목이 앞으로·미지정은 기본 순서로 뒤에 덧붙음.
+  const reordered = resolveIconBarItems(['theme.toggle', 'nav.up'], [])
+  ok('단축아이콘 순서 override 선두', reordered[0]!.id === 'theme.toggle' && reordered[1]!.id === 'nav.up')
+  ok('단축아이콘 override 후 나머지 보존', reordered.length === ICON_BAR_ITEMS.length)
+  // 알 수 없는 id 는 무시(유효 항목만).
+  const withUnknown = resolveIconBarItems(['nope.unknown', 'nav.up'], ['also.unknown'])
+  ok('단축아이콘 알 수 없는 id 무시', withUnknown.length === ICON_BAR_ITEMS.length && withUnknown[0]!.id === 'nav.up')
+  // 순서+숨김 동시: 숨김은 결과에서 제외하되 나머지는 override 순서.
+  const both = resolveIconBarItems(['nav.up', 'file.copy'], ['file.copy'])
+  ok('단축아이콘 순서+숨김 동시', both[0]!.id === 'nav.up' && !both.some((it) => it.id === 'file.copy'))
+}
 
 // ── 부트: 기본 탭 1개("내 PC") ───────────────────────────────────────
 s().initDefaultTab()

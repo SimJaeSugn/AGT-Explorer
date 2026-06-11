@@ -159,8 +159,24 @@ async function main(): Promise<void> {
   check('coerce: 손상 verifyOnCopy(비불리언) → false 폴백', verifyCoerced.verifyOnCopy === false)
   // 구버전(키 누락) → false 폴백.
   check('구버전 settings(verifyOnCopy 누락) → false 폴백', legacySettings.verifyOnCopy === false)
+  // 단축아이콘: iconBarHidden/iconBarOrder 기본 빈 배열·toggle/순서 영속·구버전·손상 폴백.
+  check('기본 iconBarHidden=[]', Array.isArray(loaded0.iconBarHidden) && loaded0.iconBarHidden.length === 0)
+  check('기본 iconBarOrder=[]', Array.isArray(loaded0.iconBarOrder) && loaded0.iconBarOrder.length === 0)
+  const setIcon = await settings.set({ iconBarHidden: ['file.copy'], iconBarOrder: ['nav.up', 'file.copy'] })
+  check('coerce: iconBarHidden 저장', setIcon.iconBarHidden?.length === 1 && setIcon.iconBarHidden[0] === 'file.copy')
+  check('coerce: iconBarOrder 저장', setIcon.iconBarOrder?.length === 2 && setIcon.iconBarOrder[0] === 'nav.up')
+  const iconReload = await new SettingsStore(paths).load()
+  check('재로드 후 iconBarHidden 유지', iconReload.iconBarHidden?.[0] === 'file.copy')
+  check('재로드 후 iconBarOrder 유지', iconReload.iconBarOrder?.[1] === 'file.copy')
+  // 비배열(손상) → coerce 가 빈 배열 폴백. 항목 중 비문자열은 제거.
+  await fsp.writeFile(paths.settings, JSON.stringify({ version: 1, theme: 'light', iconBarHidden: 'x', iconBarOrder: ['a', 5, 'b'] }), 'utf8')
+  const iconCoerced = await new SettingsStore(paths).load()
+  check('coerce: 손상 iconBarHidden(비배열) → []', Array.isArray(iconCoerced.iconBarHidden) && iconCoerced.iconBarHidden.length === 0)
+  check('coerce: iconBarOrder 비문자열 항목 제거', iconCoerced.iconBarOrder?.length === 2 && iconCoerced.iconBarOrder[0] === 'a' && iconCoerced.iconBarOrder[1] === 'b')
+  // 구버전(키 누락) → 빈 배열 폴백.
+  check('구버전 settings(iconBar* 누락) → [] 폴백', legacySettings.iconBarHidden?.length === 0 && legacySettings.iconBarOrder?.length === 0)
   // 정상 상태로 복구(이후 테스트 영향 방지).
-  await settings.set({ theme: 'system', showDashboardOnStartup: true, verifyOnCopy: false })
+  await settings.set({ theme: 'system', showDashboardOnStartup: true, verifyOnCopy: false, iconBarHidden: [], iconBarOrder: [] })
 
   const set1 = await settings.set({ theme: 'dark', showHidden: true, recentLimit: 25 })
   check('set 후 theme=dark', set1.theme === 'dark')

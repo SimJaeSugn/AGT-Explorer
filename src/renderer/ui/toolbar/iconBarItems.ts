@@ -51,6 +51,38 @@ export function iconBarItemTitle(item: IconBarItem): string {
   return sc ? `${item.label} (${sc})` : item.label
 }
 
+/**
+ * 사용자 설정(순서 override·숨김 집합)을 적용해 실제로 렌더할 아이콘바 항목을 해석한다.
+ *
+ * - `order`: 명령 id 순서 override. 존재하는 항목만 그 순서로 앞에 배치하고, order 에
+ *   없는(신규/누락) 항목은 기본 정의 순서로 뒤에 덧붙인다(버전 간 비파괴).
+ * - `hidden`: 숨김 명령 id 집합. 마지막에 제외한다.
+ * 결과는 항상 ICON_BAR_ITEMS 의 유효 항목만 포함한다(알 수 없는 id 무시).
+ */
+export function resolveIconBarItems(
+  order: readonly string[],
+  hidden: readonly string[]
+): IconBarItem[] {
+  const byId = new Map(ICON_BAR_ITEMS.map((it) => [it.id, it]))
+  const hiddenSet = new Set(hidden)
+  const seen = new Set<string>()
+  const ordered: IconBarItem[] = []
+  // 1) order 가 지정한 순서대로(유효·미중복 항목만).
+  for (const id of order) {
+    const it = byId.get(id)
+    if (it && !seen.has(id)) {
+      ordered.push(it)
+      seen.add(id)
+    }
+  }
+  // 2) order 에 없던 항목은 기본 정의 순서로 뒤에 덧붙임(신규 버전 추가 항목 포함).
+  for (const it of ICON_BAR_ITEMS) {
+    if (!seen.has(it.id)) ordered.push(it)
+  }
+  // 3) 숨김 제외.
+  return ordered.filter((it) => !hiddenSet.has(it.id))
+}
+
 /** 활성 패널 헬퍼. */
 function activePanel(s: AppStore) {
   const pid = s.activePanelId()

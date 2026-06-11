@@ -136,6 +136,10 @@ export interface UiSlice {
   readonly showDashboardOnStartup: boolean
   /** 복사 후 체크섬 검증(설정 영속, §R4·US-17.4). 기본 off. */
   readonly verifyOnCopy: boolean
+  /** 상단 아이콘바에서 숨긴 명령 id(단축아이콘 설정·영속). 기본 빈 배열=전부 표시. */
+  readonly iconBarHidden: readonly string[]
+  /** 상단 아이콘바 명령 id 표시 순서(드래그 재배열·영속). 기본 빈 배열=정의 순서. */
+  readonly iconBarOrder: readonly string[]
 
   // P6 미리보기 / 워크스페이스 ────────────────────────────────────────────
   /** 미리보기 패널 열림 여부(기본 false, Ctrl+P 토글, US-4.3). 세션 복원 대상. */
@@ -203,6 +207,10 @@ export interface UiSlice {
   setShowDashboardOnStartup(v: boolean): void
   /** 복사 후 체크섬 검증 설정(영속은 usecase/settings 가 처리, §R4). */
   setVerifyOnCopy(v: boolean): void
+  /** 아이콘바 숨김 명령 id 설정(영속은 usecase/settings 가 처리). */
+  setIconBarHidden(ids: readonly string[]): void
+  /** 아이콘바 표시 순서 설정(영속은 usecase/settings 가 처리). */
+  setIconBarOrder(ids: readonly string[]): void
   /** 휴지통 모달이 열릴 때 inputContext='dialog' 전환(trashSlice.openTrash 와 함께 호출). */
   openTrash(): void
   /** 휴지통 모달 닫힘 시 다른 모달 없으면 inputContext='list' 복귀(trashSlice.closeTrash 와 함께). */
@@ -312,6 +320,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   queuePanelOpen: false,
   showDashboardOnStartup: true,
   verifyOnCopy: false,
+  iconBarHidden: [],
+  iconBarOrder: [],
   previewOpen: false,
   previewWidth: 320,
   workspaceOpen: false,
@@ -330,6 +340,9 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       s.showDashboardOnStartup = snapshot.showDashboardOnStartup
       // §R4: 비파괴 — 구버전 스냅샷(undefined)은 false 폴백.
       s.verifyOnCopy = snapshot.verifyOnCopy ?? false
+      // 단축아이콘: 구버전 스냅샷(undefined)은 빈 배열 폴백(전부 표시·기본 순서).
+      s.iconBarHidden = [...(snapshot.iconBarHidden ?? [])]
+      s.iconBarOrder = [...(snapshot.iconBarOrder ?? [])]
       s.telemetryOptIn = telemetryOptIn
       s.settingsLoaded = true
     })
@@ -412,6 +425,18 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setVerifyOnCopy(v) {
     set((s) => {
       s.verifyOnCopy = v
+    })
+  },
+
+  setIconBarHidden(ids) {
+    set((s) => {
+      s.iconBarHidden = [...ids]
+    })
+  },
+
+  setIconBarOrder(ids) {
+    set((s) => {
+      s.iconBarOrder = [...ids]
     })
   },
 

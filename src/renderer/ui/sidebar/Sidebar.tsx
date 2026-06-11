@@ -168,10 +168,15 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
 
-          {knownFolders?.downloads && (
+          {knownFolders && (knownFolders.desktop || knownFolders.downloads) && (
             <div aria-label="빠른 위치">
               <div style={sectionHeader}>빠른 위치</div>
-              <QuickFolderNode icon="⬇️" label="다운로드" path={knownFolders.downloads} />
+              {knownFolders.desktop && (
+                <QuickFolderNode icon="🖳" label="바탕화면" path={knownFolders.desktop} />
+              )}
+              {knownFolders.downloads && (
+                <QuickFolderNode icon="⬇️" label="다운로드" path={knownFolders.downloads} />
+              )}
             </div>
           )}
 

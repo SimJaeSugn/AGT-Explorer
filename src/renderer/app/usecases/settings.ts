@@ -95,6 +95,32 @@ export async function changeVerifyOnCopy(v: boolean): Promise<void> {
   await persist({ verifyOnCopy: v })
 }
 
+/**
+ * 단축아이콘 표시/숨김 토글: 슬라이스 반영 + 영속(settings:set). 숨김 집합에
+ * 있으면 제거(표시), 없으면 추가(숨김). 신규 채널 0(settings:set 재사용).
+ */
+export async function toggleIconBarItem(commandId: string): Promise<void> {
+  const cur = store.getState().iconBarHidden
+  const next = cur.includes(commandId)
+    ? cur.filter((id) => id !== commandId)
+    : [...cur, commandId]
+  store.getState().setIconBarHidden(next)
+  await persist({ iconBarHidden: next })
+}
+
+/** 아이콘바 표시 순서 변경(드래그 재배열 결과): 슬라이스 반영 + 영속. */
+export async function reorderIconBar(order: readonly string[]): Promise<void> {
+  store.getState().setIconBarOrder([...order])
+  await persist({ iconBarOrder: [...order] })
+}
+
+/** 단축아이콘 설정 초기화: 숨김·순서 모두 기본(전부 표시·정의 순서)으로 되돌리고 영속. */
+export async function resetIconBar(): Promise<void> {
+  store.getState().setIconBarHidden([])
+  store.getState().setIconBarOrder([])
+  await persist({ iconBarHidden: [], iconBarOrder: [] })
+}
+
 /** 텔레메트리 옵트인 변경: 별도 채널로 영속(기본 false, D5). */
 export async function changeTelemetryOptIn(v: boolean): Promise<void> {
   store.getState().setTelemetryOptIn(v)

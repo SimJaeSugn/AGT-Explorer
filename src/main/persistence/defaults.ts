@@ -94,7 +94,10 @@ export function defaultSettings(): SettingsSnapshot {
     recentLimit: 10,
     showDashboardOnStartup: true,
     // §R4 체크섬 검증: 기본 off(끄면 복사 동작 무변경·비파괴).
-    verifyOnCopy: false
+    verifyOnCopy: false,
+    // 단축아이콘: 기본은 전부 표시(빈 숨김)·기본 정의 순서(빈 순서).
+    iconBarHidden: [],
+    iconBarOrder: []
   }
 }
 
@@ -161,7 +164,10 @@ export function coerceSettings(raw: unknown): SettingsSnapshot {
     recentLimit: Math.min(1000, Math.max(1, Math.trunc(recentLimit))),
     showDashboardOnStartup: asBool(o['showDashboardOnStartup'], d.showDashboardOnStartup),
     // §R4: 비파괴 — 구버전 설정(키 누락)은 기본 false 폴백.
-    verifyOnCopy: asBool(o['verifyOnCopy'], d.verifyOnCopy ?? false)
+    verifyOnCopy: asBool(o['verifyOnCopy'], d.verifyOnCopy ?? false),
+    // 단축아이콘: 구버전 설정(키 누락)은 빈 배열 폴백(전부 표시·기본 순서). 문자열만 보존.
+    iconBarHidden: asStrArray(o['iconBarHidden']),
+    iconBarOrder: asStrArray(o['iconBarOrder'])
   }
 }
 

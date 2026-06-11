@@ -413,6 +413,18 @@ export interface SettingsSnapshot {
    * coerce 가 false 폴백(defaults.ts). 신규 채널 0(hash:verify 재사용·ADR-009).
    */
   readonly verifyOnCopy?: boolean
+  /**
+   * 상단 아이콘바에서 숨길 명령 id 목록(단축아이콘 설정). 비면 전부 표시(기본).
+   * 비파괴 추가(optional) — 구버전 설정(키 누락)은 빈 배열 폴백. 신규 채널 0
+   * (settings:set 재사용). 설정 화면 레이아웃>단축아이콘에서 토글한다.
+   */
+  readonly iconBarHidden?: readonly string[]
+  /**
+   * 상단 아이콘바 명령 id 표시 순서(드래그 재배열 결과). 비면 기본 정의 순서
+   * (iconBarItems 의 ICON_BAR_ITEMS). 알 수 없는/누락 id 는 복원 시 무시·신규
+   * 항목은 기본 순서로 뒤에 덧붙인다. 비파괴 추가(optional)·신규 채널 0.
+   */
+  readonly iconBarOrder?: readonly string[]
 }
 
 /** 워크스페이스 1개 메타(workspace:list — 계약만 동결, 구현 P6). */
