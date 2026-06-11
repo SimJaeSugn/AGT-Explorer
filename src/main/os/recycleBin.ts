@@ -29,6 +29,11 @@ import type { TrashItemDTO } from '@shared/dto'
 
 /** PowerShell execFile timeout(ms) — 휴지통 대용량/콜드스타트 여유. */
 const QUERY_TIMEOUT_MS = 15_000
+/**
+ * 전체 비우기 전용 timeout(ms). 비우기는 수천~수만 항목의 실제 디스크 삭제를
+ * 수반해 열거(QUERY)보다 오래 걸릴 수 있으므로 넉넉히 둔다(콜드스타트 + 대용량 여유).
+ */
+const EMPTY_TIMEOUT_MS = 120_000
 
 /**
  * 복원/비우기 1회 실행 결과 신호. throw 대신 ok 플래그로 격리(핸들러가 Result 변환).
@@ -224,28 +229,34 @@ function defaultRestoreFn(ids: string[]): Promise<RecycleInvokeResult> {
   })
 }
 
-// ── empty: Clear-RecycleBin → COM 폴백(고정 상수) ─────────────────────────────
+// ── empty: SHEmptyRecycleBin(벌크) → Clear-RecycleBin 폴백(고정 상수) ──────────
 /**
- * 고정 상수 스크립트 — 사용자 입력 0. PS5+ Clear-RecycleBin -Force 우선,
- * 실패 시 COM(NameSpace(0xA) 각 항목 InvokeVerb 'Delete'|'삭제')로 폴백.
+ * 고정 상수 스크립트 — 사용자 입력 0. 단계별 try/catch 로 격리(전역 Stop 미사용).
+ *
+ * 1) Win32 `SHEmptyRecycleBin`(NOCONFIRMATION|NOPROGRESSUI|NOSOUND=0x7) — 휴지통을
+ *    UI 없이 1회 벌크 삭제(수천~수만 항목도 단일 호출). 항목별 COM `DoIt()` 루프를
+ *    쓰던 구버전은 항목 수에 비례해 느려(항목당 ~수 ms) 대용량에서 timeout 으로
+ *    실패했다 — 이를 제거하고 표준 셸 API 로 대체(견고·고속).
+ * 2) 폴백: PS5+ `Clear-RecycleBin -Force`(일부 환경/버전 차 대비).
+ * 3) 위 호출이 부분 성공·지연 반영됐을 수 있으니 **최종 항목 수**로 성공/실패 재판정.
  */
 const EMPTY_SCRIPT = [
-  // 전역 Stop 미사용: COM 호출 오류가 스크립트를 중단시키지 않게 단계별 try/catch 로 격리.
   '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;', // 한글 오류 메시지 깨짐 방지.
   '$sh = New-Object -ComObject Shell.Application;',
   '$bin = $sh.NameSpace(0xA);',
   'if ($null -eq $bin) { exit 0 }',
   'try { if (@($bin.Items()).Count -eq 0) { exit 0 } } catch {}', // 이미 비어 있음 = 성공.
-  'try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction Stop; exit 0 } catch {}',
-  // 폴백: COM 삭제 동사(로케일 — "삭제(&D)"/"Delete" 부분 매칭). 비운 뒤 재확인.
+  // 1) Win32 SHEmptyRecycleBin(0x7=확인/진행/소리 없음). S_OK(0)=성공.
   'try {',
-  '  foreach ($it in @($bin.Items())) {',
-  '    try { $v = $it.Verbs() | Where-Object { ($_.Name -replace "&","") -match "(삭제|delete)" } | Select-Object -First 1; if ($null -ne $v) { $v.DoIt() } } catch {}',
-  '  }',
-  '  Start-Sleep -Milliseconds 150;',
-  '  if (@($sh.NameSpace(0xA).Items()).Count -gt 0) { exit 3 }',
-  '  exit 0',
-  '} catch { exit 3 }'
+  '  Add-Type -Namespace Win32 -Name Sh -MemberDefinition \'[DllImport("shell32.dll",CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr h, string root, uint flags);\' -ErrorAction Stop;',
+  '  $hr = [Win32.Sh]::SHEmptyRecycleBin([IntPtr]::Zero, $null, 7);',
+  '  if ($hr -eq 0) { exit 0 }',
+  '} catch {}',
+  // 2) Clear-RecycleBin 폴백.
+  'try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction Stop; exit 0 } catch {}',
+  // 3) 최종 항목 수로 재판정(0=성공, 잔존=부분 실패 exit 3).
+  'try { if (@($sh.NameSpace(0xA).Items()).Count -eq 0) { exit 0 } } catch {}',
+  'exit 3'
 ].join(' ')
 
 /**
@@ -261,7 +272,7 @@ function defaultEmptyFn(): Promise<RecycleInvokeResult> {
       execFile(
         'powershell.exe',
         [...PS_BASE_ARGS, EMPTY_SCRIPT],
-        { windowsHide: true, timeout: QUERY_TIMEOUT_MS },
+        { windowsHide: true, timeout: EMPTY_TIMEOUT_MS },
         (error, _stdout, stderr) => {
           if (!error) {
             resolve({ ok: true })
