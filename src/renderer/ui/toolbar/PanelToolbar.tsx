@@ -46,7 +46,6 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   const refresh = useRootStore((s) => s.refresh)
   const navigate = useRootStore((s) => s.navigate)
   const setViewMode = useRootStore((s) => s.setViewMode)
-  const setSort = useRootStore((s) => s.setSort)
   const setActivePanel = useRootStore((s) => s.setActivePanel)
   const activeTabId = useRootStore((s) => s.activeTabId)
   const isFav = useRootStore((s) => s.favorites.includes(path))
@@ -318,33 +317,7 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
         <option value="details">자세히</option>
       </select>
 
-      {/* 정렬 드롭다운(간이) */}
-      <select
-        value={view?.sortKey ?? 'name'}
-        onChange={(e) => setSort(panelId, e.target.value as 'name' | 'size' | 'ext' | 'mtime')}
-        title="정렬 기준"
-        aria-label="정렬 기준"
-        style={{
-          height: 24,
-          border: `1px solid ${tokens.color.border}`,
-          borderRadius: 4,
-          fontSize: 12,
-          background: tokens.color.bg
-        }}
-      >
-        <option value="name">이름</option>
-        <option value="size">크기</option>
-        <option value="ext">형식</option>
-        <option value="mtime">수정일</option>
-      </select>
-      <button
-        style={btnStyle}
-        onClick={() => setSort(panelId, view?.sortKey ?? 'name')}
-        title={view?.sortDir === 'asc' ? '오름차순' : '내림차순'}
-        aria-label="정렬 방향"
-      >
-        {view?.sortDir === 'asc' ? '▲' : '▼'}
-      </button>
+      {/* 정렬은 자세히 보기 열 헤더 클릭으로 수행한다(FileListView ColumnHeader). */}
     </div>
   )
 }

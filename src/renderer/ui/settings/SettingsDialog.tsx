@@ -18,7 +18,6 @@ import {
   changeShowExtensions,
   changeShowHidden,
   changeStartLocation,
-  changeTelemetryOptIn,
   changeTheme,
   changeVerifyOnCopy
 } from '@renderer/app/usecases/settings'
@@ -45,7 +44,6 @@ export function SettingsDialog(): JSX.Element | null {
   const recentLimit = useRootStore((s) => s.recentLimit)
   const showDashboardOnStartup = useRootStore((s) => s.showDashboardOnStartup)
   const verifyOnCopy = useRootStore((s) => s.verifyOnCopy)
-  const telemetryOptIn = useRootStore((s) => s.telemetryOptIn)
   const close = useRootStore((s) => s.closeSettings)
   const openWorkspace = useRootStore((s) => s.openWorkspace)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -185,22 +183,6 @@ export function SettingsDialog(): JSX.Element | null {
           />
           <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
             켜면 복사 완료 후 원본과 사본의 해시(SHA-256)를 비교해 무결성을 검증합니다(기본 꺼짐).
-          </span>
-        </label>
-
-        {/* 텔레메트리 옵트인 */}
-        <label style={labelStyle}>
-          <span style={fieldLabel}>익명 사용 통계</span>
-          <input
-            type="checkbox"
-            checked={telemetryOptIn}
-            onChange={(e) => void changeTelemetryOptIn(e.target.checked)}
-            aria-label="텔레메트리 옵트인"
-          />
-          <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
-            앱 개선을 위한 익명 사용 통계(실행 횟수·기능 사용 빈도 등) 수집에 동의하는
-            설정입니다. 파일 경로·이름·내용 등 개인정보는 수집하지 않습니다. 기본 꺼짐이며,
-            이 앱은 로컬 전용이라 현재 외부로 전송하는 데이터는 없습니다.
           </span>
         </label>
 

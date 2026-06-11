@@ -12,7 +12,7 @@
  * 셀렉터 격리(SA §5.2): 자기 panelId 의 directory/view/selection 만 구독.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { FileEntryDTO } from '@shared/dto'
+import type { FileEntryDTO, SortDir, SortKey } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
@@ -115,6 +115,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   // 자세히 보기 열 너비(전역 설정·드래그 조절). 행/헤더가 동일 폭을 공유해 정렬 유지.
   const colWidths = useRootStore((s) => s.detailsColumnWidths)
   const setDetailsColumnWidth = useRootStore((s) => s.setDetailsColumnWidth)
+  // 자세히 보기 열 헤더 클릭 정렬(같은 키 재클릭 시 방향 토글 — setSort 가 처리).
+  const setSort = useRootStore((s) => s.setSort)
   const renameTarget = useRootStore((s) => s.renameTarget)
   // J2: 워처발 갱신 시 1회성 스크롤 복원 플래그(보존). null=평상시 no-op.
   const pendingScrollRestore = useRootStore((s) => s.panels[panelId]?.pendingScrollRestore ?? null)
@@ -700,6 +702,9 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
             widths={colWidths}
             height={HEADER_H}
             onResize={setDetailsColumnWidth}
+            sortKey={view.sortKey}
+            sortDir={view.sortDir}
+            onSort={(key) => setSort(panelId, key)}
           />
         )}
         {sticky && stickyCount > 0 && (
@@ -1093,17 +1098,28 @@ function FileRow({
  * 라벨을 행의 파일명과 같은 x 에 정렬한다. 고정폭 3열은 행과 같은 colWidths·textAlign 을
  * 쓴다. 각 고정폭 열 왼쪽 경계(이름↔크기 포함)에 드래그 가능한 구분자를 둔다.
  *
- * a11y: 헤더는 presentational(role 없음·포커스 트랩 없음 — role="grid" 무간섭).
- * 구분자만 role="separator" aria-orientation="vertical" + 화살표키 ±8px 리사이즈.
+ * 정렬: 각 열 라벨을 클릭하면 해당 키로 정렬한다(이름→name·크기→size·유형→ext·
+ * 수정한 날짜→mtime). 현재 정렬 열은 ▲(asc)/▼(desc) 표식을 보이며, 같은 열 재클릭 시
+ * 방향이 토글된다(setSort 가 처리). 기존 툴바 정렬 드롭다운을 대체한다.
+ *
+ * a11y: 헤더 행은 role="row", 각 열은 role="columnheader" + aria-sort(ascending/
+ * descending/none). 라벨은 <button> 으로 키보드 정렬 가능. 구분자만 role="separator"
+ * aria-orientation="vertical" + 화살표키 ±8px 리사이즈.
  */
 function ColumnHeader({
   widths,
   height,
-  onResize
+  onResize,
+  sortKey,
+  sortDir,
+  onSort
 }: {
   widths: DetailsColumnWidths
   height: number
   onResize: (col: DetailsColumn, px: number) => void
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
 }): JSX.Element {
   const labelStyle = (align: 'left' | 'right' | 'center'): React.CSSProperties => ({
     overflow: 'hidden',
@@ -1113,9 +1129,11 @@ function ColumnHeader({
     color: tokens.color.textMuted,
     fontWeight: 600
   })
+  const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' =>
+    sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
   return (
     <div
-      aria-hidden
+      role="row"
       style={{
         position: 'sticky',
         top: 0,
@@ -1136,25 +1154,76 @@ function ColumnHeader({
       }}
     >
       {/* 행 아이콘(ROW_ICON_W) 자리 — 행 파일명과 같은 x 기준 선행 spacer. */}
-      <span style={{ flex: '0 0 auto', width: ROW_ICON_W, height: ROW_ICON_W }} />
+      <span aria-hidden style={{ flex: '0 0 auto', width: ROW_ICON_W, height: ROW_ICON_W }} />
       {/* 이름 열: 남은 공간 flex(행의 name span flex '1 1 40%' 과 동일 비중)·헤더명 왼쪽 정렬. */}
-      <span style={{ ...labelStyle('left'), flex: '1 1 40%' }}>이름</span>
+      <span role="columnheader" aria-sort={ariaSort('name')} style={{ flex: '1 1 40%', minWidth: 0 }}>
+        <SortLabel label="이름" align="left" active={sortKey === 'name'} dir={sortDir} onClick={() => onSort('name')} labelStyle={labelStyle} />
+      </span>
       {/* 크기 열(왼쪽 경계에 이름↔크기 구분자)·헤더명 중앙정렬. */}
-      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.size}px`, position: 'relative' }}>
+      <span role="columnheader" aria-sort={ariaSort('size')} style={{ flex: `0 0 ${widths.size}px`, position: 'relative' }}>
         <ColumnDivider col="size" widthNow={widths.size} onResize={onResize} />
-        크기
+        <SortLabel label="크기" align="center" active={sortKey === 'size'} dir={sortDir} onClick={() => onSort('size')} labelStyle={labelStyle} />
       </span>
-      {/* 유형 열·헤더명 중앙정렬. */}
-      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.type}px`, position: 'relative' }}>
+      {/* 유형 열·헤더명 중앙정렬(정렬 키는 ext). */}
+      <span role="columnheader" aria-sort={ariaSort('ext')} style={{ flex: `0 0 ${widths.type}px`, position: 'relative' }}>
         <ColumnDivider col="type" widthNow={widths.type} onResize={onResize} />
-        유형
+        <SortLabel label="유형" align="center" active={sortKey === 'ext'} dir={sortDir} onClick={() => onSort('ext')} labelStyle={labelStyle} />
       </span>
-      {/* 수정한 날짜 열·헤더명 중앙정렬. */}
-      <span style={{ ...labelStyle('center'), flex: `0 0 ${widths.mtime}px`, position: 'relative' }}>
+      {/* 수정한 날짜 열·헤더명 중앙정렬(정렬 키는 mtime). */}
+      <span role="columnheader" aria-sort={ariaSort('mtime')} style={{ flex: `0 0 ${widths.mtime}px`, position: 'relative' }}>
         <ColumnDivider col="mtime" widthNow={widths.mtime} onResize={onResize} />
-        수정한 날짜
+        <SortLabel label="수정한 날짜" align="center" active={sortKey === 'mtime'} dir={sortDir} onClick={() => onSort('mtime')} labelStyle={labelStyle} />
       </span>
     </div>
+  )
+}
+
+/**
+ * SortLabel — 열 헤더 라벨 버튼(클릭 정렬). 현재 정렬 열이면 방향 표식(▲/▼)을 덧붙인다.
+ * 테두리 없는 투명 버튼으로 헤더 라벨처럼 보이되 클릭/키보드(Enter/Space)로 정렬한다.
+ * 활성 열은 강조색(text)·굵게, 비활성은 기존 muted 라벨 스타일을 유지한다.
+ */
+function SortLabel({
+  label,
+  align,
+  active,
+  dir,
+  onClick,
+  labelStyle
+}: {
+  label: string
+  align: 'left' | 'right' | 'center'
+  active: boolean
+  dir: SortDir
+  onClick: () => void
+  labelStyle: (align: 'left' | 'right' | 'center') => React.CSSProperties
+}): JSX.Element {
+  const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${label} 기준 정렬`}
+      style={{
+        ...labelStyle(align),
+        width: '100%',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: justify,
+        gap: 3,
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        padding: 0,
+        fontSize: 'inherit',
+        fontFamily: 'inherit',
+        color: active ? tokens.color.text : tokens.color.textMuted,
+        fontWeight: 600
+      }}
+    >
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      {active && <span aria-hidden style={{ flex: '0 0 auto', fontSize: 10 }}>{dir === 'asc' ? '▲' : '▼'}</span>}
+    </button>
   )
 }
 
