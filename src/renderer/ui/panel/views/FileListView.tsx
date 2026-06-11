@@ -129,6 +129,11 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   const boxSelect = useRootStore((s) => s.boxSelect)
   const setActivePanel = useRootStore((s) => s.setActivePanel)
   const activeTabId = useRootStore((s) => s.activeTabId)
+  // 검색바(inputContext='search') 등이 열린 상태에서 목록을 클릭하면 list 컨텍스트로
+  // 복귀시킨다 — 그래야 Delete/Ctrl+C 등 'list' 단축키가 다시 동작한다(검색 후 클릭 시
+  // 단축키 먹통 버그). 검색 input 재포커스 시엔 디스패처가 편집요소를 textContext 로
+  // 강등하므로 검색 입력은 그대로 안전하다.
+  const setInputContext = useRootStore((s) => s.setInputContext)
 
   // D&D: 패널 빈영역 드롭 타겟 + 드래그 상태(하이라이트 판정).
   const drag = useDragState()
@@ -254,6 +259,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
         const tabId = activeTabId
         setActivePanel(tabId, panelId)
       }
+      // 목록과 상호작용 시작 → list 컨텍스트(검색바 열린 채 클릭해도 단축키 복구).
+      setInputContext('list')
       const ctrl = e.ctrlKey || e.metaKey
       const shift = e.shiftKey
       if (!ctrl && !shift) {
@@ -265,7 +272,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       }
       clickSelect(panelId, visiblePaths, index, ctrl, shift)
     },
-    [active, activeTabId, setActivePanel, panelId, clickSelect, visiblePaths]
+    [active, activeTabId, setActivePanel, panelId, clickSelect, visiblePaths, setInputContext]
   )
 
   // 행 click(= mouseup·드래그 아님) → 미뤄둔 단일 선택 적용. 드래그였다면 click 이 발화하지
@@ -510,6 +517,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       const el = scrollRef.current
       if (!el) return
       if (!active) setActivePanel(activeTabId, panelId)
+      // 빈 영역 클릭도 목록 상호작용 → list 컨텍스트 복귀(검색 후 단축키 복구).
+      setInputContext('list')
       const rect = el.getBoundingClientRect()
       const startX = e.clientX - rect.left + el.scrollLeft
       const startY = e.clientY - rect.top + el.scrollTop
@@ -529,7 +538,7 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       window.addEventListener('pointermove', onBoxPointerMove)
       window.addEventListener('pointerup', onBoxPointerUp)
     },
-    [active, activeTabId, panelId, setActivePanel, onBoxPointerMove, onBoxPointerUp]
+    [active, activeTabId, panelId, setActivePanel, onBoxPointerMove, onBoxPointerUp, setInputContext]
   )
 
   // 언마운트 시 리스너·rAF 누수 방지(박스 선택 + 스크롤 미러 rAF).
@@ -543,6 +552,18 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
       window.removeEventListener('pointerup', onBoxPointerUp)
     }
   }, [onBoxPointerMove, onBoxPointerUp])
+
+  // 경로 변경(navigate/back/forward) 시 가상 스크롤을 최상단으로 리셋한다.
+  // 로컬 scrollTop 상태가 이전 위치(큰 값)로 남으면 윈도(startIdx~endIdx)가 새 목록
+  // 범위 밖을 가리켜 아무 행도 안 그려진다(스크롤 후 하위폴더 진입 시 빈 화면 → 새로고침
+  // 해야 보이던 버그). DOM·로컬·store scrollTop 을 모두 0 으로 맞춘다. refresh(같은 경로)는
+  // panelPath 가 안 바뀌어 무간섭이며 pendingScrollRestore 가 별도 복원한다.
+  useEffect(() => {
+    setScrollTop(0)
+    const el = scrollRef.current
+    if (el) el.scrollTop = 0
+    setStoreScroll(panelId, 0)
+  }, [panelPath, panelId, setStoreScroll])
 
   // J2: 워처발 갱신 스크롤 복원 — pendingScrollRestore 1회성 플래그 기반.
   // status==='ready' + totalHeight 확정일 때만 클램프 적용 후 즉시 소거(휴리스틱 없음).

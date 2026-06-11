@@ -9,7 +9,7 @@
  * 모든 규칙은 로컬 state(useState)로 다루고 미리보기는 순수 규칙(domain/rules/batchRename)을
  * usecase 경유로 호출해 산출한다(부수효과 0). 적용만 applyBatchRename(fs:rename 반복).
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { overlayStyle, panelStyle, titleStyle, btn } from '@renderer/ui/dialogs/dialogStyles'
@@ -186,20 +186,20 @@ export function BatchRenameDialog(): JSX.Element | null {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
           <div>
             <div style={labelStyle}>찾기</div>
-            <input
+            <ImeInput
               ref={firstFieldRef}
               style={inputStyle}
               value={form.find}
-              onChange={(e) => setField('find', e.target.value)}
+              onValue={(v) => setField('find', v)}
               placeholder={form.useRegex ? '정규식 (예: (\\d+))' : '찾을 문자열'}
             />
           </div>
           <div>
             <div style={labelStyle}>바꾸기</div>
-            <input
+            <ImeInput
               style={inputStyle}
               value={form.replace}
-              onChange={(e) => setField('replace', e.target.value)}
+              onValue={(v) => setField('replace', v)}
               placeholder={form.useRegex ? '치환 (예: $1)' : '바꿀 문자열'}
             />
           </div>
@@ -232,11 +232,11 @@ export function BatchRenameDialog(): JSX.Element | null {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
           <div>
             <div style={labelStyle}>접두(앞에 추가)</div>
-            <input style={inputStyle} value={form.prefix} onChange={(e) => setField('prefix', e.target.value)} />
+            <ImeInput style={inputStyle} value={form.prefix} onValue={(v) => setField('prefix', v)} />
           </div>
           <div>
             <div style={labelStyle}>접미(뒤에 추가)</div>
-            <input style={inputStyle} value={form.suffix} onChange={(e) => setField('suffix', e.target.value)} />
+            <ImeInput style={inputStyle} value={form.suffix} onValue={(v) => setField('suffix', v)} />
           </div>
         </div>
 
@@ -371,6 +371,48 @@ const tdStyle: React.CSSProperties = {
 }
 
 /** 작은 숫자 입력 필드. */
+/**
+ * ImeInput — IME(한글 등) 조합 인지 텍스트 입력. controlled value 와 조합 상태를 분리해,
+ * 조합 중 부모 재렌더(미리보기 실시간 재계산)가 IME 를 깨 마지막 글자가 누락/깨지던
+ * 문제를 막는다. 조합 중에는 로컬 표시값만 갱신하고(onValue 보류 → 부모 무재렌더),
+ * 조합 종료(또는 영문 등 비-조합 입력) 시 확정값을 onValue 로 커밋한다. 외부 value
+ * 변경(다이얼로그 재오픈 시 폼 리셋)은 조합 중이 아닐 때만 로컬에 반영한다.
+ */
+const ImeInput = forwardRef<
+  HTMLInputElement,
+  { value: string; onValue: (v: string) => void } & Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    'value' | 'onChange'
+  >
+>(function ImeInput({ value, onValue, ...rest }, ref): JSX.Element {
+  const [local, setLocal] = useState(value)
+  const composing = useRef(false)
+  useEffect(() => {
+    if (!composing.current) setLocal(value)
+  }, [value])
+  return (
+    <input
+      {...rest}
+      ref={ref}
+      value={local}
+      onChange={(e) => {
+        const v = e.target.value
+        setLocal(v)
+        if (!composing.current) onValue(v)
+      }}
+      onCompositionStart={() => {
+        composing.current = true
+      }}
+      onCompositionEnd={(e) => {
+        composing.current = false
+        const v = e.currentTarget.value
+        setLocal(v)
+        onValue(v)
+      }}
+    />
+  )
+})
+
 function NumField(props: {
   label: string
   value: number
