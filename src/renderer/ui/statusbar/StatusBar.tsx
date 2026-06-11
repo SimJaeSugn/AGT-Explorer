@@ -4,9 +4,20 @@
  * 활성 패널만 구독해 표시. 선택 개수·합계 용량은 selectionSlice 에서 파생.
  * 필터 활성 시 "결과 N/M" 를, 진행 중 작업이 있으면 인디케이터를 표시한다
  * (operationsSlice.activeOperations).
+ *
+ * US-5.8 확장: 현재 선택 워크스페이스가 있으면 우측에 이름 + 변경/저장 상태
+ * (변경됨/저장 중/저장됨 시각/저장 실패) 칩을 표시한다. 상태는 session 유스케이스의
+ * 자동 저장 pub/sub(useSyncExternalStore — zustand 자동저장 루프 회피)에서 읽는다.
+ * 칩 클릭 = 워크스페이스 다이얼로그 열기.
  */
+import { useSyncExternalStore } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { computeVisible, filterInfo } from '@renderer/app/usecases/selectors'
+import {
+  getWorkspaceSaveStatus,
+  subscribeWorkspaceSaveStatus,
+  type WorkspaceSaveStatus
+} from '@renderer/app/usecases/session'
 import { MY_PC_LABEL } from '@renderer/domain/paths'
 import { tokens } from '@renderer/ui/theme/tokens'
 
@@ -15,6 +26,26 @@ function formatBytes(b: number): string {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
   if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`
   return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+/** 자동 저장 상태 → 표시 라벨·색(US-5.8 확장). idle=불러온 직후 동기화 상태. */
+function saveStateView(st: WorkspaceSaveStatus): { label: string; color: string } {
+  switch (st.state) {
+    case 'dirty':
+      return { label: '변경됨', color: tokens.color.accent }
+    case 'saving':
+      return { label: '저장 중…', color: tokens.color.accent }
+    case 'error':
+      return { label: '저장 실패', color: tokens.color.danger }
+    case 'saved':
+      return {
+        label: st.savedAt ? `저장됨 ${new Date(st.savedAt).toLocaleTimeString()}` : '저장됨',
+        color: tokens.color.textMuted
+      }
+    default:
+      // idle: 불러오기 직후 등 파일과 동기화된 상태(저장 이력 없음).
+      return { label: '저장됨', color: tokens.color.textMuted }
+  }
 }
 
 /** op kind → 한글 라벨. */
@@ -93,6 +124,12 @@ export function StatusBar(): JSX.Element {
   )
   const openQueuePanel = useRootStore((s) => s.openQueuePanel)
 
+  // US-5.8 확장: 현재 선택 워크스페이스 + 자동 저장 상태(변경/저장). 미선택이면 칩 숨김.
+  const currentWorkspace = useRootStore((s) => s.currentWorkspace)
+  const openWorkspace = useRootStore((s) => s.openWorkspace)
+  const wsStatus = useSyncExternalStore(subscribeWorkspaceSaveStatus, getWorkspaceSaveStatus)
+  const wsView = saveStateView(wsStatus)
+
   return (
     <div
       style={{
@@ -160,6 +197,32 @@ export function StatusBar(): JSX.Element {
         </>
       ) : (
         <span>준비됨</span>
+      )}
+      {currentWorkspace && (
+        <button
+          type="button"
+          onClick={() => openWorkspace()}
+          title={`워크스페이스 "${currentWorkspace}" — ${wsView.label} (클릭: 워크스페이스 관리)`}
+          style={{
+            marginLeft: info ? 0 : 'auto',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            fontSize: 12,
+            padding: 0,
+            font: 'inherit',
+            color: tokens.color.textMuted,
+            whiteSpace: 'nowrap',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>
+            🗂 {currentWorkspace}
+          </span>
+          <span style={{ color: wsView.color }}>· {wsView.label}</span>
+        </button>
       )}
     </div>
   )

@@ -4,6 +4,8 @@
  * - 이름 입력 + "저장"(현재 세션 스냅샷을 이름 붙여 저장).
  * - 목록(name·savedAt) + 각 항목 "불러오기"/"이름변경"/"삭제".
  *   불러오기는 resetWorkspace()+applySnapshot() 단일 경로(기존 탭 정리 후 복원).
+ * - 현재 선택(자동 저장) 표시: 저장/불러오기 성공 시 그 워크스페이스가 "현재 선택"이
+ *   되어 배지로 표시되고, 이후 변경은 자동 저장된다. "선택 해제"로 중단(US-5.8 확장).
  *
  * SettingsDialog 다이얼로그 패턴(overlay/panel/title) 재사용. 열림 동안
  * inputContext='dialog'(전역 단축키 차단)는 uiSlice.openWorkspace 가 설정.
@@ -33,6 +35,8 @@ function formatSavedAt(ms: number): string {
 export function WorkspaceDialog(): JSX.Element | null {
   const open = useRootStore((s) => s.workspaceOpen)
   const close = useRootStore((s) => s.closeWorkspace)
+  const currentWorkspace = useRootStore((s) => s.currentWorkspace)
+  const setCurrentWorkspace = useRootStore((s) => s.setCurrentWorkspace)
 
   const [name, setName] = useState('')
   const [items, setItems] = useState<WorkspaceInfo[]>([])
@@ -190,14 +194,37 @@ export function WorkspaceDialog(): JSX.Element | null {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {w.name}
+                  {w.name === currentWorkspace && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: tokens.color.accent
+                      }}
+                    >
+                      현재 선택 · 자동 저장
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: tokens.color.textMuted }}>
                   {formatSavedAt(w.savedAt)}
                 </div>
               </div>
-              <button onClick={() => void onLoad(w.name)} disabled={busy} style={btn('default')}>
-                불러오기
-              </button>
+              {w.name === currentWorkspace ? (
+                <button
+                  onClick={() => setCurrentWorkspace(null)}
+                  disabled={busy}
+                  style={btn('default')}
+                  title="자동 저장을 중단합니다(저장된 내용은 유지)."
+                >
+                  선택 해제
+                </button>
+              ) : (
+                <button onClick={() => void onLoad(w.name)} disabled={busy} style={btn('default')}>
+                  불러오기
+                </button>
+              )}
               <button onClick={() => void onRename(w.name)} disabled={busy} style={btn('default')}>
                 이름변경
               </button>

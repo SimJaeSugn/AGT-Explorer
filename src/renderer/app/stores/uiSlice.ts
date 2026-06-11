@@ -144,6 +144,12 @@ export interface UiSlice {
   readonly previewWidth: number
   /** 워크스페이스 관리 다이얼로그 열림 여부(US-5.8). */
   readonly workspaceOpen: boolean
+  /**
+   * 현재 선택된 워크스페이스 이름(US-5.8 확장 — null=미선택). 불러오기/저장 시 설정되며,
+   * 선택 중이면 세션 자동저장이 같은 스냅샷을 해당 워크스페이스 파일에도 기록한다(자동 저장).
+   * 세션 복원 대상(SessionSnapshot.currentWorkspace).
+   */
+  readonly currentWorkspace: string | null
 
   // S2 명령 팔레트 / U1 퀵룩(Should, M8) ────────────────────────────────────
   /** 명령 팔레트 오버레이 열림 여부(Ctrl+Shift+P, S2·US-18.2). */
@@ -243,6 +249,8 @@ export interface UiSlice {
   /** 워크스페이스 관리 다이얼로그 열기/닫기(열림 시 inputContext='dialog'). */
   openWorkspace(): void
   closeWorkspace(): void
+  /** 현재 선택 워크스페이스 설정/해제(null·빈 문자열=해제 — 자동 저장 중단). */
+  setCurrentWorkspace(name: string | null): void
 
   // S2 명령 팔레트 / U1 퀵룩 액션(Should, M8) ───────────────────────────────
   /** 명령 팔레트 열기(inputContext='dialog' — 전역 단축키 차단·자체 키 처리, S2). */
@@ -307,6 +315,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   previewOpen: false,
   previewWidth: 320,
   workspaceOpen: false,
+  currentWorkspace: null,
   paletteOpen: false,
   quickLookPath: null,
   clipboardHasFiles: false,
@@ -664,6 +673,13 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen && !s.trashOpen) {
         s.inputContext = 'list'
       }
+    })
+  },
+
+  setCurrentWorkspace(name) {
+    set((s) => {
+      // 빈/공백 이름은 해제와 동일(자동 저장 대상 없음).
+      s.currentWorkspace = name && name.trim() !== '' ? name : null
     })
   },
 

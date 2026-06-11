@@ -2,6 +2,9 @@
  * workspace 유스케이스 (P6c, US-5.8) — 명시적 워크스페이스 저장/복원.
  *
  * - saveWorkspace(name): 현재 세션 스냅샷(buildSessionSnapshot 재사용)을 이름 붙여 저장.
+ * - **선택 상태(자동 저장)**: 저장/불러오기 성공 시 해당 워크스페이스가 "현재 선택"
+ *     (uiSlice.currentWorkspace)이 되고, 이후 세션 자동저장이 같은 스냅샷을 워크스페이스
+ *     파일에도 기록한다(startSessionAutosave). 삭제/이름변경 시 선택을 추적 갱신한다.
  * - listWorkspaces(): 저장된 목록(name·savedAt).
  * - loadWorkspace(name): resetWorkspace()로 기존 탭/패널 전부 정리 후 applySnapshot()로
  *     복원 → restoreSession(부팅)과 **동일 경로**([중대-2], 중복 구현 금지).
@@ -12,7 +15,12 @@
 import type { WorkspaceInfo } from '@shared/dto'
 import { workspaceApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
-import { applySnapshot, buildSessionSnapshot } from './session'
+import {
+  applySnapshot,
+  buildSessionSnapshot,
+  noteWorkspaceSaved,
+  resetWorkspaceSaveStatus
+} from './session'
 
 /** 현재 상태를 이름 붙여 저장. @returns 성공 여부. */
 export async function saveWorkspace(name: string): Promise<boolean> {
@@ -28,7 +36,10 @@ export async function saveWorkspace(name: string): Promise<boolean> {
     s.pushToast('error', `워크스페이스 저장에 실패했습니다: ${res.error.message}`)
     return false
   }
-  s.pushToast('info', `"${trimmed}" 워크스페이스를 저장했습니다.`)
+  // 저장한 워크스페이스를 "현재 선택"으로 — 이후 변경은 자동 저장된다(US-5.8 확장).
+  store.getState().setCurrentWorkspace(trimmed)
+  noteWorkspaceSaved(true) // StatusBar: 저장됨 + 시각
+  s.pushToast('info', `"${trimmed}" 워크스페이스를 저장했습니다. 이후 변경은 자동 저장됩니다.`)
   return true
 }
 
@@ -60,16 +71,22 @@ export async function loadWorkspace(name: string): Promise<boolean> {
     // 빈/손상 스냅샷 폴백: 기본 "내 PC" 탭으로 복귀(크래시 프리).
     store.getState().initDefaultTab()
   }
+  // 복원 성공 시 이 워크스페이스를 "현재 선택"으로 — 이후 변경은 자동 저장(US-5.8 확장).
+  // 실패(손상 폴백) 시 선택 해제 — 기본 탭 상태가 워크스페이스 파일을 덮어쓰지 않게 한다.
+  store.getState().setCurrentWorkspace(restored ? name : null)
+  resetWorkspaceSaveStatus() // StatusBar: 파일과 동기화된 직후(저장 이력 없음)
   return restored
 }
 
-/** 워크스페이스 삭제. @returns 성공 여부. */
+/** 워크스페이스 삭제. 현재 선택 중인 워크스페이스면 선택도 해제한다. @returns 성공 여부. */
 export async function deleteWorkspace(name: string): Promise<boolean> {
   const res = await workspaceApi.delete(name)
   if (!res.ok) {
     store.getState().pushToast('error', `삭제에 실패했습니다: ${res.error.message}`)
     return false
   }
+  // 선택 중이던 워크스페이스 삭제 → 선택 해제(자동 저장이 파일을 되살리는 것 방지).
+  if (store.getState().currentWorkspace === name) store.getState().setCurrentWorkspace(null)
   return true
 }
 
@@ -93,6 +110,8 @@ export async function renameWorkspace(oldName: string, newName: string): Promise
     return false
   }
   const removed = await workspaceApi.delete(oldName)
+  // 선택 중이던 워크스페이스 이름변경 → 선택 이름 추적(자동 저장이 새 파일로 이어짐).
+  if (store.getState().currentWorkspace === oldName) store.getState().setCurrentWorkspace(trimmed)
   if (!removed.ok) {
     // 새 이름 저장은 됐으나 원본 삭제 실패 → 중복 존재(비치명적) 안내.
     s.pushToast('error', '이전 이름 삭제에 실패해 두 개가 남았습니다.')

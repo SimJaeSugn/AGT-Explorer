@@ -606,6 +606,31 @@ async function main(): Promise<void> {
   const mwBack = await mwStore.load()
   check('U3 멀티 윈도우 round-trip windows 2개', mwBack.windows.length === 2)
 
+  // ── 13) 워크스페이스 선택(currentWorkspace) coerce·round-trip(자동 저장 토대) ──
+  // 선택 중 워크스페이스 이름은 세션에 optional 로 직렬화된다(US-5.8 확장 — 자동 저장).
+  // 비-빈 문자열만 보존, 누락/빈/비문자열은 키 생략(구버전 호환·스키마 미상향).
+  line('== 13) currentWorkspace coerce(보존/생략/무효 정리)·round-trip ==')
+  const cwBase = {
+    version: 1,
+    windows: [],
+    sidebar: { favorites: [], recent: [], width: 240, collapsed: false },
+    ui: { theme: 'system', previewOpen: false }
+  }
+  const cwOk = coerceSession({ ...cwBase, currentWorkspace: '작업셋A' }, 10)
+  check('currentWorkspace 정상 보존', cwOk.currentWorkspace === '작업셋A')
+  const cwMissing = coerceSession(cwBase, 10)
+  check('currentWorkspace 누락(구버전) → 키 생략', !('currentWorkspace' in (cwMissing as Record<string, unknown>)))
+  const cwEmpty = coerceSession({ ...cwBase, currentWorkspace: '   ' }, 10)
+  check('currentWorkspace 공백 문자열 → 키 생략', !('currentWorkspace' in (cwEmpty as Record<string, unknown>)))
+  const cwNonStr = coerceSession({ ...cwBase, currentWorkspace: 42 }, 10)
+  check('currentWorkspace 비문자열 → 키 생략', !('currentWorkspace' in (cwNonStr as Record<string, unknown>)))
+  check('defaultSession.currentWorkspace 필드 없음', !('currentWorkspace' in (defaultSession() as Record<string, unknown>)))
+  // round-trip(SessionStore): 저장→로드 후 선택 이름 유지(재시작 후 자동 저장 지속 토대).
+  const cwStore = new SessionStore(paths, () => 10, 0)
+  await cwStore.save({ ...sampleSession(), currentWorkspace: '작업셋A' })
+  const cwBack = await cwStore.load()
+  check('currentWorkspace round-trip 유지', cwBack.currentWorkspace === '작업셋A')
+
   // ── 정리 ──────────────────────────────────────────────────────────────
   await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)
   line('')

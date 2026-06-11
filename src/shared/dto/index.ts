@@ -373,6 +373,12 @@ export interface SessionSnapshot {
      */
     readonly detailsColumnWidths?: DetailsColumnWidthsDTO
   }
+  /**
+   * 현재 선택된 워크스페이스 이름(US-5.8 확장). 선택 중이면 세션 자동저장이
+   * 같은 스냅샷을 해당 워크스페이스 파일에도 기록한다(자동 저장).
+   * 비파괴 추가: 미선택/구버전 세션은 키 생략 → 복원 측 null 폴백. 스키마 버전 미상향.
+   */
+  readonly currentWorkspace?: string
 }
 
 /**

@@ -51,6 +51,17 @@ const fakeApi = {
     onVerifyDone: () => () => undefined,
     onError: () => () => undefined
   },
+  // US-5.8 확장: session/workspace 어댑터 모킹(startSessionAutosave 자동 저장 경로).
+  session: {
+    load: async () => ({ ok: false, error: { code: 'ENOENT', message: '' } }),
+    save: async () => ({ ok: true, value: undefined })
+  },
+  workspace: {
+    save: async () => ({ ok: true, value: undefined }),
+    list: async () => ({ ok: true, value: [] }),
+    load: async () => ({ ok: false, error: { code: 'ENOENT', message: '' } }),
+    delete: async () => ({ ok: true, value: undefined })
+  },
   // M7 R3: queue:* 어댑터 모킹(usecases/queue·queueBridge 가 참조).
   queue: {
     list: async () => ({ ok: true, value: { items: [] } }),
@@ -1271,6 +1282,86 @@ if (sid) {
 
   // 빈 windows 어돕트는 실패(폴백 트리거 신호) — bootWindow 의 폴백 분기 보장.
   ok('U3 빈 어돕트 실패→폴백', s().restoreWindows([]) === false)
+}
+
+// ── 워크스페이스 선택(currentWorkspace) — 자동 저장 대상 선택 상태(US-5.8 확장) ──
+// 선택 중이면 startSessionAutosave 가 같은 스냅샷을 워크스페이스 파일에도 기록한다.
+// 여기서는 슬라이스 상태·스냅샷 직렬화(키 생략 규약)만 검증(IPC 왕복은 런타임 🟡).
+{
+  const { buildSessionSnapshot } = await import('../src/renderer/app/usecases/session')
+  ok('WS 초기 미선택(null)', s().currentWorkspace === null)
+  s().setCurrentWorkspace('작업셋A')
+  ok('WS setCurrentWorkspace 설정', s().currentWorkspace === '작업셋A')
+  ok('WS 선택 시 스냅샷 직렬화', buildSessionSnapshot().currentWorkspace === '작업셋A')
+  s().setCurrentWorkspace('   ')
+  ok('WS 공백 이름 → 해제(null)', s().currentWorkspace === null)
+  ok(
+    'WS 미선택 스냅샷 키 생략(비파괴)',
+    !('currentWorkspace' in (buildSessionSnapshot() as unknown as Record<string, unknown>))
+  )
+  s().setCurrentWorkspace('잠깐')
+  s().setCurrentWorkspace(null)
+  ok('WS null 해제', s().currentWorkspace === null)
+}
+
+// ── 워크스페이스 자동 저장 상태(StatusBar pub/sub — dirty/saving/saved/error/idle) ──
+// session 유스케이스의 경량 pub/sub(useSyncExternalStore 규약)와 자동저장 상태 전이를
+// 검증한다. IPC 는 fakeApi(session/workspace) 모킹 — 실 파일 왕복은 런타임 🟡.
+{
+  const sess = await import('../src/renderer/app/usecases/session')
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+  let notified = 0
+  const unsub = sess.subscribeWorkspaceSaveStatus(() => {
+    notified++
+  })
+  ok(
+    'WSS 초기 idle·savedAt null',
+    sess.getWorkspaceSaveStatus().state === 'idle' && sess.getWorkspaceSaveStatus().savedAt === null
+  )
+  sess.noteWorkspaceSaved(true)
+  ok(
+    'WSS 명시 저장 성공 → saved+시각',
+    sess.getWorkspaceSaveStatus().state === 'saved' &&
+      typeof sess.getWorkspaceSaveStatus().savedAt === 'number'
+  )
+  ok('WSS 구독 알림 수신', notified > 0)
+  sess.noteWorkspaceSaved(false)
+  ok(
+    'WSS 저장 실패 → error(직전 시각 유지)',
+    sess.getWorkspaceSaveStatus().state === 'error' && sess.getWorkspaceSaveStatus().savedAt !== null
+  )
+  sess.resetWorkspaceSaveStatus()
+  ok(
+    'WSS reset → idle·시각 초기화',
+    sess.getWorkspaceSaveStatus().state === 'idle' && sess.getWorkspaceSaveStatus().savedAt === null
+  )
+
+  // 자동저장 전이: 선택 상태에서 영속 상태 변경 → dirty(즉시) → (debounce 경과) saved.
+  s().setCurrentWorkspace('자동저장WS')
+  const stop = sess.startSessionAutosave(0)
+  s().setPreviewWidth(333) // 영속 대상 변경(ui.previewWidth)
+  ok('WSS 변경 직후 dirty', sess.getWorkspaceSaveStatus().state === 'dirty')
+  await sleep(30)
+  ok(
+    'WSS 디바운스 후 saved+시각',
+    sess.getWorkspaceSaveStatus().state === 'saved' &&
+      typeof sess.getWorkspaceSaveStatus().savedAt === 'number'
+  )
+  // 휘발 변경(토스트 등 비영속)만 있으면 dirty 표시 후 저장 없이 saved 복귀(직렬화 동일).
+  s().pushToast('info', 'WSS 휘발 변경')
+  ok('WSS 휘발 변경 직후 dirty 표시', sess.getWorkspaceSaveStatus().state === 'dirty')
+  await sleep(30)
+  ok('WSS 휘발 변경 → saved 복귀(불필요 저장 없음)', sess.getWorkspaceSaveStatus().state === 'saved')
+  // 선택 해제 → 다음 저장 사이클에서 idle 초기화(StatusBar 칩 숨김 전제).
+  s().setCurrentWorkspace(null)
+  await sleep(30)
+  ok(
+    'WSS 선택 해제 → idle·시각 초기화',
+    sess.getWorkspaceSaveStatus().state === 'idle' && sess.getWorkspaceSaveStatus().savedAt === null
+  )
+  stop()
+  unsub()
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -375,10 +375,18 @@ export function coerceSession(raw: unknown, recentLimit: number): SessionSnapsho
       : undefined
   // 자세히 보기 열 너비(전역): 누락/비객체면 키 생략 → 복원 측 기본값 폴백(구버전 호환).
   const detailsColumnWidths = coerceDetailsColumnWidths(ui?.['detailsColumnWidths'])
+  // 현재 선택 워크스페이스(자동 저장 대상): 비-빈 문자열만 보존, 외(누락/빈/비문자열)는
+  // 키 생략 → 복원 측 null(미선택) 폴백. 구버전 세션 호환·스키마 버전 미상향.
+  const rawCurrentWorkspace = o['currentWorkspace']
+  const currentWorkspace =
+    typeof rawCurrentWorkspace === 'string' && rawCurrentWorkspace.trim() !== ''
+      ? rawCurrentWorkspace
+      : undefined
   return {
     version: SESSION_SCHEMA_VERSION,
     windows,
     sidebar: coerceSidebar(o['sidebar'], recentLimit),
+    ...(currentWorkspace !== undefined ? { currentWorkspace } : {}),
     ui: {
       theme: typeof theme === 'string' && THEME_MODES.has(theme as ThemeMode) ? (theme as ThemeMode) : 'system',
       previewOpen: asBool(ui?.['previewOpen'], false),
