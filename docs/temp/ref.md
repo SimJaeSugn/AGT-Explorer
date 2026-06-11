@@ -2,7 +2,6 @@
 
 
 ## 버그리포트
-- 휴지동 전체 비우기 실행시 오류로 비워지지 않는다.
 - 고급 일괄 이름변경의 찾기시 한글로 찾기 안됨
 - 파일검색 ( 컨트롤+F) 연다음 파일을 클릭한후 단축키(delete,컨트롤+C 등)가 안먹힘다.
 
@@ -18,6 +17,10 @@
   - ✅ 워크스페이스 아이콘(🗂)·상태바 칩 클릭 → 설정 워크스페이스 페이지로 딥링크 연동(`openSettings('workspace')`·`settingsCategory` 스토어 단일 출처). 단축키(❓) 아이콘은 종전 도움말 유지.
 - ✅ 상단 아이콘바 아이콘 위치 드래그 변경 — id 기준 전체 순서 재구성·숨김 위치 보존·`settings:set iconBarOrder` 영속 (IconBar 드래그 + resolveIconBarItems)
 - ✅ 빠른 위치에 "바탕화면" 추가 — knownFolders.desktop 노드(백엔드는 이미 제공) (Sidebar 빠른 위치)
+- ✅ 휴지통 비우기 대용량 실패 — 항목별 COM DoIt 루프(6000여 항목 15초 타임아웃) 제거 → Win32 SHEmptyRecycleBin 벌크 + 항목수 기반 성공판정(반환코드 0x8000FFFF 오판 수정)·타임아웃 120s. 실측 exit 0·464ms 검증 (recycleBin.ts)
+- ✅ 단축아이콘 체크박스 토글 시 "설정 저장 실패" 토스트 — settings:set zod 가드(.strict())에 iconBarHidden/iconBarOrder 누락 → 허용 추가 (guard.ts)
+- ✅ 우측 패널에서 Esc 누르면 포커스가 생김 — Esc는 포커스를 해제(blur)하도록(그리드 onKeyDown) + 비-단축키 키 입력 시 그리드 포커스 링 미표시([role=grid]:focus-visible outline 제거)
+- ✅ 새로고침 단축키 F5로 변경 (Ctrl+R → F5, Windows 탐색기 관례) (keybindings)
 
 ## 처리됨 (2026-06-10)
 - ✅ 디렉토리 유형별 아이콘 — 일반 폴더=공유 표준 폴더 아이콘(`__dir__`), 링크(정션/심볼릭) 폴더=표준 폴더+바로가기 화살표 오버레이(OSIcon). 링크는 `__dir__` 오염 방지로 요청 스킵 (이전 특수폴더 경로별 OS아이콘은 아이콘 뒤섞임으로 폐기)
