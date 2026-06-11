@@ -1,6 +1,6 @@
 {
   "name": "agt-finder",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
