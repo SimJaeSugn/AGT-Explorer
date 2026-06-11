@@ -246,17 +246,19 @@ const EMPTY_SCRIPT = [
   '$bin = $sh.NameSpace(0xA);',
   'if ($null -eq $bin) { exit 0 }',
   'try { if (@($bin.Items()).Count -eq 0) { exit 0 } } catch {}', // 이미 비어 있음 = 성공.
-  // 1) Win32 SHEmptyRecycleBin(0x7=확인/진행/소리 없음). S_OK(0)=성공.
+  // 성공 판정은 **반환코드가 아니라 "비운 뒤 항목 수"** 로 한다. SHEmptyRecycleBin 은
+  // 성공/빈-휴지통에서도 0x8000FFFF(E_UNEXPECTED) 등 0 이 아닌 HRESULT 를 돌려주는
+  // 경우가 있어(실측 확인) 코드로 성공을 판정하면 멀쩡히 비우고도 "실패"로 오판한다.
+  // 1) Win32 SHEmptyRecycleBin(0x7=확인/진행/소리 없음) — 벌크 삭제(반환코드 무시).
   'try {',
   '  Add-Type -Namespace Win32 -Name Sh -MemberDefinition \'[DllImport("shell32.dll",CharSet=CharSet.Unicode)] public static extern int SHEmptyRecycleBin(IntPtr h, string root, uint flags);\' -ErrorAction Stop;',
-  '  $hr = [Win32.Sh]::SHEmptyRecycleBin([IntPtr]::Zero, $null, 7);',
-  '  if ($hr -eq 0) { exit 0 }',
+  '  [void][Win32.Sh]::SHEmptyRecycleBin([IntPtr]::Zero, $null, 7);',
   '} catch {}',
-  // 2) Clear-RecycleBin 폴백.
-  'try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction Stop; exit 0 } catch {}',
-  // 3) 최종 항목 수로 재판정(0=성공, 잔존=부분 실패 exit 3).
+  'try { if (@($sh.NameSpace(0xA).Items()).Count -eq 0) { exit 0 } } catch {}', // 비었으면 성공.
+  // 2) Clear-RecycleBin 폴백 후 다시 항목 수로 판정.
+  'try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction Stop } catch {}',
   'try { if (@($sh.NameSpace(0xA).Items()).Count -eq 0) { exit 0 } } catch {}',
-  'exit 3'
+  'exit 3' // 모두 시도 후에도 항목 잔존 = 부분 실패.
 ].join(' ')
 
 /**
