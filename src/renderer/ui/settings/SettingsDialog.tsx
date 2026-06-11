@@ -11,9 +11,11 @@
  * 각 변경은 app/usecases/settings 의 change·toggle 액션이 즉시 반영 + 영속한다.
  * 단축아이콘 토글/재배열은 settings:set 의 iconBarHidden/iconBarOrder 로 영속한다.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ThemeMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
+import type { SettingsCategory } from '@renderer/app/stores/uiSlice'
+import { WorkspacePanel } from '@renderer/ui/workspace/WorkspacePanel'
 import {
   changeRecentLimit,
   changeShowDashboardOnStartup,
@@ -41,10 +43,7 @@ const labelStyle: React.CSSProperties = {
 
 const fieldLabel: React.CSSProperties = { flex: '0 0 140px', fontWeight: 500 }
 
-/** 설정 카테고리 식별자. */
-type Category = 'layout' | 'system' | 'workspace' | 'shortcuts'
-
-const CATEGORIES: ReadonlyArray<{ id: Category; label: string; icon: string }> = [
+const CATEGORIES: ReadonlyArray<{ id: SettingsCategory; label: string; icon: string }> = [
   { id: 'layout', label: '레이아웃', icon: '🎨' },
   { id: 'system', label: '시스템', icon: '⚙' },
   { id: 'workspace', label: '워크스페이스', icon: '🗂' },
@@ -62,9 +61,11 @@ const ICON_GROUP_LABEL: Record<IconBarItem['group'], string> = {
 export function SettingsDialog(): JSX.Element | null {
   const open = useRootStore((s) => s.settingsOpen)
   const close = useRootStore((s) => s.closeSettings)
+  // 카테고리는 스토어 단일 출처 — 딥링크(openSettings('workspace'))와 좌측 네비가 공유.
+  const category = useRootStore((s) => s.settingsCategory)
+  const setCategory = useRootStore((s) => s.setSettingsCategory)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const closeBtnRef = useRef<HTMLButtonElement | null>(null)
-  const [category, setCategory] = useState<Category>('layout')
 
   // 포커스 트랩: 컨테이너는 **내부 패널 div** 만(오버레이 onClick 닫기 보존).
   // 첫 포커스(닫기 ✕)·Tab 순환·opener 복귀(P7-A).
@@ -367,42 +368,17 @@ function SystemCategory(): JSX.Element {
   )
 }
 
-/** 워크스페이스: 관리 다이얼로그 진입(기존 기능 재사용). */
+/** 워크스페이스: 관리 본문 임베드(기존 워크스페이스 팝업과 동일 기능). */
 function WorkspaceCategory({ onClose }: { onClose: () => void }): JSX.Element {
-  const openWorkspace = useRootStore((s) => s.openWorkspace)
-  const current = useRootStore((s) => s.currentWorkspace)
   return (
     <div>
       <CategoryHeading>워크스페이스</CategoryHeading>
-      <div style={labelStyle}>
-        <span style={fieldLabel}>현재 워크스페이스</span>
-        <span style={{ color: current ? tokens.color.text : tokens.color.textMuted, fontSize: 13 }}>
-          {current ? `🗂 ${current}` : '선택 안 됨'}
-        </span>
-      </div>
-      <div style={{ ...labelStyle, borderBottom: 'none' }}>
-        <span style={fieldLabel}>관리</span>
-        <button
-          onClick={() => {
-            onClose()
-            openWorkspace()
-          }}
-          style={{
-            height: 28,
-            padding: '0 12px',
-            border: `1px solid ${tokens.color.border}`,
-            borderRadius: 5,
-            fontSize: 13,
-            background: tokens.color.bg,
-            color: tokens.color.text,
-            cursor: 'pointer'
-          }}
-        >
-          워크스페이스 관리…
-        </button>
-        <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
-          현재 탭 구성을 이름 붙여 저장하고 불러옵니다.
-        </span>
+      <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
+        현재 탭 구성을 이름 붙여 저장하고 불러옵니다. 선택한 워크스페이스는 이후 변경이 자동 저장됩니다.
+      </span>
+      <div style={{ marginTop: 10 }}>
+        {/* 불러오기 성공 시 설정 화면을 닫아 복원된 구성을 바로 확인하게 한다. */}
+        <WorkspacePanel onLoaded={onClose} />
       </div>
     </div>
   )

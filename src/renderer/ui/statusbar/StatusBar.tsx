@@ -126,7 +126,8 @@ export function StatusBar(): JSX.Element {
 
   // US-5.8 확장: 현재 선택 워크스페이스 + 자동 저장 상태(변경/저장). 미선택이면 칩 숨김.
   const currentWorkspace = useRootStore((s) => s.currentWorkspace)
-  const openWorkspace = useRootStore((s) => s.openWorkspace)
+  // 워크스페이스 관리는 설정 화면의 워크스페이스 페이지로 연동(독립 팝업 폐지).
+  const openSettings = useRootStore((s) => s.openSettings)
   const wsStatus = useSyncExternalStore(subscribeWorkspaceSaveStatus, getWorkspaceSaveStatus)
   const wsView = saveStateView(wsStatus)
 
@@ -201,7 +202,7 @@ export function StatusBar(): JSX.Element {
       {currentWorkspace && (
         <button
           type="button"
-          onClick={() => openWorkspace()}
+          onClick={() => openSettings('workspace')}
           title={`워크스페이스 "${currentWorkspace}" — ${wsView.label} (클릭: 워크스페이스 관리)`}
           style={{
             marginLeft: info ? 0 : 'auto',

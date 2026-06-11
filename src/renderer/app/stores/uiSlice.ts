@@ -9,6 +9,17 @@ import type { KeyContext } from '@renderer/domain/keybindings'
 import type { SettingsSnapshot, ThemeMode } from '@shared/dto'
 import type { SliceCreator } from './types'
 
+/** 설정 화면 카테고리(좌측 네비게이션·딥링크 대상). */
+export type SettingsCategory = 'layout' | 'system' | 'workspace' | 'shortcuts'
+
+/** 유효 카테고리만 통과(이벤트 객체 등 비문자열 인자 방어). */
+const SETTINGS_CATEGORIES: ReadonlySet<SettingsCategory> = new Set<SettingsCategory>([
+  'layout',
+  'system',
+  'workspace',
+  'shortcuts'
+])
+
 /** 사용자 안내 토스트 1개. */
 export interface Toast {
   readonly id: string
@@ -112,6 +123,8 @@ export interface UiSlice {
   readonly settingsLoaded: boolean
   /** 설정 화면 열림 여부. */
   readonly settingsOpen: boolean
+  /** 설정 화면 현재 카테고리(좌측 네비·딥링크). 기본 'layout'. */
+  readonly settingsCategory: SettingsCategory
   /** 사용량 대시보드 모달 열림 여부(I장 §4.1). */
   readonly dashboardOpen: boolean
   /** 휴지통 관리 모달 열림 여부(K장 K2). */
@@ -196,9 +209,15 @@ export interface UiSlice {
   setRecentLimit(n: number): void
   /** 텔레메트리 옵트인 설정. */
   setTelemetryOptIn(v: boolean): void
-  /** 설정 화면 열기/닫기(열림 시 inputContext='dialog'). */
-  openSettings(): void
+  /**
+   * 설정 화면 열기(열림 시 inputContext='dialog'). category 를 주면 그 카테고리로
+   * 바로 진입(딥링크 — 예: 워크스페이스 아이콘 → 워크스페이스 페이지). 미지정/무효
+   * 인자(이벤트 객체 등)는 'layout' 으로 안전 폴백.
+   */
+  openSettings(category?: SettingsCategory): void
   closeSettings(): void
+  /** 설정 카테고리 전환(좌측 네비 클릭). */
+  setSettingsCategory(category: SettingsCategory): void
   /** 사용량 대시보드 모달 열기(inputContext='dialog'). */
   openDashboard(): void
   /** 사용량 대시보드 모달 닫기(다른 모달 없으면 inputContext='list' 복귀). */
@@ -254,9 +273,8 @@ export interface UiSlice {
   setPreviewOpen(v: boolean): void
   /** 미리보기 패널 폭 설정(클램프 240~720, J7). 세션 복원·드래그·더블클릭 복귀. */
   setPreviewWidth(px: number): void
-  /** 워크스페이스 관리 다이얼로그 열기/닫기(열림 시 inputContext='dialog'). */
-  openWorkspace(): void
-  closeWorkspace(): void
+  // 워크스페이스 관리는 설정 화면 워크스페이스 페이지로 통합(독립 팝업 폐지) —
+  // openWorkspace/closeWorkspace 액션 제거. 진입은 openSettings('workspace').
   /** 현재 선택 워크스페이스 설정/해제(null·빈 문자열=해제 — 자동 저장 중단). */
   setCurrentWorkspace(name: string | null): void
 
@@ -308,6 +326,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   telemetryOptIn: false,
   settingsLoaded: false,
   settingsOpen: false,
+  settingsCategory: 'layout',
   dashboardOpen: false,
   trashOpen: false,
   remoteDialogOpen: false,
@@ -384,10 +403,19 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     })
   },
 
-  openSettings() {
+  openSettings(category) {
     set((s) => {
       s.settingsOpen = true
+      // 유효 카테고리만 적용(비문자열/무효는 'layout' 폴백 — onClick 직접 바인딩 방어).
+      s.settingsCategory =
+        typeof category === 'string' && SETTINGS_CATEGORIES.has(category) ? category : 'layout'
       s.inputContext = 'dialog'
+    })
+  },
+
+  setSettingsCategory(category) {
+    set((s) => {
+      if (SETTINGS_CATEGORIES.has(category)) s.settingsCategory = category
     })
   },
 
@@ -682,22 +710,6 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
     set((s) => {
       const clamped = Math.max(240, Math.min(720, Math.round(px)))
       s.previewWidth = Number.isFinite(clamped) ? clamped : 320
-    })
-  },
-
-  openWorkspace() {
-    set((s) => {
-      s.workspaceOpen = true
-      s.inputContext = 'dialog'
-    })
-  },
-
-  closeWorkspace() {
-    set((s) => {
-      s.workspaceOpen = false
-      if (!s.confirmDelete && !s.renameTarget && !s.settingsOpen && !s.dashboardOpen && !s.trashOpen) {
-        s.inputContext = 'list'
-      }
     })
   },
 

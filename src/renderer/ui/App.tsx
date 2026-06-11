@@ -29,7 +29,6 @@ import { StatusBar } from '@renderer/ui/statusbar/StatusBar'
 import { KeyboardDispatcher } from '@renderer/ui/keyboard/KeyboardDispatcher'
 import { ShortcutHelp } from '@renderer/ui/keyboard/ShortcutHelp'
 import { SettingsDialog } from '@renderer/ui/settings/SettingsDialog'
-import { WorkspaceDialog } from '@renderer/ui/workspace/WorkspaceDialog'
 import { DashboardModal } from '@renderer/ui/dashboard/DashboardModal'
 import { TrashDialog } from '@renderer/ui/trash/TrashDialog'
 import { RemoteDialog } from '@renderer/ui/remote/RemoteDialog'
@@ -138,7 +137,6 @@ export function App(): JSX.Element {
       <StatusBar />
       <ShortcutHelp />
       <SettingsDialog />
-      <WorkspaceDialog />
       <DashboardModal />
       <TrashDialog />
       <RemoteDialog />

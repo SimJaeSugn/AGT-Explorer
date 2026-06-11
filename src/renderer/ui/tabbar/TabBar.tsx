@@ -80,7 +80,7 @@ export function TabBar(): JSX.Element {
         +
       </button>
       <button
-        onClick={openSettings}
+        onClick={() => openSettings()}
         title="설정 (Ctrl+,)"
         aria-label="설정"
         style={{

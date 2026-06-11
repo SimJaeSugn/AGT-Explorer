@@ -277,7 +277,8 @@ export function execCommand(commandId: string): boolean {
       s.togglePreview()
       return true
     case 'workspace.manage':
-      s.openWorkspace()
+      // 워크스페이스 관리는 설정 화면의 워크스페이스 페이지로 연동(독립 팝업 폐지).
+      s.openSettings('workspace')
       return true
 
     // ── 명령 팔레트(S2 · US-18.2) ─────────────────────────────────────
