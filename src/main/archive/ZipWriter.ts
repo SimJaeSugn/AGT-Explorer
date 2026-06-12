@@ -18,7 +18,7 @@ import * as fsp from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { ZipFile as YazlZipFile } from 'yazl'
-import { forEachEntryForExtract } from './ZipReader'
+import { openZipForRewrite } from './ZipReader'
 
 /** 추가할 신규 로컬 항목 1개(이미 새니타이즈된 zip 내부 엔트리명 + 로컬 소스 경로). */
 export interface AddItem {
@@ -59,14 +59,20 @@ export async function addToZip(
   zip.outputStream.on('error', (e) => out.destroy(e))
   zip.outputStream.pipe(out)
 
+  // 소스 zip 핸들 — yazl 이 등록된 읽기 스트림을 모두 소비(outDone)할 때까지 열어 둔다.
+  // 조기 close 시 lazy 소비 스트림의 fd 가 끊겨 재작성본이 손상된다(§Q1 결함 수정).
+  const reader = await openZipForRewrite(archivePath)
   try {
     // ── 1) 기존 엔트리 복사(동명 신규로 덮일 것은 제외) ──────────────────
-    await forEachEntryForExtract(
-      archivePath,
-      (entry) => !entry.isDir && !skipExisting.has(entry.entryName),
-      async (entry, openStream) => {
-        const stream = await openStream()
-        zip.addReadStream(stream, entry.entryName, { mtime: new Date(entry.mtime) })
+    //   파일 엔트리는 읽기 스트림으로, 디렉토리(빈 폴더) 엔트리는 addEmptyDirectory 로 보존.
+    await reader.pump(
+      (entry) => !skipExisting.has(entry.entryName),
+      (entry, stream) => {
+        if (entry.isDir || stream === null) {
+          zip.addEmptyDirectory(entry.entryName, { mtime: new Date(entry.mtime) }) // 빈 폴더 보존.
+        } else {
+          zip.addReadStream(stream, entry.entryName, { mtime: new Date(entry.mtime) })
+        }
       },
       shouldCancel
     )
@@ -81,9 +87,13 @@ export async function addToZip(
       onProgress(processed)
     }
 
-    // ── 3) 마무리 + 출력 close 대기 ──────────────────────────────────────
+    // ── 3) 마무리 + 출력 close 대기(yazl 이 소스 스트림 전부 소비할 때까지) ──
     zip.end()
     await outDone
+
+    // 소스 핸들을 rename **전에** 닫는다 — yazl 소비가 끝난 뒤(outDone)이므로 스트림 절단
+    // 위험이 없고, Windows 는 열린 파일 위로 rename 이 불가(EPERM)하므로 반드시 먼저 닫아야 한다.
+    await reader.close()
 
     if (shouldCancel()) throw new Error('취소됨')
 
@@ -99,5 +109,8 @@ export async function addToZip(
     }
     await fsp.rm(tmpPath, { force: true }).catch(() => undefined)
     throw e
+  } finally {
+    // outDone 이후(또는 실패 후)에만 소스 닫음 — 조기 close 로 인한 스트림 절단 방지.
+    await reader.close()
   }
 }

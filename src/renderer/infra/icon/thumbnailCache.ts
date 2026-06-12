@@ -28,6 +28,16 @@ const subscribers = new Set<() => void>()
 /** 음성 캐시 상한(LRU). 초과 시 가장 오래된 키 evict → 재시도 여지 유지. */
 const MAX_NEG_CACHE = 256
 
+/** 성공 캐시 상한. 키가 path별 고유(+mtime)라 장시간 탐색 시 dataURL 이 무한 누적되는 것을 막는다. */
+const MAX_THUMB_CACHE = 400
+function evictThumbCacheIfNeeded(): void {
+  if (cache.size <= MAX_THUMB_CACHE) return
+  for (const k of cache.keys()) {
+    if (cache.size <= MAX_THUMB_CACHE) break
+    cache.delete(k) // 삽입순(오래된 것부터).
+  }
+}
+
 function notify(): void {
   for (const cb of subscribers) cb()
 }
@@ -42,9 +52,12 @@ function negCacheSet(key: string): void {
   }
 }
 
-/** 캐시 키 = `${path}::${size}` (path별 고유 — ext 공유 불가). backend thumbnailKeyFor 와 동일 규칙. */
-export function thumbnailKeyFor(path: string, size: number): string {
-  return `${path}::${size}`
+/**
+ * 캐시 키 = `${path}::${size}[::${mtime}]` (path별 고유 — ext 공유 불가). backend thumbnailKeyFor 와
+ * 동일 규칙. mtime 을 포함하면 파일 교체(내용 변경) 시 키가 바뀌어 옛 썸네일이 stale 로 남지 않는다.
+ */
+export function thumbnailKeyFor(path: string, size: number, mtime?: number): string {
+  return mtime === undefined ? `${path}::${size}` : `${path}::${size}::${mtime}`
 }
 
 /** 캐시된 썸네일 dataUrl 조회(없으면 undefined). 음성 캐시는 여기서 노출하지 않음(폴백=undefined 동작). */
@@ -57,17 +70,18 @@ export function getCachedThumbnail(key: string): string | undefined {
  * 성공 dataUrl → 캐시 후 구독자 통지. 폴백(dataUrl===null·빈문자·에러) → 음성 캐시 후 통지
  * (OSIcon 폴백이 즉시 보이게 + 같은 셀의 매 렌더 재요청 폭주 방지).
  */
-export function requestThumbnail(path: string, size: number): Promise<void> {
-  const key = thumbnailKeyFor(path, size)
+export function requestThumbnail(path: string, size: number, mtime?: number): Promise<void> {
+  const key = thumbnailKeyFor(path, size, mtime)
   if (cache.has(key) || negCache.has(key)) return Promise.resolve()
   const existing = inflight.get(key)
   if (existing) return existing
 
   const p = (async (): Promise<void> => {
     try {
-      const res = await previewApi.thumbnail(path, size)
+      const res = await previewApi.thumbnail(path, size, mtime)
       if (res.ok && res.value.dataUrl) {
         cache.set(key, res.value.dataUrl)
+        evictThumbCacheIfNeeded()
       } else {
         // ok({dataUrl:null}) 폴백 또는 err — 음성 캐시로 재요청 억제(영구 아님, LRU evict).
         negCacheSet(key)

@@ -15,7 +15,7 @@
  */
 import * as fs from 'node:fs'
 import * as fsp from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, basename, extname, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { parentPort, workerData } from 'node:worker_threads'
 import {
@@ -43,8 +43,29 @@ if (!port) {
    * 추출 — zip 을 순회하며 대상(innerPaths prefix)에 속하는 파일 엔트리를 destDir 하위로
    * 안전 추출한다. Zip Slip·심볼릭·폭탄을 격리(skip)하고 잡은 계속한다.
    */
+  const pathExists = async (p: string): Promise<boolean> => {
+    try {
+      await fsp.access(p)
+      return true
+    } catch {
+      return false
+    }
+  }
+  /** 동명 충돌 시 `name (1).ext` … 로 유니크 로컬 경로 산출(rename 정책). */
+  const uniqueExtractPath = async (p: string): Promise<string> => {
+    const dir = dirname(p)
+    const ext = extname(p)
+    const base = basename(p, ext)
+    for (let i = 1; i < 10000; i++) {
+      const cand = join(dir, `${base} (${i})${ext}`)
+      if (!(await pathExists(cand))) return cand
+    }
+    return join(dir, `${base} (${Date.now()})${ext}`)
+  }
+
   const runExtract = async (): Promise<void> => {
     const destDir = job.destDir as string
+    const extractConflict = job.extractConflict
     const innerPaths = (job.innerPaths ?? []) as string[]
     // prefix 정규화(POSIX·후행 '/' 제거). 빈 배열이면 전체 추출.
     const prefixes = innerPaths.map((p) => p.replace(/\\/g, '/').replace(/\/+$/, ''))
@@ -111,9 +132,24 @@ if (!port) {
           return
         }
 
+        // ── 충돌 정책: 도착지 존재 시 skip(건너뜀)·rename(유니크명). overwrite/merge/미지정=덮어쓰기 ──
+        let finalPath = safe.path
+        if (await pathExists(safe.path)) {
+          if (extractConflict === 'skip') {
+            post({
+              type: 'skip',
+              entryName: entry.entryName,
+              code: 'EEXIST',
+              message: '이미 존재 — 건너뜀'
+            })
+            return
+          }
+          if (extractConflict === 'rename') finalPath = await uniqueExtractPath(safe.path)
+        }
+
         // ── 디렉토리 보장 + `.part` 임시 추출 → 원자 rename ──
-        await fsp.mkdir(dirname(safe.path), { recursive: true })
-        const partPath = `${safe.path}.part`
+        await fsp.mkdir(dirname(finalPath), { recursive: true })
+        const partPath = `${finalPath}.part`
         try {
           const readStream = await openStream()
           const writeStream = fs.createWriteStream(partPath)
@@ -129,7 +165,7 @@ if (!port) {
             })
           })
           await pipeline(readStream, writeStream)
-          await fsp.rename(partPath, safe.path)
+          await fsp.rename(partPath, finalPath)
           succeeded++
         } catch (e) {
           await fsp.rm(partPath, { force: true }).catch(() => undefined)

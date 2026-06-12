@@ -1600,7 +1600,7 @@
 > 2026-06-12 사용자 직접 요청으로 정식 편입(기획 단계·미착수). 우선순위는 **S(Should)** — 핵심 가치(다중 디렉토리 작업)와 독립적이나 Windows 셸 생태계와의 상호운용으로 일상 편의를 크게 높이는 개선이다(우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-12 §Y)"](./PRD.md#6-범위와-우선순위-moscow)).
 > **기술 방식(사용자 확정)**: Windows 셸 COM `Shell.Application`의 `FolderItem.Verbs()` 열거 + `verb.DoIt()` 실행. **네이티브 N-API 애드온 방식은 비채택**(신규 네이티브 의존성 0 원칙). 메인 프로세스에서 **상주 PowerShell 워커**(stdin/stdout 프로토콜·기존 hash/archive 워커와 동일한 구조)로 COM을 호출해 우클릭 지연을 완화한다. 신규 IPC 채널 2종 예상(verb 조회·verb 실행) — **정확한 채널명·워커 프로토콜·캐시 전략은 chief-architect 설계 단계에서 확정**하므로 본 명세는 **행동 계약 수준**으로만 기술한다. 기존 B6 컨텍스트 메뉴 인프라(`ui/contextmenu/`)·ADR-005 프로세스 보안 모델의 확장이다.
 > **이 PC 실증(2026-06-12 PoC·정직 기록)**: `package.json` 1개 파일에 대해 COM `Verbs()` 열거 결과 — "&Open / AGT-Finder로 열기 / C&ursor(으)로 열기 / Add to &Favorites / package.zip으로 압축하기(&Z) / package.7z로 압축하기(&7) / 반디집으로 압축하기(&L)… / Copy &as path / &Share / Restore previous &versions / Cu&t / &Copy / Create &shortcut / &Delete / Rena&me / P&roperties". 즉 설치 프로그램(반디집·Cursor) 항목이 실제로 열거됨을 확인했다(서브메뉴 전용 핸들러는 일부 누락 가능 — 아래 정직 한계 ①).
-> 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(우클릭 메뉴 내 섹션이므로 신규 키 불요). 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-12 상태] Y1 구현 완료(코드)·통합 QA PASS** — 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS([qa-integration-Y](./reviews/qa-integration-Y.md)). **신규 채널 `shell:context-verbs`/`shell:invoke-verb` 2종·신규 의존성 0(상주 PowerShell `shellVerbsWorker.ps1`+COM Verbs)·`verify:shellverbs` 75/0·typecheck/build PASS·ESLint 0·일회성 실 노드 스모크(ps1 워커 한글 경로 왕복·실 COM 열거·블랙리스트 필터·EVERB 거부·dispose 좀비 0) 통과.** **정직 한계(✅ 위장 아님): 헤드리스 verify·실 노드 스모크로 증명된 항목만 [x]·실 GUI(우클릭 섹션 표출·verb 클릭→외부 프로그램 DoIt·로딩→채움/숨김·한글 display 실 렌더)·실 패키지 설치본(asar ps1 경로·ExecutionPolicy)은 🟡로 둔다.**
+> 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(우클릭 메뉴 내 섹션이므로 신규 키 불요). 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-12 상태] Y1 구현 완료(코드)·통합 QA PASS** — 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS([qa-integration-Y](./reviews/qa-integration-Y.md)). **신규 채널 `shell:context-verbs`/`shell:invoke-verb` 2종·신규 의존성 0(상주 PowerShell `shellVerbsWorker.ps1`+COM Verbs)·`verify:shellverbs` 95/0·typecheck/build PASS·ESLint 0·일회성 실 노드 스모크(ps1 워커 한글 경로 왕복·실 COM 열거·블랙리스트 필터·EVERB 거부·dispose 좀비 0) 통과.** **[2026-06-12 후속 확장 — doc-sync] 단일 선택 전용 → 단일+다중 선택**(다중=Shell `IContextMenu` 다중 PIDL·선택 전체를 하나로[압축·보내기]·계약 `path: string`→`paths: string[]`·신규 채널 0·신규 의존성 0·상태 등급 무변·`verify:shellverbs` 75→95·다중 list/invoke[Copy as path] 노드 스모크 ✅). **⚠️ 드리프트(결정 대기·문구 무수정): 아래 수용기준 표·체크박스 일부가 "단일 선택 한정·다중 선택 시 섹션 숨김·다중 일괄 invoke 비범위"로 기술 — 구현이 이를 다중 노출/일괄 invoke 로 확장한 상태(roadmap §0.5 단일 출처·정식 반영 여부 PM/사용자 결정 대기·doc-sync 는 수용기준 문구 무수정).** **정직 한계(✅ 위장 아님): 헤드리스 verify·실 노드 스모크로 증명된 항목만 [x]·실 GUI(우클릭 섹션 표출·verb 클릭→외부 프로그램 DoIt·다중 선택 실 "압축으로 하나 묶기"/"보내기"·로딩→채움/숨김·한글 display 실 렌더)·실 패키지 설치본(asar ps1 경로·ExecutionPolicy)은 🟡로 둔다.**
 
 ### Y1. 파일/폴더 우클릭 시 Windows 셸 컨텍스트 메뉴 항목 노출·실행 (S) 구현 완료(코드)·실 GUI/실 패키지 🟡
 **목적**: 파일/폴더를 우클릭했을 때 앱 컨텍스트 메뉴 하단에 **"Windows 메뉴" 섹션**을 두고, Windows에 설치된 프로그램들이 등록한 셸 컨텍스트 메뉴 항목을 보여 줘, 별도의 Windows 탐색기 우클릭 없이 앱 안에서 바로 그 동작(압축·외부 앱으로 열기 등)을 실행한다. (US-23.1)
@@ -1610,9 +1610,10 @@
 **노출 / 구성**
 | 항목 | 동작 규칙 |
 |---|---|
-| 섹션 위치 | 단일 파일/폴더 우클릭 시 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**을 구분선과 함께 추가한다(앱 자체 명령 영역과 분리) |
+| 섹션 위치 | 파일/폴더 우클릭 시(단일 또는 다중 선택) 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**을 구분선과 함께 추가한다(앱 자체 명령 영역과 분리) |
 | 항목 출처 | 셸 COM `Shell.Application`의 `FolderItem.Verbs()` 로 열거한 verb 목록을 메뉴 항목으로 렌더한다(예: "반디집으로 압축하기", "Cursor로 열기", "AGT-Finder로 열기") |
-| 단일 선택 한정 | **다중 선택 시 "Windows 메뉴" 섹션을 숨긴다**(COM `Verbs()`는 단일 항목 기준 — 정직 한계 ②·1차 단일 선택 한정 노출) |
+| 단일·다중 선택 지원 | **단일 선택과 다중 선택(2개 이상) 모두 "Windows 메뉴" 섹션을 노출한다**(선택 대상이 전부 로컬 경로일 때). 단일 선택은 해당 항목의 verb를, 다중 선택은 선택한 파일/폴더 **전체를 하나의 셸 컨텍스트 메뉴로** 처리한다(Windows 탐색기에서 여러 파일 선택 후 우클릭한 것과 동일 — "압축"은 선택 파일들을 하나의 archive로 묶고, "보내기"·"검사"·"공유"·"경로로 복사" 등이 선택 전체에 적용) |
+| 로컬 한정 노출 | 원격(FTP/SFTP)·`archive://` 경로가 **하나라도** 섞이면 "Windows 메뉴" 섹션을 숨긴다(셸 verb는 로컬 파일시스템 경로 기준 — 정직 한계 ②) |
 | 중복 verb 필터 | 앱이 이미 자체 구현한 verb(canonical verb name 기준 **블랙리스트**: `open`·`cut`·`copy`·`paste`·`delete`·`rename`·`properties` 등)는 노출하지 않는다(중복 UX 방지·정직 한계 ③) |
 | 로딩 상태 | 워커 첫 기동·첫 조회 지연 시 섹션에 **로딩 상태**(예: "Windows 메뉴 불러오는 중…" 또는 지연 표시)를 허용한다(정직 한계 ⑤) |
 | 서브메뉴 | 캐스케이드(중첩) 서브메뉴는 **평탄화되거나 누락될 수 있다**(7-Zip처럼 서브메뉴 전용 핸들러는 일부 미표시 가능) — **보이는 것만 노출하는 best-effort 계약**(정직 한계 ①) |
@@ -1620,7 +1621,7 @@
 **실행 규칙**
 | 항목 | 동작 규칙 |
 |---|---|
-| verb 실행 | "Windows 메뉴"의 항목 선택 시 해당 verb를 `verb.DoIt()` 로 실행한다(상주 PowerShell 워커 경유) |
+| verb 실행 | "Windows 메뉴"의 항목 선택 시 해당 verb를 `verb.DoIt()` 로 실행한다(상주 PowerShell 워커 경유). **다중 선택 시 선택 전체에 대해 하나의 셸 컨텍스트 메뉴로 일괄 실행**된다(예: "압축"은 선택 파일들을 하나의 archive로 묶음 — Windows 탐색기 다중선택 우클릭과 동일) |
 | fire-and-forget | verb 실행은 **외부 프로그램 실행**이므로 결과(성공/실패)를 앱이 추적하지 않는다(fire-and-forget 계약·정직 한계 ④). 실행 실패는 무음 또는 가벼운 안내(토스트) 수준 |
 | 성능 | 우클릭 지연을 줄이기 위해 COM 호출은 **상주 PowerShell 워커**(기존 hash/archive 워커 패턴)에서 처리한다(메인/렌더러 스레드 비차단) |
 | 보안 | 셸 verb 열거·실행은 **사용자가 우클릭한 실제 항목 경로**에 대해서만 수행한다(임의 데이터·임의 명령 합성 없음·ADR-005 프로세스 보안 모델 준수·정확한 가드는 설계 단계 확정) |
@@ -1630,11 +1631,12 @@
 |---|---|
 | 네이티브 메뉴 팝업 | OS 네이티브 컨텍스트 메뉴(HMENU) 팝업을 그대로 띄우지 않는다 — 앱 React 메뉴에 항목을 **병합**해 렌더하는 방식만 1차 범위 |
 | 서브메뉴 완전 재현 | 캐스케이드(중첩) 서브메뉴 트리의 완전 재현은 1차 범위 밖(보이는 항목만 best-effort·정직 한계 ①) |
-| 다중 선택 invoke | 다중 선택 항목에 대한 일괄 verb 실행은 1차 범위 밖(COM `Verbs()`가 단일 항목 기준 — 다중 선택 시 섹션 숨김) |
+| 원격/archive 경로 | 원격(FTP/SFTP)·`archive://` 경로에 대한 셸 verb 노출은 1차 범위 밖(셸 verb는 로컬 파일시스템 경로 기준 — 하나라도 섞이면 섹션 숨김) |
 
 **수용 기준** (구현 완료(코드)·통합 QA PASS — 헤드리스 verify·실 노드 스모크로 증명된 항목만 [x]·실 GUI/실 패키지 의존 항목은 🟡)
-- [ ] 🟡 단일 파일/폴더를 우클릭하면 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**이 구분선과 함께 표시되고, 셸 COM `FolderItem.Verbs()` 로 열거한 설치 프로그램 항목(예: "반디집으로 압축하기"·"Cursor로 열기"·"AGT-Finder로 열기")이 노출된다 *(섹션 병합 로직 `shellVerbsSection.ts`·`ContextMenu.tsx`·`verify:shellverbs` merge 케이스 [x]·실 COM 열거 노드 스모크 통과(반디집 항목 포착) / **실 GUI 우클릭 섹션 표출은 🟡**)*
-- [ ] 🟡 **다중 선택 시 "Windows 메뉴" 섹션이 숨겨진다**(COM Verbs()는 단일 항목 기준·1차 단일 선택 한정·정직 한계 ②) *(섹션 병합 숨김 로직 [x]·실 GUI 다중선택 숨김 표출은 🟡)*
+- [ ] 🟡 파일/폴더를 우클릭하면 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**이 구분선과 함께 표시되고, 셸 COM `FolderItem.Verbs()` 로 열거한 설치 프로그램 항목(예: "반디집으로 압축하기"·"Cursor로 열기"·"AGT-Finder로 열기")이 노출된다(영문 verb 표시명은 한국어 사전 `VERB_TRANSLATIONS`로 가능한 범위에서 한국어화) *(섹션 병합 로직 `shellVerbsSection.ts`·`ContextMenu.tsx`·`verify:shellverbs` merge 케이스 [x]·실 COM 열거 노드 스모크 통과(반디집 항목 포착) / **실 GUI 우클릭 섹션 표출은 🟡**)*
+- [ ] 🟡 **단일 선택과 다중 선택(2개 이상) 모두 "Windows 메뉴" 섹션이 노출되고, 다중 선택 시 선택한 파일/폴더 전체가 하나의 셸 컨텍스트 메뉴로 처리된다**(예: "압축"은 선택 파일들을 하나의 archive로 묶고, "보내기"·"검사"·"공유"·"경로로 복사" 등이 선택 전체에 적용 — Windows 탐색기 다중선택 우클릭과 동일). verb 클릭 시 선택 전체에 대해 실행된다 *(섹션 병합·다중선택 일괄 invoke 로직 [x]·실 GUI 다중선택 섹션 표출/일괄 실행은 🟡)*
+- [ ] 🟡 **원격(FTP/SFTP)·`archive://` 경로가 하나라도 섞이면 "Windows 메뉴" 섹션이 숨겨진다**(셸 verb는 로컬 파일시스템 경로 기준·정직 한계 ②) *(로컬 한정 필터 로직 [x]·실 GUI 표출은 🟡)*
 - [x] **앱이 이미 자체 구현한 verb**(canonical verb name 블랙리스트: open/cut/copy/paste/delete/rename/properties 등)는 **노출되지 않는다**(중복 UX 방지·정직 한계 ③) *(`shellVerbsBlacklist.ts`·`verify:shellverbs` 블랙리스트 케이스·실 노드 스모크 누출 0)*
 - [x] **캐스케이드 서브메뉴는 평탄화되거나 누락될 수 있으며, 보이는 항목만 노출하는 best-effort 계약**이다(서브메뉴 전용 핸들러 일부 미표시 허용·앱 크래시·빈 섹션 없이 정상 동작·정직 한계 ①) *(미존재→빈목록·실 COM 열거 노드 스모크 통과)*
 - [x] "Windows 메뉴" 항목 선택 시 해당 verb가 `verb.DoIt()` 로 실행되며, **실행 결과(성공/실패)는 앱이 추적하지 않는다(fire-and-forget)**(실행 실패는 무음 또는 가벼운 토스트 안내·정직 한계 ④) *(`shell.handlers.ts` 재열거 교차검증→가짜 verbId EVERB 거부 노드 스모크 통과·외부 프로그램 미실행 / **실 verb 클릭→외부 프로그램 DoIt 실행은 🟡**)*
@@ -1642,4 +1644,4 @@
 - [x] 셸 verb 열거·실행은 **Windows 셸 COM `Shell.Application`(`FolderItem.Verbs()`/`verb.DoIt()`)** 으로 수행하며 **네이티브 N-API 애드온·신규 네이티브 의존성을 추가하지 않는다**(신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종·신규 npm/네이티브 의존성 0)
 - [x] verb 열거·실행은 **사용자가 우클릭한 실제 항목 경로**에 대해서만 수행하며, 임의 명령 합성·임의 실행 표면을 추가하지 않는다(ADR-005 보안 모델 준수·`guard.ts §Y1` zod·재열거 교차검증·셸 미경유 ps1 워커)
 - [x] 기존 앱 자체 컨텍스트 메뉴(B6) 명령(열기·연결 프로그램·복사/잘라내기/이름바꾸기·삭제·속성·빈 영역 메뉴)과 충돌·회귀 없이 "Windows 메뉴" 섹션만 추가된다 *(typecheck/build PASS·verify 회귀 0·`ContextMenu.tsx` 섹션 병합 / 실 GUI 회귀 0은 🟡)*
-- [ ] 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현·다중 선택 일괄 invoke — **1차 범위 밖(비범위·Non-goal)**
+- [ ] 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현 — **1차 범위 밖(비범위·Non-goal)**

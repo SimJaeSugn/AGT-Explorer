@@ -1429,13 +1429,14 @@ const THUMB_DPR = Math.min(2, (typeof window !== 'undefined' && window.devicePix
 function ThumbnailIcon({ entry, size }: { entry: FileEntryDTO; size: number }): JSX.Element {
   // 요청 size = 셀 아이콘 px × DPR → 버킷 스냅(THUMB_SIZE_BUCKETS, guard 화이트리스트와 동일).
   const px = thumbSizeFor(size, THUMB_DPR)
-  const key = thumbnailKeyFor(entry.path, px)
+  const key = thumbnailKeyFor(entry.path, px, entry.mtime)
   const dataUrl = useSyncExternalStore(subscribeThumbnail, () => getCachedThumbnail(key))
 
   useEffect(() => {
     // 미캐시(성공/음성 어느 쪽도 없음)면 1회 요청 — 캐시는 requestThumbnail 내부에서 디듀프.
-    if (getCachedThumbnail(key) === undefined) void requestThumbnail(entry.path, px)
-  }, [key, entry.path, px])
+    // mtime 포함 → 파일 교체 시 키가 바뀌어 새 썸네일을 재요청(stale 방지).
+    if (getCachedThumbnail(key) === undefined) void requestThumbnail(entry.path, px, entry.mtime)
+  }, [key, entry.path, px, entry.mtime])
 
   if (dataUrl) {
     // 비율 보존(objectFit:contain) — 비정사각 이미지가 정사각 셀에서 왜곡되지 않고 레터박스.

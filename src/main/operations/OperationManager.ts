@@ -392,8 +392,12 @@ export class OperationManager {
       run,
       sourcesSummary: summarizeSources(sources),
       destSummary: destDir ?? '',
-      setPauseFlag: (paused) =>
+      setPauseFlag: (paused) => {
         Atomics.store(cancelView, PAUSE_FLAG_INDEX, paused ? 1 : 0)
+        // 재개(0) 시 Atomics.wait(…,1,100) 로 대기 중인 워커를 즉시 깨운다(취소 경로와 대칭).
+        // 이 notify 가 없으면 워커가 최대 100ms 타임아웃까지 재개를 인지하지 못한다.
+        if (!paused) Atomics.notify(cancelView, PAUSE_FLAG_INDEX)
+      }
     })
 
     // 기동 실패(즉시 실행 경로에서 new Worker throw)면 err 반환(기존 동작 보존).

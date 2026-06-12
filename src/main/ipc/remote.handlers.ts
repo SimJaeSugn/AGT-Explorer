@@ -170,7 +170,14 @@ export function registerRemoteHandlers(): void {
       if (!g.ok) return g as Result<RemoteTransferRes>
       const adapter = remoteSessionManager().getAdapter(req.sessionId)
       if (!adapter) return err(fileOpError('ECONNRESET', '세션이 유효하지 않습니다.'))
-      return startDownload(adapter, req.remotePaths, g.value, event.sender, operationManager)
+      return startDownload(
+        adapter,
+        req.remotePaths,
+        g.value,
+        event.sender,
+        operationManager,
+        req.conflictPolicy
+      )
     }
   )
   handleGuarded(

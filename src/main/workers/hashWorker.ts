@@ -72,8 +72,9 @@ if (!port) {
         }
         case 'verify': {
           const p = job.payload as HashVerifyStartReq
-          const { mismatches, verified } = await verifyPairs(p.pairs, algo, hooks, verifyEngineDeps)
-          post({ type: 'verify-done', mismatches, verified })
+          const { mismatches, verified, canceled } = await verifyPairs(p.pairs, algo, hooks, verifyEngineDeps)
+          // 취소된 잡은 부분 결과를 "완료"로 보고하지 않는다(verified 거짓 양성·오완료 방지).
+          if (!canceled) post({ type: 'verify-done', mismatches, verified })
           break
         }
       }

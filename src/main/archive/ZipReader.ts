@@ -113,8 +113,92 @@ export function openZip(archivePath: string): Promise<ZipHandle> {
           })
         })
 
-        zipfile.on('error', (e) => reject(e))
+        zipfile.on('error', (e) => {
+          // 열거 중 오류 — 이미 열린 fd 누수 방지를 위해 close 후 reject.
+          try {
+            zipfile.close()
+          } catch {
+            /* 멱등 */
+          }
+          reject(e)
+        })
         zipfile.readEntry()
+      }
+    )
+  })
+}
+
+/**
+ * 재작성(add) 전용 — 소스 zip 을 열어 대상 엔트리의 읽기 스트림을 addEntry 로 **즉시 등록**한다
+ * (yazl 의 lazy 소비 허용). forEachEntryForExtract 와 달리 **핸들을 자동으로 닫지 않고** 반환한다:
+ * 호출자가 yazl 소비 완료(outputStream close) 후 close() 를 호출해야 한다. 조기 close 시 yazl 이
+ * 아직 소비하지 못한 읽기 스트림의 fd 가 끊겨 재작성본이 손상될 수 있어(§Q1 결함) 이를 막는다.
+ */
+export function openZipForRewrite(archivePath: string): Promise<{
+  pump: (
+    shouldCopy: (entry: RawZipEntry) => boolean,
+    addEntry: (entry: RawZipEntry, stream: Readable | null) => void,
+    shouldCancel: () => boolean
+  ) => Promise<void>
+  close: () => Promise<void>
+}> {
+  return new Promise((resolve, reject) => {
+    yauzlOpen(
+      archivePath,
+      { lazyEntries: true, autoClose: false, decodeStrings: true, validateEntrySizes: false },
+      (err, zipfile) => {
+        if (err || !zipfile) {
+          reject(err ?? new Error('zip 열기 실패'))
+          return
+        }
+        const close = (): Promise<void> =>
+          new Promise<void>((res) => {
+            try {
+              zipfile.close()
+            } catch {
+              /* 멱등 */
+            }
+            res()
+          })
+        const pump = (
+          shouldCopy: (entry: RawZipEntry) => boolean,
+          addEntry: (entry: RawZipEntry, stream: Readable | null) => void,
+          shouldCancel: () => boolean
+        ): Promise<void> =>
+          new Promise<void>((res2, rej2) => {
+            zipfile.removeAllListeners('entry')
+            zipfile.removeAllListeners('end')
+            zipfile.removeAllListeners('error')
+            zipfile.on('entry', (entry: YauzlEntry) => {
+              if (shouldCancel()) {
+                res2()
+                return
+              }
+              const raw = toRaw(entry)
+              if (!shouldCopy(raw)) {
+                zipfile.readEntry()
+                return
+              }
+              // 디렉토리 엔트리는 본문이 없어 읽기 스트림을 열지 않는다(stream=null).
+              if (raw.isDir) {
+                addEntry(raw, null)
+                zipfile.readEntry()
+                return
+              }
+              zipfile.openReadStream(entry, (sErr, stream) => {
+                if (sErr || !stream) {
+                  rej2(sErr ?? new Error('엔트리 스트림 열기 실패'))
+                  return
+                }
+                addEntry(raw, stream) // 즉시 등록(yazl lazy 소비) — 소비 대기 안 함.
+                zipfile.readEntry()
+              })
+            })
+            zipfile.on('end', () => res2())
+            zipfile.on('error', (e) => rej2(e))
+            zipfile.readEntry()
+          })
+        resolve({ pump, close })
       }
     )
   })

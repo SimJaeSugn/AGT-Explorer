@@ -283,15 +283,23 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     items.push({ id: 'properties', label: '속성', run: () => void showPropertiesFor(single.path) })
   }
 
-  // ── "Windows 메뉴" 섹션(§Y1) — 단일 선택(파일/폴더) + 로컬 경로일 때만 병합 ──────
-  // 다중 선택·빈 영역·원격/archive 경로는 섹션 자체 비노출(아래 분기 진입 안 함).
-  // winVerbs 는 메뉴 열림 직후 openRowContextMenu→loadWinVerbs 가 비동기로 채운다
-  // (loading→ready/empty). buildWinVerbsSection 이 상태별 MenuItem(로딩 행/verb 행/없음)
-  // 을 순수 합성한다. empty/undefined 면 빈 배열 → 기존 메뉴 무손상(append-only).
-  if (!multi && single && locationKindOf(single.path) === 'local') {
-    const winVerbs = store.getState().contextMenu?.winVerbs
-    const targetPath = single.path
-    items.push(...buildWinVerbsSection(winVerbs, (verbId) => void invokeWinVerb(targetPath, verbId)))
+  // ── "Windows 메뉴" 섹션(§Y1) — 단일/다중 선택(파일/폴더) + 로컬 경로일 때 병합 ──────
+  // 단일=COM Verbs·다중=IContextMenu(선택 전체를 하나로: 압축·보내기 등). 빈 영역·원격/
+  // archive(inArchive) 경로는 섹션 자체 비노출. winVerbs 는 메뉴 열림 직후 openRowContextMenu
+  // →loadWinVerbs 가 비동기로 채운다(loading→ready/empty). buildWinVerbsSection 이 상태별
+  // MenuItem(로딩 행/verb 행/없음)을 순수 합성한다. empty/undefined 면 빈 배열 → 무손상(append-only).
+  {
+    const cm = store.getState().contextMenu
+    const winPaths: string[] = cm?.targetPaths
+      ? [...cm.targetPaths]
+      : single
+        ? [single.path]
+        : [...ctx.selectedPaths]
+    const allLocal = winPaths.length > 0 && winPaths.every((p) => locationKindOf(p) === 'local')
+    if (allLocal && !inArchive) {
+      const winVerbs = cm?.winVerbs
+      items.push(...buildWinVerbsSection(winVerbs, (verbId) => void invokeWinVerb(winPaths, verbId)))
+    }
   }
 
   return items
@@ -323,17 +331,21 @@ export function openRowContextMenu(
     s.clickSelect(panelId, visiblePaths, index, false, false)
   }
 
-  s.openContextMenu({ x: clientX, y: clientY, panelId, targetPath: entry.path })
+  // 선택 보정 후 최종 선택 집합을 메뉴 대상 경로로 고정(단일=1개·다중=선택 전체).
+  const finalSel = store.getState().selection[panelId]
+  const targetPaths =
+    finalSel && finalSel.selectedPaths.size > 0 ? [...finalSel.selectedPaths] : [entry.path]
 
-  // §Y1: 메뉴가 실제로 열렸고(모달 우선 거부 아님), 단일 선택 + 로컬 경로일 때만
-  // "Windows 메뉴" 섹션을 비동기로 채운다(loading→ready/empty). 다중 선택·원격·archive 는
-  // 섹션 자체가 비노출이므로 워커 조회조차 하지 않는다(불필요한 spawn 회피).
+  s.openContextMenu({ x: clientX, y: clientY, panelId, targetPath: entry.path, targetPaths })
+
+  // §Y1: 메뉴가 실제로 열렸고(모달 우선 거부 아님), 대상 경로가 모두 로컬일 때만
+  // "Windows 메뉴" 섹션을 비동기로 채운다(loading→ready/empty). 단일=COM Verbs·다중=
+  // IContextMenu. 원격/archive 가 하나라도 섞이면 워커 조회조차 하지 않는다(spawn 회피).
   const opened = store.getState().contextMenu
   if (opened && opened.targetPath === entry.path) {
-    const finalSel = store.getState().selection[panelId]
-    const single = (finalSel?.selectedPaths.size ?? 0) === 1
-    if (single && locationKindOf(entry.path) === 'local') {
-      loadWinVerbs(entry.path)
+    const allLocal = targetPaths.length > 0 && targetPaths.every((p) => locationKindOf(p) === 'local')
+    if (allLocal) {
+      loadWinVerbs(targetPaths)
     }
   }
 }

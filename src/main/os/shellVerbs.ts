@@ -187,18 +187,19 @@ export class ShellVerbsService {
   }
 
   /**
-   * 단일 항목 verb 조회. 블랙리스트 필터 후 verbs 반환. 실패/타임아웃/spawn 불가/빈
-   * 목록은 **모두 ok({verbs:[]})** 로 수렴한다(empty 포괄 — 핸들러가 섹션 비노출).
-   * stale-cancel: 새 경로 list 요청이 오면 미완 list 요청을 폐기(빈 목록 resolve).
+   * verb 조회(단일=1개·다중=2개+ 경로). 블랙리스트 필터 후 verbs 반환. 실패/타임아웃/
+   * spawn 불가/빈 목록은 **모두 ok({verbs:[]})** 로 수렴한다(empty 포괄 — 섹션 비노출).
+   * stale-cancel: 새 list 요청이 오면 미완 list 요청을 폐기(빈 목록 resolve).
+   * 워커는 paths.Count 로 단일(COM Verbs)·다중(IContextMenu) 경로를 분기한다.
    */
-  async listVerbs(normalizedPath: string): Promise<Result<ShellContextVerbsRes>> {
-    if (this.cooledDown || process.platform !== 'win32') {
+  async listVerbs(normalizedPaths: string[]): Promise<Result<ShellContextVerbsRes>> {
+    if (this.cooledDown || process.platform !== 'win32' || normalizedPaths.length === 0) {
       return ok({ verbs: [] })
     }
     // stale-cancel: 이전 미완 list 요청(큐 대기 + in-flight)을 빈 목록으로 폐기.
     this.cancelPendingLists()
 
-    const res = await this.request('list', { op: 'list', path: normalizedPath })
+    const res = await this.request('list', { op: 'list', paths: normalizedPaths })
     if (!res.ok || res.value.ok !== true || !Array.isArray(res.value.verbs)) {
       return ok({ verbs: [] })
     }
@@ -207,22 +208,23 @@ export class ShellVerbsService {
   }
 
   /**
-   * verb 실행(fire-and-forget·DoIt). 성공=ok, 스테일/미존재=EVERB, 경로 소실=ENOENT,
-   * 그 외=EUNKNOWN. 타임아웃/spawn 불가도 EUNKNOWN(실행 결과 미추적).
+   * verb 실행(fire-and-forget·DoIt/InvokeCommand). 성공=ok, 스테일/미존재=EVERB,
+   * 경로 소실=ENOENT, 그 외=EUNKNOWN. 타임아웃/spawn 불가도 EUNKNOWN(실행 결과 미추적).
    */
-  async invokeVerb(normalizedPath: string, verbId: string): Promise<Result<void>> {
-    if (this.cooledDown || process.platform !== 'win32') {
-      return err(fileOpError('EUNKNOWN', '셸 메뉴를 사용할 수 없습니다.', normalizedPath))
+  async invokeVerb(normalizedPaths: string[], verbId: string): Promise<Result<void>> {
+    const first = normalizedPaths[0] ?? ''
+    if (this.cooledDown || process.platform !== 'win32' || normalizedPaths.length === 0) {
+      return err(fileOpError('EUNKNOWN', '셸 메뉴를 사용할 수 없습니다.', first))
     }
-    const res = await this.request('invoke', { op: 'invoke', path: normalizedPath, verbId })
+    const res = await this.request('invoke', { op: 'invoke', paths: normalizedPaths, verbId })
     if (!res.ok) {
-      return err(fileOpError('EUNKNOWN', '메뉴 동작을 실행할 수 없습니다.', normalizedPath))
+      return err(fileOpError('EUNKNOWN', '메뉴 동작을 실행할 수 없습니다.', first))
     }
     const r = res.value
     if (r.ok === true) return ok(undefined)
     const code =
       r.code === 'EVERB' ? 'EVERB' : r.code === 'ENOENT' ? 'ENOENT' : 'EUNKNOWN'
-    return err(fileOpError(code, '메뉴 동작을 실행할 수 없습니다.', normalizedPath))
+    return err(fileOpError(code, '메뉴 동작을 실행할 수 없습니다.', first))
   }
 
   /** before-quit 정리(child.kill·큐/in-flight 전부 reject). 멱등. */
@@ -254,7 +256,7 @@ export class ShellVerbsService {
     // in-flight 가 list 면 폐기(워커는 죽이지 않음 — 늦은 응답은 id drop).
     if (this.inFlight && this.inFlight.op === 'list') {
       const p = this.inFlight
-      this.clearPending(p, true)
+      this.clearPending(p)
       p.resolve({ ok: true, verbs: [] })
     }
   }
@@ -262,7 +264,7 @@ export class ShellVerbsService {
   /** 요청 1건을 큐에 넣고 응답을 Promise 로 받는다(워커 미기동 시 lazy 기동). */
   private request(
     op: 'list' | 'invoke',
-    payload: { op: string; path: string; verbId?: string }
+    payload: { op: string; paths: string[]; verbId?: string }
   ): Promise<Result<WorkerResponse>> {
     return new Promise<Result<WorkerResponse>>((resolve) => {
       const id = `v${++this.seq}`
@@ -304,7 +306,7 @@ export class ShellVerbsService {
       // 타임아웃: 해당 요청만 reject(워커 미종료). 늦은 응답은 id drop.
       const p = this.inFlight
       if (p && p.id === next.p.id) {
-        this.clearPending(p, true)
+        this.clearPending(p)
         p.reject()
       }
     }, this.requestTimeoutMs)
@@ -353,7 +355,7 @@ export class ShellVerbsService {
     const id = typeof res.id === 'string' ? res.id : ''
     const p = id ? this.pending.get(id) : undefined
     if (!p) return // 타임아웃·stale-cancel 로 이미 사라진 id 응답 → drop(권고②).
-    this.clearPending(p, false)
+    this.clearPending(p)
     p.resolve(res)
     this.pump() // 다음 큐 항목 송신(FIFO).
   }
@@ -369,7 +371,7 @@ export class ShellVerbsService {
   private failAll(): void {
     if (this.inFlight) {
       const p = this.inFlight
-      this.clearPending(p, true)
+      this.clearPending(p)
       p.reject()
     }
     while (this.queue.length > 0) {
@@ -379,16 +381,14 @@ export class ShellVerbsService {
     }
   }
 
-  /** 타이머 해제 + pending/in-flight 정리. resetInFlight=true 면 inFlight 비움. */
-  private clearPending(p: Pending, resetInFlight: boolean): void {
+  /** 타이머 해제 + pending/in-flight 정리. in-flight 가 이 요청이면 비운다(pump 가 다음 큐 진행). */
+  private clearPending(p: Pending): void {
     if (p.timer) {
       clearTimeout(p.timer)
       p.timer = null
     }
     this.pending.delete(p.id)
-    if (resetInFlight && this.inFlight && this.inFlight.id === p.id) {
-      this.inFlight = null
-    } else if (!resetInFlight && this.inFlight && this.inFlight.id === p.id) {
+    if (this.inFlight && this.inFlight.id === p.id) {
       this.inFlight = null
     }
   }

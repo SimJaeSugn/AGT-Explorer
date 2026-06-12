@@ -185,14 +185,15 @@ export const shellApi = {
   /** shell:open-external — 검증된 http/https URL 을 OS 기본 브라우저로 연다(V1). */
   openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url }),
   /**
-   * shell:context-verbs — 단일 로컬 항목의 셸 컨텍스트 verb 조회(§Y1). 빈 verbs 는
-   * "Windows 메뉴" 섹션 비노출을 의미한다(빈목록·실패·타임아웃 포괄 — empty).
+   * shell:context-verbs — 로컬 항목(들)의 셸 컨텍스트 verb 조회(§Y1). 1개=단일·2개+=다중
+   * 선택(선택 전체를 하나로 처리). 빈 verbs 는 "Windows 메뉴" 섹션 비노출을 의미한다
+   * (빈목록·실패·타임아웃 포괄 — empty).
    */
-  contextVerbs: (path: string): Promise<Result<ShellContextVerbsRes>> =>
-    bridge().shell.contextVerbs({ path }),
-  /** shell:invoke-verb — 셸 verb 실행(fire-and-forget·DoIt). 실패만 err(EVERB/ENOENT/EUNKNOWN, §Y1). */
-  invokeVerb: (path: string, verbId: string): Promise<Result<void>> =>
-    bridge().shell.invokeVerb({ path, verbId })
+  contextVerbs: (paths: string[]): Promise<Result<ShellContextVerbsRes>> =>
+    bridge().shell.contextVerbs({ paths }),
+  /** shell:invoke-verb — 셸 verb 실행(fire-and-forget·DoIt/InvokeCommand). 실패만 err(EVERB/ENOENT/EUNKNOWN, §Y1). */
+  invokeVerb: (paths: string[], verbId: string): Promise<Result<void>> =>
+    bridge().shell.invokeVerb({ paths, verbId })
 }
 
 // ── op:* 어댑터 (P4: 파일 작업 시작/취소/충돌해소) ──────────────────────
@@ -613,8 +614,8 @@ export const previewApi = {
   /** preview:read — 단일 경로의 미리보기 데이터(이미지/텍스트/메타/미지원). */
   read: (path: string): Promise<Result<PreviewData>> => bridge().preview.read({ path }),
   /** preview:thumbnail — 그리드 이미지 썸네일 dataUrl(미지원/실패 시 dataUrl=null → OS 아이콘 폴백, L1). */
-  thumbnail: (path: string, size: number): Promise<Result<ThumbnailRes>> =>
-    bridge().preview.thumbnail({ path, size })
+  thumbnail: (path: string, size: number, mtime?: number): Promise<Result<ThumbnailRes>> =>
+    bridge().preview.thumbnail(mtime === undefined ? { path, size } : { path, size, mtime })
 }
 
 // ── workspace:* 어댑터 (P6c: 명시적 워크스페이스 저장/복원) ───────────────

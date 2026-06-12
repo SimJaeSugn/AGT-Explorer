@@ -251,25 +251,28 @@ export function registerShellHandlers(): void {
       const parsed = parseArgs(zShellContextVerbsReq, raw)
       if (!parsed.ok) return parsed as Result<ShellContextVerbsRes>
 
-      // 로컬 한정: 원격/archive prefix 는 raw 입력에서 거부(guardPath 정규화 전).
-      if (isNonLocalPath(parsed.value.path)) {
-        return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.path))
+      // 로컬 한정: 하나라도 원격/archive prefix 면 거부(guardPath 정규화 전).
+      if (parsed.value.paths.some(isNonLocalPath)) {
+        return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.paths[0] ?? ''))
       }
 
-      // (a) 경로 정규화·상위이탈 차단.
-      const g = guardPath(parsed.value.path)
-      if (!g.ok) return g as Result<ShellContextVerbsRes>
-      const path = g.value
+      // (a) 경로 정규화·상위이탈 차단(각 경로).
+      const paths: string[] = []
+      for (const raw of parsed.value.paths) {
+        const g = guardPath(raw)
+        if (!g.ok) return g as Result<ShellContextVerbsRes>
+        paths.push(g.value)
+      }
 
-      // (b) 대상 존재 확인 — 미존재면 빈 목록(섹션 비노출).
+      // (b) 대상 존재 확인 — 하나라도 미존재면 빈 목록(스테일 선택=섹션 비노출).
       try {
-        await fsp.access(path, fsConstants.F_OK)
+        await Promise.all(paths.map((p) => fsp.access(p, fsConstants.F_OK)))
       } catch {
         return ok({ verbs: [] })
       }
 
       // 워커 위임 — listVerbs 는 실패/타임아웃/빈 목록을 모두 ok({verbs:[]}) 로 수렴.
-      return shellVerbsService.listVerbs(path)
+      return shellVerbsService.listVerbs(paths)
     }
   )
 
@@ -283,21 +286,28 @@ export function registerShellHandlers(): void {
     const parsed = parseArgs(zShellInvokeVerbReq, raw)
     if (!parsed.ok) return parsed as Result<void>
 
-    if (isNonLocalPath(parsed.value.path)) {
-      return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.path))
+    if (parsed.value.paths.some(isNonLocalPath)) {
+      return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.paths[0] ?? ''))
     }
 
-    const g = guardPath(parsed.value.path)
-    if (!g.ok) return g as Result<void>
-    const path = g.value
+    // (a) 경로 정규화·상위이탈 차단(각 경로).
+    const paths: string[] = []
+    for (const raw of parsed.value.paths) {
+      const g = guardPath(raw)
+      if (!g.ok) return g as Result<void>
+      paths.push(g.value)
+    }
 
+    // (b) 대상 존재 확인 — 하나라도 미존재면 ENOENT(스테일 선택).
     try {
-      await fsp.access(path, fsConstants.F_OK)
+      await Promise.all(paths.map((p) => fsp.access(p, fsConstants.F_OK)))
     } catch (e) {
-      const fe = toFileOpError(e, path)
-      return err(fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', path) : fe)
+      const fe = toFileOpError(e, paths[0] ?? '')
+      return err(
+        fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', paths[0] ?? '') : fe
+      )
     }
 
-    return shellVerbsService.invokeVerb(path, parsed.value.verbId)
+    return shellVerbsService.invokeVerb(paths, parsed.value.verbId)
   })
 }

@@ -23,7 +23,14 @@ export function naturalCompare(a: string, b: string): number {
     const aIsNum = !Number.isNaN(an) && /^\d/.test(as)
     const bIsNum = !Number.isNaN(bn) && /^\d/.test(bs)
     if (aIsNum && bIsNum) {
-      if (an !== bn) return an - bn
+      // 큰 숫자(>15자리)는 Number() 변환 시 double 정밀도가 무너져 서로 다른 값이 같아지므로
+      // 자릿수 문자열로 비교한다: 선행 0 제거 → 길이 비교 → 사전순(임의 자릿수 정확).
+      const ad = as.replace(/^0+(?=\d)/, '')
+      const bd = bs.replace(/^0+(?=\d)/, '')
+      if (ad.length !== bd.length) return ad.length - bd.length
+      if (ad !== bd) return ad < bd ? -1 : 1
+      // 수치는 같고 선행 0 개수만 다르면 짧은 쪽(0 적은 쪽)을 앞으로(결정론적 안정).
+      if (as.length !== bs.length) return as.length - bs.length
     } else {
       const c = as.localeCompare(bs)
       if (c !== 0) return c

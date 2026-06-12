@@ -110,6 +110,9 @@ export const createDedupSlice: SliceCreator<DedupSlice> = (set) => ({
       s.dedupGroups = groups.map((g) => ({ ...g, files: [...g.files] }))
       s.dedupTruncated = truncated
       s.dedupCurrentPath = ''
+      // 완료된 잡 id 정리(형제 _dedupError/markDedupCanceling 과 정합) — 끝난 잡의 늦은
+      // done 이 브리지 필터(evt.jobId !== dedupJobId)를 통과해 재적용되는 것을 방지.
+      s.dedupJobId = null
       // 기본 추천 선택(원본 1개 보존 외 전체) — 사용자가 조정 가능.
       s.dedupSelected = new Set<string>(recommended)
     })

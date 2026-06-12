@@ -63,7 +63,11 @@ export function registerPreviewHandlers(): void {
   handleGuarded(CHANNELS.PREVIEW_THUMBNAIL, zThumbnailReq, async (req): Promise<Result<ThumbnailRes>> => {
     const g = guardPath(req.path)
     if (!g.ok) return g as Result<ThumbnailRes>
-    const dataUrl = await getThumbnailDataUrl({ path: g.value, size: req.size })
+    const dataUrl = await getThumbnailDataUrl({
+      path: g.value,
+      size: req.size,
+      ...(req.mtime !== undefined ? { mtime: req.mtime } : {})
+    })
     return ok({ dataUrl })
   })
 }

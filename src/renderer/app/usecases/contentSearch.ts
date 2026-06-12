@@ -16,6 +16,7 @@ import { searchApi, subscribeContentSearchStream } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import { isMyPc, parentOf } from '@renderer/domain/paths'
 import { isRemotePath } from '@renderer/domain/rules/remoteLocation'
+import { visibleEntries } from './selectors'
 
 /** 활성 패널의 현재 폴더(검색 범위). "내 PC"·원격이면 null. */
 function activeRoot(): string | null {
@@ -147,8 +148,11 @@ function waitForPanelReady(panelId: string, path: string, file: string): void {
 
 /** 패널에서 경로 1개를 단일 선택(파일이 목록에 있을 때만 의미). */
 function selectInPanel(panelId: string, file: string): void {
+  // 파일의 실제 목록 인덱스를 anchor 로 설정(0 고정 금지) — 점프 후 ↑/↓·Shift 범위·퀵룩이
+  // 올바른 행 기준으로 동작하도록. 목록 미로딩 등으로 못 찾으면 0 폴백(기존 동작).
+  const idx = visibleEntries(panelId).findIndex((e) => e.path === file)
   store.getState().setSelection(panelId, {
-    anchorIndex: 0,
+    anchorIndex: idx >= 0 ? idx : 0,
     selectedPaths: new Set<string>([file])
   })
 }

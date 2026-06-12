@@ -175,15 +175,20 @@ export interface ShellIconRes {
 
 // ── §Y1: shell:context-verbs / shell:invoke-verb (상주 PowerShell·COM Verbs) ──
 export interface ShellContextVerbsReq {
-  /** 우클릭한 단일 항목의 절대 로컬 경로(핸들러가 guardPath·존재·로컬 한정 검증). */
-  readonly path: string
+  /**
+   * 우클릭 대상 항목들의 절대 로컬 경로. 1개=단일 선택(COM `Verbs()`), 2개 이상=다중 선택
+   * (Shell `IContextMenu` 다중 PIDL — 선택 전체를 하나로 처리: 압축·보내기 등).
+   * 핸들러가 각 경로 guardPath·존재·로컬 한정 검증한다.
+   */
+  readonly paths: string[]
 }
 export interface ShellContextVerbsRes {
   /** 블랙리스트 필터 후의 표시용 verb 목록(빈 배열=섹션 비노출=빈목록·실패·타임아웃 포괄). */
   readonly verbs: ShellVerbDTO[]
 }
 export interface ShellInvokeVerbReq {
-  readonly path: string
+  /** 조회와 동일한 대상 경로 집합(단일=1개·다중=2개 이상). */
+  readonly paths: string[]
   /** `"<index>:<정규화표시명>"` 합성키(조회 응답의 verbId 그대로). */
   readonly verbId: string
 }
@@ -283,6 +288,8 @@ export interface PreviewReadReq {
 export interface ThumbnailReq {
   readonly path: string
   readonly size: number
+  /** 파일 수정시각(ms). 캐시 키에 포함 — 파일 교체 시 stale 썸네일 방지(옵셔널·하위호환). */
+  readonly mtime?: number
 }
 /** 썸네일 결과. dataUrl=null 이면 폴백(미지원/손상/대용량) → 렌더러가 OS 아이콘 표시. */
 export interface ThumbnailRes {

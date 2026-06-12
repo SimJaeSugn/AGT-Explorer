@@ -199,8 +199,10 @@ export function registerOpHandlers(): void {
       try {
         const st = await fsp.stat(p)
         if (!st.isDirectory()) return err(fileOpError('ENOTDIR', '폴더가 아닙니다.', p))
-      } catch {
-        return err(fileOpError('ENOENT', '대상을 찾을 수 없습니다.', p))
+      } catch (e) {
+        // 실제 errno 보존(EACCES/EPERM 은폐 방지) — 미존재만 ENOENT 로.
+        const fe = toFileOpError(e, p)
+        return err(fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', p) : fe)
       }
     }
     return operationManager.startRobocopyMirror(

@@ -16,7 +16,7 @@ import { basename, join, relative } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Worker } from 'node:worker_threads'
 import type { WebContents } from 'electron'
-import type { OpSummary, OpFailure } from '@shared/dto'
+import type { OpSummary, OpFailure, ConflictPolicy } from '@shared/dto'
 import type { Result } from '@shared/ipc/contracts'
 import { ok } from '@shared/ipc/contracts'
 import { safeArchiveEntryName } from '@shared/archive/safePath'
@@ -71,7 +71,8 @@ export class ArchiveService {
     archivePath: string,
     innerPaths: string[],
     destDir: string,
-    wc: WebContents
+    wc: WebContents,
+    conflictPolicy?: ConflictPolicy
   ): Result<{ operationId: string }> {
     const cancelBuffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)
     const cancelView = new Int32Array(cancelBuffer)
@@ -85,6 +86,7 @@ export class ArchiveService {
       archivePath,
       innerPaths,
       destDir,
+      ...(conflictPolicy ? { extractConflict: conflictPolicy } : {}),
       cancelBuffer
     }
     this.spawn(job, handle, archivePath)

@@ -92,6 +92,17 @@ export function CompareView(): JSX.Element | null {
   }, [])
   useEffect(() => () => roRef.current?.disconnect(), [])
 
+  // 좌측 컨테이너 ref: sync.leftRef + measureRef 합성을 **안정 useCallback** 으로 묶는다.
+  // 인라인 화살표로 두면 매 렌더 ref 정체성이 바뀌어 detach/attach → measureRef 가 매 렌더
+  // ResizeObserver 를 파괴·재생성한다(스크롤마다 발생). 둘 다 안정 함수라 의존성 안정.
+  const leftContainerRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      sync.leftRef(el)
+      measureRef(el)
+    },
+    [sync.leftRef, measureRef]
+  )
+
   const rowH = tokens.rowHeight
   const winLeft = computeWindow({
     scrollTop: leftScrollTop,
@@ -170,10 +181,7 @@ export function CompareView(): JSX.Element | null {
       ) : (
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <ScrollColumn
-            containerRef={(el) => {
-              sync.leftRef(el)
-              measureRef(el)
-            }}
+            containerRef={leftContainerRef}
             onScroll={(e) => {
               setLeftScrollTop(e.currentTarget.scrollTop)
               sync.onLeftScroll()

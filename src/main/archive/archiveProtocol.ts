@@ -9,7 +9,7 @@
  * 전송 규칙: postMessage 는 구조화 복제(순수 직렬화 객체만). 취소는 SharedArrayBuffer(Int32[0])
  * 1워드(scanProtocol/hashProtocol 동형).
  */
-import type { FileOpErrorCode } from '@shared/dto'
+import type { FileOpErrorCode, ConflictPolicy } from '@shared/dto'
 
 /** 잡 종류. */
 export type ArchiveJobKind = 'extract' | 'add'
@@ -35,6 +35,8 @@ export interface ArchiveJob {
   readonly innerPaths?: readonly string[]
   /** 로컬 도착 디렉토리(guardPath 통과). 추출 전용. */
   readonly destDir?: string
+  /** 추출 동명 충돌 정책(skip=건너뜀·rename=유니크명). 미지정/overwrite/merge=덮어쓰기. 추출 전용. */
+  readonly extractConflict?: ConflictPolicy
   // ── add 전용 ──
   /** 추가할 신규 항목(파일 단위로 전개 완료). */
   readonly addItems?: readonly ArchiveAddItem[]

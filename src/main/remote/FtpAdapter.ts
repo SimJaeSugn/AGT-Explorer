@@ -154,7 +154,9 @@ export class FtpAdapter implements RemoteAdapter {
     const client = this.client
     const dst = createWriteStream(localPath)
     client.trackProgress((info) => {
-      if (cancel.aborted) client.close()
+      // 취소: 전송 스트림만 destroy(제어 연결은 유지) — client.close() 는 세션 전체를
+      // 끊어 이후 list/stat/download 가 좀비가 된다(SFTP 어댑터와 동일하게 스트림만 중단).
+      if (cancel.aborted) dst.destroy()
       else onProgress(info.bytes)
     })
     try {
@@ -180,7 +182,8 @@ export class FtpAdapter implements RemoteAdapter {
     const client = this.client
     const src = createReadStream(localPath)
     client.trackProgress((info) => {
-      if (cancel.aborted) client.close()
+      // 취소: 전송 스트림만 destroy(제어 연결 유지 — 세션 보존). client.close() 금지.
+      if (cancel.aborted) src.destroy()
       else onProgress(info.bytes)
     })
     try {

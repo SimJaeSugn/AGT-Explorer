@@ -516,12 +516,13 @@ Ctrl+Shift+P(신규·미배정 키) → 팔레트 오버레이 열기(Esc 닫기
 
 ### F37. 우클릭 → Windows 셸 컨텍스트 메뉴 항목 노출·실행 (Y1 구현 완료(코드)·실 GUI/실 패키지 🟡 — features §Y1·US-23.1, 신규 채널 `shell:context-verbs`/`shell:invoke-verb`)
 ```
-[우클릭] 파일 목록에서 단일 파일/폴더 우클릭 → 앱 컨텍스트 메뉴(B6) 표시
+[우클릭] 파일 목록에서 파일/폴더 우클릭(단일 또는 다중 선택) → 앱 컨텍스트 메뉴(B6) 표시
    ├─ 상단: 앱 자체 명령(열기·연결 프로그램·복사/잘라내기/이름바꾸기·삭제·속성 — B6 기존)
    └─ 하단: 구분선 + "Windows 메뉴" 섹션
 [조회·로딩] "Windows 메뉴" 섹션 = 상주 PowerShell 워커(기존 hash/archive 워커 패턴)에
    verb 조회 요청(신규 IPC 채널 — verb 조회·정확한 채널명 설계 단계 확정)
-   → 워커: 셸 COM Shell.Application의 FolderItem.Verbs()로 해당 항목 경로의 verb 열거
+   → 워커: 셸 COM Shell.Application의 FolderItem.Verbs()로 verb 열거
+     (단일=해당 항목 경로 / 다중=선택한 파일/폴더 전체를 하나의 셸 컨텍스트 메뉴로 처리 — Windows 탐색기 다중선택 우클릭과 동일)
    → 첫 기동/첫 조회 지연 시 섹션에 로딩 상태 표시("Windows 메뉴 불러오는 중…") 허용(정직 한계 ⑤)
 [병합·필터] 열거된 verb 목록을 앱 React 메뉴 항목으로 병합 렌더
    ├─ 중복 필터: 앱 자체 구현 verb(canonical name 블랙리스트 open/cut/copy/paste/delete/rename/properties 등) 제외(정직 한계 ③)
@@ -529,15 +530,17 @@ Ctrl+Shift+P(신규·미배정 키) → 팔레트 오버레이 열기(Esc 닫기
    └─ 예: "반디집으로 압축하기" / "Cursor로 열기" / "AGT-Finder로 열기" 등 설치 프로그램 항목(PoC 2026-06-12 실증)
 [실행] "Windows 메뉴" 항목 클릭 → 워커에 verb 실행 요청(신규 IPC 채널 — verb 실행)
    → 워커: 해당 verb.DoIt() 호출(외부 프로그램 실행)
+     (다중 선택 시 선택 전체에 대해 하나로 일괄 실행 — 예: "압축"은 선택 파일들을 하나의 archive로 묶음)
    → fire-and-forget: 실행 결과(성공/실패)를 앱이 추적하지 않음(정직 한계 ④)
-[예외] 다중 선택 시 → "Windows 메뉴" 섹션 숨김(COM Verbs()는 단일 항목 기준·1차 단일 한정·정직 한계 ②)
+[예외] 원격(FTP/SFTP)·archive:// 경로가 하나라도 섞이면 → "Windows 메뉴" 섹션 숨김(셸 verb는 로컬 파일시스템 경로 기준·정직 한계 ②)
 [예외] 워커 조회 실패/타임아웃 → 섹션 비노출(앱 자체 메뉴는 정상)·크래시 없음
 [예외] verb 실행 실패 → 무음 또는 가벼운 안내(토스트) 수준(추적 안 함)
 ※ 셸 COM Shell.Application 사용(FolderItem.Verbs()/verb.DoIt())·네이티브 N-API 애드온 비채택·신규 네이티브 의존성 0
 ※ 우클릭한 실제 항목 경로에 대해서만 verb 열거·실행(임의 명령 합성 없음·ADR-005 보안 모델·정확한 가드는 설계 단계 확정)
 ※ 기존 컨텍스트 메뉴 인프라(B6 ui/contextmenu/) 확장 — 앱 자체 명령(B6) 동작 불변·"Windows 메뉴" 섹션만 추가
-※ 비범위(Non-goal): 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현·다중 선택 일괄 invoke
-※ 구현 완료(코드)·통합 QA PASS(2026-06-12·`shellVerbs.ts`/`shellVerbsBlacklist.ts`/`shellVerbsSection.ts`/`shellVerbsWorker.ps1`·`shell.handlers.ts`·신규 채널 `shell:context-verbs`/`shell:invoke-verb`·`verify:shellverbs` 75/0) — 실 GUI(섹션 표출·verb 클릭 실행)·실 패키지 설치본은 런타임 스모크 🟡(✅ 위장 아님)
+※ 비범위(Non-goal): 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현
+※ 구현 완료(코드)·통합 QA PASS(2026-06-12·`shellVerbs.ts`/`shellVerbsBlacklist.ts`/`shellVerbsSection.ts`/`shellVerbsWorker.ps1`·`shell.handlers.ts`·신규 채널 `shell:context-verbs`/`shell:invoke-verb`·`verify:shellverbs` 95/0) — 실 GUI(섹션 표출·verb 클릭 실행)·실 패키지 설치본은 런타임 스모크 🟡(✅ 위장 아님)
+※ [2026-06-12 후속 확장 — 정식 편입] 단일 선택 전용 → 단일+다중 선택(다중=Shell `IContextMenu` 다중 PIDL·선택 전체를 하나로[압축·보내기]·계약 `path: string`→`paths: string[]`·신규 채널 0). 위 플로 본문(진입·조회·실행·예외·Non-goal)은 사용자 결정으로 단일+다중 동작에 맞게 갱신됨(이전 "다중 선택 시 섹션 숨김"·비범위 "다중 선택 일괄 invoke" 문구는 구현과 정합되도록 제거/대체). 다중 invoke 는 비파괴 verb(Copy as path) 노드 스모크로만 실증·압축/보내기 등 부수효과 verb 실 GUI 클릭은 🟡(상태 등급·verify 수치는 roadmap §0.5/traceability 단일 출처 — doc-synchronizer 소관)
 ```
 
 ---
@@ -592,7 +595,7 @@ Ctrl+Shift+P(신규·미배정 키) → 팔레트 오버레이 열기(Esc 닫기
 | 퀵룩 미지원 형식(U1 ✅ 코드/실 GUI 🟡) | 미지원 형식은 메타+아이콘 폴백(빈 화면 없음)·동영상/오디오/PDF 다중 페이지는 1차 제외·안전 모델(CSP·DOMPurify·렌더러 직접 파일 접근 없음·D3/J5 재사용)·`Space` 입력/이름편집/오버레이 중 미발화. M8 구현 완료(코드)·실 GUI 🟡 |
 | 브레드크럼 드롭다운 로드(U2 ✅ 코드/실 GUI 🟡) | 형제 폴더 목록 온디맨드 비동기 로드(`fs:tree-children` 재사용·주소 표시줄 비차단)·권한 없음/지연 안내·형제 많으면 스크롤/필터·키보드 내비(↑/↓·Enter·Esc)·원격 경로 ▾ 비표시. M8 구현 완료(코드)·실 GUI 🟡 |
 | 탭 잠금 닫기 방지(U3 ✅ 코드/실 GUI 🟡) | 잠긴 탭은 `Ctrl+W`·가운데클릭·X로 닫히지 않음(잠금 표식)·해제 토글. 탭 분리=새 창(멀티 윈도우·`window:split-tab`·창 간 상태 격리·IPC guard ADR-005)·창 간 탭 이동은 1차 제외·분리 창은 reopen-only(주 창만 세션 복원) |
-| Windows 메뉴 다중 선택/조회 실패(Y1 구현 완료(코드)·실 GUI 🟡) | 다중 선택 시 "Windows 메뉴" 섹션 숨김(COM `Verbs()` 단일 항목 기준). 워커 조회 실패/타임아웃 시 섹션 비노출(앱 자체 메뉴 정상·크래시 없음). 캐스케이드 서브메뉴는 평탄화/누락 가능(보이는 것만 best-effort). 중복 verb(open/cut/copy/delete/rename/properties 등) 블랙리스트 필터로 비노출 |
+| Windows 메뉴 다중 선택/조회 실패(Y1 구현 완료(코드)·실 GUI 🟡) | 단일·다중 선택 모두 "Windows 메뉴" 섹션 노출(로컬 경로 한정). 다중 선택은 선택 전체를 하나의 셸 컨텍스트 메뉴로 처리(압축=하나의 archive·보내기/검사/공유 등 선택 전체 적용). 원격(FTP/SFTP)·archive:// 경로가 하나라도 섞이면 섹션 숨김(셸 verb는 로컬 경로 기준). 워커 조회 실패/타임아웃 시 섹션 비노출(앱 자체 메뉴 정상·크래시 없음). 캐스케이드 서브메뉴는 평탄화/누락 가능(보이는 것만 best-effort). 중복 verb(open/cut/copy/delete/rename/properties 등) 블랙리스트 필터로 비노출 |
 | Windows 메뉴 verb 실행 실패(Y1 구현 완료(코드)·실 GUI 🟡) | verb 실행은 외부 프로그램 실행이라 fire-and-forget(성공/실패 미추적). 실행 실패 시 무음 또는 가벼운 토스트 안내(임의 재시도 없음)·우클릭한 실제 항목 경로에 대해서만 실행(ADR-005·임의 명령 합성 없음·정확한 가드 설계 단계 확정) |
 
 ---

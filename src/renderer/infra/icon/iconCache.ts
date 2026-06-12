@@ -24,6 +24,19 @@ const PER_FILE_EXT = new Set(['exe', 'lnk', 'ico', 'cur', 'ani', 'msc', 'scr'])
 
 /** 성공 dataUrl 캐시(key → dataUrl). 실패는 저장하지 않는다. */
 const cache = new Map<string, string>()
+/**
+ * 캐시 상한. `path:<경로>`(exe/lnk/ico…) 항목은 항목당 고유 키라 장시간 탐색 시 무한 누적
+ * → 렌더러 메모리 누수. 초과 시 가장 오래된 `path:*` 항목부터 제거(공용 ext:/__dir__/__drive__
+ * 키는 보존). evict 된 항목이 화면에 보이면 다음 렌더에서 재요청된다(폴백 후 곧 복원).
+ */
+const MAX_ICON_CACHE = 600
+function evictIconCacheIfNeeded(): void {
+  if (cache.size <= MAX_ICON_CACHE) return
+  for (const k of cache.keys()) {
+    if (cache.size <= MAX_ICON_CACHE) break
+    if (k.startsWith('path:')) cache.delete(k) // 삽입 순(오래된 것부터).
+  }
+}
 /** in-flight Promise(key → Promise) — 동일 키 동시요청 디듀프. */
 const inflight = new Map<string, Promise<void>>()
 /** 캐시 변경 구독자(useSyncExternalStore). */
@@ -97,6 +110,7 @@ export function requestIcon(entry: FileEntryDTO): Promise<void> {
       const res = await shellApi.icon(iconRequestFor(entry))
       if (res.ok && res.value.dataUrl) {
         cache.set(key, res.value.dataUrl)
+        evictIconCacheIfNeeded()
         notify()
       }
       // 실패·빈 dataUrl 은 캐시하지 않음(폴백 유지, 다음 경로로 재시도).

@@ -51,9 +51,12 @@ export interface ThumbnailServiceDeps {
   readonly decodeResize: (path: string, size: number) => string | null
 }
 
-/** 캐시 키 = `${path}::${size}` (path 별 고유 — ext 공유 불가). */
-export function thumbnailKeyFor(path: string, size: number): string {
-  return `${path}::${size}`
+/**
+ * 캐시 키 = `${path}::${size}[::${mtime}]` (path 별 고유 — ext 공유 불가).
+ * mtime 포함 시 파일 교체(내용 변경) 후 옛 썸네일이 캐시 HIT 로 남는 stale 을 방지한다.
+ */
+export function thumbnailKeyFor(path: string, size: number, mtime?: number): string {
+  return mtime === undefined ? `${path}::${size}` : `${path}::${size}::${mtime}`
 }
 
 // ── LRU(icon.ts lruGet/lruSet 복제 — Map 삽입순 = LRU 순서) ───────────────
@@ -133,13 +136,13 @@ const defaultStatSize = async (path: string): Promise<number> => (await fsp.stat
  * size 는 호출 전 핸들러 가드(THUMB_SIZE_BUCKETS 화이트리스트)를 통과한 값을 전제로 한다.
  */
 export async function getThumbnailDataUrl(
-  req: { path: string; size: number },
+  req: { path: string; size: number; mtime?: number },
   deps?: Partial<ThumbnailServiceDeps>
 ): Promise<string | null> {
   const statSize = deps?.statSize ?? defaultStatSize
   const decodeResize = deps?.decodeResize ?? defaultDecodeResize
 
-  const key = thumbnailKeyFor(req.path, req.size)
+  const key = thumbnailKeyFor(req.path, req.size, req.mtime)
   const cached = lruGet(key)
   if (cached !== undefined) return cached
 

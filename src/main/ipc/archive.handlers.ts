@@ -104,7 +104,13 @@ export function registerArchiveHandlers(): void {
       }
       const g = guardPath(req.destDir)
       if (!g.ok) return g as Result<ArchiveTransferRes>
-      return archiveService().startExtract(archivePath, req.innerPaths, g.value, event.sender)
+      return archiveService().startExtract(
+        archivePath,
+        req.innerPaths,
+        g.value,
+        event.sender,
+        req.conflictPolicy
+      )
     }
   )
 

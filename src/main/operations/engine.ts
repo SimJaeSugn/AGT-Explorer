@@ -303,6 +303,37 @@ async function copyEntry(
     // overwrite: 파일이면 그대로 destPath 에 덮어쓴다(아래에서 기존 제거).
   }
 
+  // 심볼릭/정션 링크: 대상으로 재귀하지 않고 **링크 자체만 재생성**(forceRemove 와 대칭).
+  // 이렇게 안 하면 파일 심볼릭은 대상 내용을 실복사(용량 폭증)하고 디렉토리 정션은
+  // copyFile 이 EISDIR 로 실패한다. 대상이 디렉토리면 'junction'(관리자 권한 불필요),
+  // 아니면 'file'. 재생성 실패는 best-effort 보고(대상 실복사로 폭증시키지 않는다).
+  if (st.isSymbolicLink()) {
+    try {
+      const linkTarget = await fsp.readlink(src)
+      let linkType: 'file' | 'junction' = 'file'
+      try {
+        const ts = await fsp.stat(src) // 링크를 따라가 대상 종류 판정(dangling 이면 catch).
+        if (ts.isDirectory()) linkType = 'junction'
+      } catch {
+        /* dangling 링크 → 'file' 로 재생성 시도 */
+      }
+      if (await pathExists(destPath)) {
+        await chmodWritable(destPath)
+        await fsp.rm(destPath, { force: true, recursive: true }).catch(() => undefined)
+      }
+      await fsp.symlink(linkTarget, destPath, linkType)
+      counters.items++
+      result.succeededItems++
+      hooks.onProgress(counters.bytes, counters.items, name)
+      if (isMove) {
+        await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
+      }
+    } catch (e) {
+      pushFailure(result, hooks, src, e)
+    }
+    return
+  }
+
   if (st.isDirectory()) {
     // 폴더: mkdir(병합이면 기존 유지) 후 자식 재귀.
     try {
@@ -358,9 +389,12 @@ async function copyEntry(
       }
       await copyChild(d.name)
     }
-    // move: 자식까지 복사 끝났으면 원본 폴더 제거(견고 삭제·못 지운 항목만 보고).
+    // move: 복사 성공한 자식들은 각자 자기 원본을 이미 제거했으므로(파일=line 377·폴더=재귀),
+    // 남은 것은 복사 실패한 자식뿐이다. 따라서 원본 폴더는 **재귀 강제삭제 대신 rmdir(빈 폴더만)**
+    // 한다 — 복사 실패로 남은 자식이 있으면 ENOTEMPTY 로 보존된다(부분 실패 시 원본 파괴 방지·데이터 손실 방지).
     if (isMove && !result.canceled) {
-      await forceRemove(src, (p, e) => pushRemoveFailure(result, hooks, p, e))
+      const e = await tryRemove(src, true)
+      if (e !== null) pushRemoveFailure(result, hooks, src, e)
     }
   } else {
     // 파일: 덮어쓰기면 기존 제거 후 복사(크기별 하이브리드 — copyFile/스트림).

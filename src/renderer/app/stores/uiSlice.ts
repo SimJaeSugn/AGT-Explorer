@@ -55,6 +55,11 @@ export interface ContextMenuState {
   /** 우클릭한 항목 경로(빈 영역이면 null). */
   readonly targetPath: string | null
   /**
+   * 메뉴 대상 선택 경로 집합(§Y1 다중 선택). 단일=[targetPath]·다중=보정된 선택 전체.
+   * "Windows 메뉴" verb 조회/실행과 경합 가드가 이 집합을 기준으로 한다(빈 영역이면 미설정).
+   */
+  readonly targetPaths?: string[]
+  /**
    * "Windows 메뉴" 섹션(§Y1)의 비동기 채움 상태(loadWinVerbs 가 setWinVerbs 로 갱신).
    * 메뉴 열림 직후 단일 로컬 항목일 때만 채워지며, 메뉴 닫힘(contextMenu=null) 시 함께
    * 사라진다. undefined/empty=섹션 비노출 · loading=로딩 행 · ready=verb 행(items).

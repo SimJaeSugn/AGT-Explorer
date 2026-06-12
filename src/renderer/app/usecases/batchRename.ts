@@ -134,6 +134,8 @@ export async function applyBatchRename(panelId: string, result: BatchRenameResul
         appliedItems.push({ newPath: r2.value.path, oldName: st.oldName, newName: r2.value.name })
       } else {
         failed++
+        // 2단계 실패 → 임시명(.agtbr-…)이 디스크에 남지 않도록 원래 이름으로 best-effort 복구.
+        await fsApi.rename({ path: st.tempPath, newName: st.oldName })
       }
     }
   } else {

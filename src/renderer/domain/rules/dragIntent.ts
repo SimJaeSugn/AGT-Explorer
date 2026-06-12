@@ -89,8 +89,10 @@ function key(p: string): string {
  */
 export function isInsideOrEqual(src: string, dest: string): boolean {
   if (isMyPc(src)) return false
-  const s = key(src)
-  const d = key(dest)
+  // 후행 백슬래시 제거 — 드라이브 루트(C:\)는 normalizeDisplay 가 끝 `\`를 보존해
+  // `s + '\\'` 가 `C:\\`(이중)이 되어 자손 판정이 어긋난다(루트→하위 순환 이동 미차단).
+  const s = key(src).replace(/\\+$/, '')
+  const d = key(dest).replace(/\\+$/, '')
   if (s === d) return true
   return d.startsWith(s + '\\')
 }

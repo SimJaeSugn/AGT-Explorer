@@ -141,10 +141,12 @@ export const zShellIconReq = z.object({
 })
 
 // ── §Y1: shell:context-verbs / shell:invoke-verb ──────────────────────────
-// path 는 형태(min1)만 1차 검증, 핸들러가 guardPath·존재·로컬 한정(원격/archive
-// prefix 거부) 재검증. verbId 는 "<index>:<정규화표시명>" 합성키(상한 512 — 거대 입력 차단).
-export const zShellContextVerbsReq = z.object({ path: zPath })
-export const zShellInvokeVerbReq = z.object({ path: zPath, verbId: z.string().min(1).max(512) })
+// paths 는 형태(각 min1)만 1차 검증, 핸들러가 guardPath·존재·로컬 한정(원격/archive
+// prefix 거부) 재검증. 1개=단일·2개+=다중 선택(IContextMenu). 상한 1024(거대 입력 차단).
+// verbId 는 "<index>:<정규화표시명>" 합성키(상한 512 — 거대 입력 차단).
+const zShellPaths = z.array(zPath).min(1).max(1024)
+export const zShellContextVerbsReq = z.object({ paths: zShellPaths })
+export const zShellInvokeVerbReq = z.object({ paths: zShellPaths, verbId: z.string().min(1).max(512) })
 
 // ── P5: session:* / settings:* / telemetry:set-opt-in ────────────────────
 // SessionSnapshot 은 구조가 깊고 Renderer 가 생성한 직렬화 객체이므로,
@@ -199,7 +201,8 @@ export const THUMB_SIZE_BUCKETS = [32, 48, 64, 96, 128] as const
 const THUMB_SIZE_BUCKET_SET: ReadonlySet<number> = new Set(THUMB_SIZE_BUCKETS)
 export const zThumbnailReq = z.object({
   path: zPath,
-  size: z.number().refine((v) => THUMB_SIZE_BUCKET_SET.has(v), '허용되지 않은 썸네일 크기')
+  size: z.number().refine((v) => THUMB_SIZE_BUCKET_SET.has(v), '허용되지 않은 썸네일 크기'),
+  mtime: z.number().optional()
 })
 
 // workspace:* — SessionSnapshot 은 깊은 직렬화 객체이므로 형태 1차(version)만

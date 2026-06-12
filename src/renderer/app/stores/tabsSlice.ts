@@ -301,10 +301,15 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       const tabId = nextId('tab')
       const panelIds = rec.panels.map(() => nextId('panel'))
       rec.panels.forEach((pn, i) => {
-        get().addPanel(panelIds[i] as string, pn.path)
-        get().resetSelection(panelIds[i] as string)
-        // 복원된 뷰 상태 반영.
-        get().setViewMode(panelIds[i] as string, pn.view.viewMode)
+        const pid = panelIds[i] as string
+        get().addPanel(pid, pn.path)
+        get().resetSelection(pid)
+        // 복원된 뷰 상태 전체 반영(viewMode 뿐 아니라 sortKey/sortDir/folderFirst — 캡처값 보존).
+        get().applyPanelState(pid, {
+          view: { ...pn.view },
+          nav: { back: [], forward: [] },
+          scrollTop: 0
+        })
       })
       const tab: Tab = {
         id: tabId,

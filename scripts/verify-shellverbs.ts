@@ -21,6 +21,7 @@ import {
   makeVerbId,
   normalizeVerbName,
   parseVerbId,
+  translateVerbDisplay,
   type RawShellVerb
 } from '../src/main/os/shellVerbsBlacklist'
 import {
@@ -92,7 +93,12 @@ function makeFake(): FakeTransport {
 }
 
 /** 송신된 마지막 요청의 파싱(JSON). */
-function lastReq(t: FakeTransport): { id: string; op: string; path?: string; verbId?: string } {
+function lastReq(t: FakeTransport): {
+  id: string
+  op: string
+  paths?: string[]
+  verbId?: string
+} {
   const raw = t.sent[t.sent.length - 1]!
   return JSON.parse(raw)
 }
@@ -144,13 +150,27 @@ async function main(): Promise<void> {
   const filtered = filterVerbs(raw)
   check('[filter] 블랙리스트+빈것 제외 → 2개(압축·Cursor)', filtered.length === 2)
   check('[filter] verbId 합성(index:display)', filtered[0]!.verbId === '2:반디집으로 압축하기(L)')
-  check('[filter] display 보존', filtered[1]!.display === 'Cursor로 열기')
+  check('[filter] 사전 없는 display 보존', filtered[1]!.display === 'Cursor로 열기')
+
+  // ════ 표시명 한국어화(translateVerbDisplay) ════════════════════════════
+  check('[i18n] Edit → 편집', translateVerbDisplay('Edit') === '편집')
+  check('[i18n] &Print → 인쇄', translateVerbDisplay('&Print') === '인쇄')
+  check('[i18n] Run as administrator → 관리자 권한으로 실행', translateVerbDisplay('Run as administrator') === '관리자 권한으로 실행')
+  check('[i18n] Pin to Start (가속기) → 시작 화면에 고정', translateVerbDisplay('Pin to Start') === '시작 화면에 고정')
+  check('[i18n] Compress using administrator authority → 관리자 권한으로 압축', translateVerbDisplay('Compress using administrator authority') === '관리자 권한으로 압축')
+  check('[i18n] Compress → 압축', translateVerbDisplay('Compress') === '압축')
+  check('[i18n] 사전 없음 → 원문 보존', translateVerbDisplay('Cursor로 열기') === 'Cursor로 열기')
+  check('[i18n] 비문자열 → 빈문자열', translateVerbDisplay(undefined as unknown as string) === '')
+  // filterVerbs 가 display 만 한국어화하고 verbId(원문)는 보존하는지.
+  const i18nFiltered = filterVerbs([{ index: 7, name: 'Edit', display: 'Edit' }])
+  check('[i18n] filterVerbs display 한국어화', i18nFiltered[0]!.display === '편집')
+  check('[i18n] filterVerbs verbId 원문 보존(교차검증)', i18nFiltered[0]!.verbId === '7:Edit')
 
   // ════ 서비스: 정상 list 라인 프로토콜 + 블랙리스트 필터 ═════════════════
   {
     const t = makeFake()
     const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
-    const promise = svc.listVerbs('C:\\tmp\\x.txt')
+    const promise = svc.listVerbs(['C:\\tmp\\x.txt'])
     await sleep(0)
     check('[svc] list 송신됨', t.sent.length === 1 && lastReq(t).op === 'list')
     const id = lastReq(t).id
@@ -158,15 +178,67 @@ async function main(): Promise<void> {
     const res = await promise
     check('[svc] list ok', res.ok)
     check('[svc] list 블랙리스트 필터 후 2개', res.ok && res.value.verbs.length === 2)
+    check('[svc] list 단일 paths 송신', JSON.stringify(lastReq(t).paths) === JSON.stringify(['C:\\tmp\\x.txt']))
     svc.dispose()
     check('[svc] dispose → kill', t.killed)
+  }
+
+  // ════ 서비스: 다중 선택 list — paths 배열 그대로 송신 + 워커 verbs 필터 ════
+  {
+    const t = makeFake()
+    const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
+    const multiPaths = ['C:\\dir\\a.txt', 'C:\\dir\\b.txt']
+    const promise = svc.listVerbs(multiPaths)
+    await sleep(0)
+    check('[svc-multi] 다중 paths 배열 송신(2개)', JSON.stringify(lastReq(t).paths) === JSON.stringify(multiPaths))
+    const id = lastReq(t).id
+    // 워커가 IContextMenu 로 모은 verb(압축 등) — 블랙리스트(open/copy)는 제거됨.
+    t.emitLine(
+      JSON.stringify({
+        id,
+        ok: true,
+        verbs: [
+          { index: 0, name: '&Open', display: 'Open' },
+          { index: 5, name: 'Compress to ZIP file', display: 'Compress to ZIP file' }
+        ]
+      })
+    )
+    const res = await promise
+    check('[svc-multi] list ok', res.ok)
+    check('[svc-multi] 블랙리스트(open) 제거 후 1개', res.ok && res.value.verbs.length === 1)
+    check('[svc-multi] 남은 verb = Compress', res.ok && res.value.verbs[0]!.display === 'Compress to ZIP file')
+    svc.dispose()
+  }
+
+  // ════ 서비스: 다중 선택 invoke — paths 배열 + verbId 송신 ═══════════════
+  {
+    const t = makeFake()
+    const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
+    const multiPaths = ['C:\\dir\\a.txt', 'C:\\dir\\b.txt']
+    const pr = svc.invokeVerb(multiPaths, '5:Compress to ZIP file')
+    await sleep(0)
+    check('[svc-multi] invoke paths 배열 송신', JSON.stringify(lastReq(t).paths) === JSON.stringify(multiPaths))
+    check('[svc-multi] invoke verbId 송신', lastReq(t).verbId === '5:Compress to ZIP file')
+    t.emitLine(JSON.stringify({ id: lastReq(t).id, ok: true }))
+    check('[svc-multi] invoke ok', (await pr).ok)
+    svc.dispose()
+  }
+
+  // ════ 서비스: 빈 paths → 즉시 빈 목록(송신 없음) ════════════════════════
+  {
+    const t = makeFake()
+    const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
+    const res = await svc.listVerbs([])
+    check('[svc] 빈 paths → 빈 목록', res.ok && res.value.verbs.length === 0)
+    check('[svc] 빈 paths → 송신 0', t.sent.length === 0)
+    svc.dispose()
   }
 
   // ════ 서비스: 늦은 id 폐기(타임아웃 후) ═════════════════════════════════
   {
     const t = makeFake()
     const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 50 })
-    const promise = svc.listVerbs('C:\\a')
+    const promise = svc.listVerbs(['C:\\a'])
     await sleep(0)
     const id = lastReq(t).id
     await sleep(80) // 타임아웃 경과 → 요청 reject(빈목록 수렴)
@@ -187,11 +259,11 @@ async function main(): Promise<void> {
   {
     const t = makeFake()
     const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
-    const p1c = svc.listVerbs('C:\\first')
+    const p1c = svc.listVerbs(['C:\\first'])
     await sleep(0)
     const firstId = lastReq(t).id
     // 첫 응답 오기 전 새 경로 list → 이전 in-flight list 는 빈목록으로 폐기.
-    const p2c = svc.listVerbs('C:\\second')
+    const p2c = svc.listVerbs(['C:\\second'])
     const r1 = await p1c
     check('[svc] stale-cancel → 이전 list 빈목록', r1.ok && r1.value.verbs.length === 0)
     await sleep(0)
@@ -207,8 +279,8 @@ async function main(): Promise<void> {
   {
     const t = makeFake()
     const svc = new ShellVerbsService({ transportFactory: () => t, requestTimeoutMs: 500 })
-    const a = svc.invokeVerb('C:\\a', '0:Open')
-    const b = svc.invokeVerb('C:\\b', '1:Cut')
+    const a = svc.invokeVerb(['C:\\a'], '0:Open')
+    const b = svc.invokeVerb(['C:\\b'], '1:Cut')
     await sleep(0)
     check('[svc] FIFO: 첫 요청만 송신(직렬)', t.sent.length === 1)
     const idA = lastReq(t).id
@@ -232,14 +304,14 @@ async function main(): Promise<void> {
     }
     // ok
     let { svc, t } = mk()
-    let pr = svc.invokeVerb('C:\\a', '0:Open')
+    let pr = svc.invokeVerb(['C:\\a'], '0:Open')
     await sleep(0)
     t.emitLine(JSON.stringify({ id: lastReq(t).id, ok: true }))
     check('[svc] invoke ok → Result.ok', (await pr).ok)
     svc.dispose()
     // EVERB
     ;({ svc, t } = mk())
-    pr = svc.invokeVerb('C:\\a', '9:Stale')
+    pr = svc.invokeVerb(['C:\\a'], '9:Stale')
     await sleep(0)
     t.emitLine(JSON.stringify({ id: lastReq(t).id, ok: false, code: 'EVERB' }))
     let r = await pr
@@ -247,7 +319,7 @@ async function main(): Promise<void> {
     svc.dispose()
     // ENOENT
     ;({ svc, t } = mk())
-    pr = svc.invokeVerb('C:\\a', '0:Open')
+    pr = svc.invokeVerb(['C:\\a'], '0:Open')
     await sleep(0)
     t.emitLine(JSON.stringify({ id: lastReq(t).id, ok: false, code: 'ENOENT' }))
     r = await pr
@@ -255,7 +327,7 @@ async function main(): Promise<void> {
     svc.dispose()
     // EUNKNOWN(미지 code)
     ;({ svc, t } = mk())
-    pr = svc.invokeVerb('C:\\a', '0:Open')
+    pr = svc.invokeVerb(['C:\\a'], '0:Open')
     await sleep(0)
     t.emitLine(JSON.stringify({ id: lastReq(t).id, ok: false, code: 'WEIRD' }))
     r = await pr
@@ -275,14 +347,14 @@ async function main(): Promise<void> {
       },
       requestTimeoutMs: 500
     })
-    const p1c = svc.listVerbs('C:\\a')
+    const p1c = svc.listVerbs(['C:\\a'])
     await sleep(0)
     check('[svc] crash: 1회 기동', spawnCount === 1)
     cur.emitExit() // 워커 crash
     const r1 = await p1c
     check('[svc] crash: in-flight 빈목록 수렴', r1.ok && r1.value.verbs.length === 0)
     // 다음 요청 → 재기동(2회)
-    const p2c = svc.listVerbs('C:\\b')
+    const p2c = svc.listVerbs(['C:\\b'])
     await sleep(0)
     check('[svc] crash: 다음 요청 재기동(2회)', spawnCount === 2)
     cur.emitLine(JSON.stringify({ id: lastReq(cur).id, ok: true, verbs: [] }))
@@ -302,14 +374,14 @@ async function main(): Promise<void> {
       requestTimeoutMs: 200,
       maxConsecutiveSpawnFailures: 2
     })
-    const r1 = await svc.listVerbs('C:\\a')
+    const r1 = await svc.listVerbs(['C:\\a'])
     check('[svc] 쿨다운: 1차 실패 → 빈목록', r1.ok && r1.value.verbs.length === 0)
-    const r2 = await svc.listVerbs('C:\\b')
+    const r2 = await svc.listVerbs(['C:\\b'])
     check('[svc] 쿨다운: 2차 실패 → 빈목록', r2.ok && r2.value.verbs.length === 0)
     check('[svc] 쿨다운: 2회 기동 시도', attempts === 2)
-    const r3 = await svc.listVerbs('C:\\c')
+    const r3 = await svc.listVerbs(['C:\\c'])
     check('[svc] 쿨다운 진입 → 더 이상 기동 시도 안 함', attempts === 2 && r3.ok && r3.value.verbs.length === 0)
-    const ri = await svc.invokeVerb('C:\\c', '0:Open')
+    const ri = await svc.invokeVerb(['C:\\c'], '0:Open')
     check('[svc] 쿨다운 중 invoke → err', !ri.ok)
     svc.dispose()
   }

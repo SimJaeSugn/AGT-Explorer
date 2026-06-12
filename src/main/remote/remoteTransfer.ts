@@ -15,7 +15,7 @@
 import * as fsp from 'node:fs/promises'
 import { posix, win32 } from 'node:path'
 import type { WebContents } from 'electron'
-import type { OpSummary, OpFailure } from '@shared/dto'
+import type { OpSummary, OpFailure, ConflictPolicy } from '@shared/dto'
 import type { Result } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import type { CancelSignal, RemoteAdapter, RemoteError } from './RemoteService'
@@ -55,12 +55,34 @@ class MutableCancel implements CancelSignal {
  *  - `.part` 임시명 → 완료 시 원자 rename.
  *  - 취소(op:cancel)→ AbortSignal set → 어댑터 스트림 destroy → .part 정리.
  */
+async function localPathExists(p: string): Promise<boolean> {
+  try {
+    await fsp.access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 동명 충돌 시 `name (1).ext` … 로 유니크 로컬 경로 산출(rename 정책). */
+async function uniqueLocalPath(p: string): Promise<string> {
+  const dir = win32.dirname(p)
+  const ext = win32.extname(p)
+  const base = win32.basename(p, ext)
+  for (let i = 1; i < 10000; i++) {
+    const cand = win32.join(dir, `${base} (${i})${ext}`)
+    if (!(await localPathExists(cand))) return cand
+  }
+  return win32.join(dir, `${base} (${Date.now()})${ext}`)
+}
+
 export function startDownload(
   adapter: RemoteAdapter,
   remotePaths: string[],
   destDir: string,
   wc: WebContents,
-  reg: OpRegistrar
+  reg: OpRegistrar,
+  conflictPolicy?: ConflictPolicy
 ): Result<{ operationId: string }, RemoteError> {
   if (remotePaths.length === 0) return err(remoteError('ENOENT', destDir))
 
@@ -82,7 +104,13 @@ export function startDownload(
         failures.push({ path: remotePath, code: 'ESECURITY', message: '도착지 이탈 차단' })
         continue
       }
-      const partPath = `${dest.path}.part`
+      // 충돌 정책: 도착지 존재 시 skip(건너뜀)·rename(유니크명). overwrite/merge/미지정은 덮어쓰기.
+      let finalPath = dest.path
+      if (await localPathExists(dest.path)) {
+        if (conflictPolicy === 'skip') continue
+        if (conflictPolicy === 'rename') finalPath = await uniqueLocalPath(dest.path)
+      }
+      const partPath = `${finalPath}.part`
       let lastTransferred = 0
       const r = await adapter.download(
         remotePath,
@@ -106,7 +134,7 @@ export function startDownload(
       }
       // 완료 → 원자적 rename(.part → 최종). 불완전 파일 완료본 오인 방지.
       try {
-        await fsp.rename(partPath, dest.path)
+        await fsp.rename(partPath, finalPath)
         succeeded++
         baseBytes += lastTransferred
       } catch {

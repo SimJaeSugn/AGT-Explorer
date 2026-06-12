@@ -83,7 +83,8 @@ export function runRobocopyCopy(
     '/NJH', // 작업 헤더 억제
     '/NJS', // 작업 요약 억제
     '/BYTES', // 크기를 바이트로
-    '/FP' // 전체 경로 출력(파싱용)
+    '/FP', // 전체 경로 출력(파싱용)
+    '/UNICODE' // 출력을 UTF-16LE 로(한글/비ASCII 파일명 모지바케 방지 — OEM CP949 기본 회피)
   ]
   let canceled = false
   let copiedItems = 0
@@ -92,8 +93,10 @@ export function runRobocopyCopy(
 
   const child = spawn('robocopy.exe', args, { windowsHide: true })
 
-  const onData = (chunk: Buffer): void => {
-    buf += chunk.toString('utf8')
+  // stdout 을 utf16le 로 디코드(/UNICODE 출력). setEncoding 의 StringDecoder 가 2바이트
+  // 문자의 청크 경계 분할을 안전하게 처리하므로 chunk 는 이미 디코드된 string 이다.
+  const onData = (chunk: string): void => {
+    buf += chunk
     let idx: number
     while ((idx = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, idx).replace(/\r$/, '')
@@ -106,6 +109,7 @@ export function runRobocopyCopy(
       }
     }
   }
+  child.stdout.setEncoding('utf16le')
   child.stdout.on('data', onData)
 
   const promise = new Promise<RobocopyResult>((resolve) => {
