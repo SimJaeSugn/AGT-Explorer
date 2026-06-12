@@ -276,7 +276,7 @@ export function ContextMenu(): JSX.Element | null {
             key={item.id}
             role="menuitem"
             tabIndex={-1}
-            aria-disabled={false}
+            aria-disabled={item.disabled ? true : undefined}
             aria-haspopup={item.children && item.children.length > 0 ? 'menu' : undefined}
             aria-expanded={item.children && item.children.length > 0 ? openSub === idx : undefined}
             aria-checked={item.checked !== undefined ? item.checked : undefined}
@@ -319,8 +319,14 @@ function MenuRow({
         padding: '0 14px',
         cursor: 'default',
         whiteSpace: 'nowrap',
-        color: item.danger ? tokens.color.danger : tokens.color.text,
-        background: active ? tokens.color.bgHover : 'transparent'
+        // 비활성(정보) 행은 흐리게 — 로딩 표시("Windows 메뉴 불러오는 중…", §Y1).
+        color: item.disabled
+          ? tokens.color.textMuted
+          : item.danger
+            ? tokens.color.danger
+            : tokens.color.text,
+        fontStyle: item.disabled ? 'italic' : 'normal',
+        background: active && !item.disabled ? tokens.color.bgHover : 'transparent'
       }}
     >
       {/* 체크 마커(토글 항목) — 자리 고정(미체크도 폭 유지해 라벨 정렬). */}

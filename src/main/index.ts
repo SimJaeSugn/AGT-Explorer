@@ -15,6 +15,7 @@ import { initArchiveSessionManager, initArchiveService, archiveSessionManager } 
 import { operationManager } from './operations/OperationManager'
 import { watchService } from './fs/WatchService'
 import { driveTypeService } from './os/driveType'
+import { shellVerbsService } from './os/shellVerbs'
 import { diskTypeService } from './os/diskType'
 
 // ── 단일 인스턴스 락 (PRD §7, ADR-005) ──────────────────────────────
@@ -53,6 +54,12 @@ if (!gotTheLock) {
       void archiveSessionManager().closeAll()
     } catch {
       /* archive 미초기화 → 스킵 */
+    }
+    // 셸 verb 상주 PowerShell 워커 종료(좀비 프로세스 0 — §Y1). 미기동이면 멱등.
+    try {
+      shellVerbsService.dispose()
+    } catch {
+      /* shellVerbs 미초기화 → 스킵 */
     }
     if (quitFlushed) return
     try {

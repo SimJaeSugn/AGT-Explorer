@@ -38,6 +38,7 @@ import type {
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
+  ShellVerbDTO,
   TabSnapshot,
   TrashItemDTO,
   VerifyMismatchDTO,
@@ -170,6 +171,21 @@ export interface ShellIconReq {
 }
 export interface ShellIconRes {
   readonly dataUrl: string
+}
+
+// ── §Y1: shell:context-verbs / shell:invoke-verb (상주 PowerShell·COM Verbs) ──
+export interface ShellContextVerbsReq {
+  /** 우클릭한 단일 항목의 절대 로컬 경로(핸들러가 guardPath·존재·로컬 한정 검증). */
+  readonly path: string
+}
+export interface ShellContextVerbsRes {
+  /** 블랙리스트 필터 후의 표시용 verb 목록(빈 배열=섹션 비노출=빈목록·실패·타임아웃 포괄). */
+  readonly verbs: ShellVerbDTO[]
+}
+export interface ShellInvokeVerbReq {
+  readonly path: string
+  /** `"<index>:<정규화표시명>"` 합성키(조회 응답의 verbId 그대로). */
+  readonly verbId: string
 }
 
 // ── op:* (계약만 동결, impl: P4) ──────────────────────────────────────
@@ -578,6 +594,9 @@ export interface IpcRequestMap {
   [CHANNELS.SHELL_ICON]: { req: ShellIconReq; res: Result<ShellIconRes> }
   [CHANNELS.SHELL_OPEN_TERMINAL]: { req: ShellOpenTerminalReq; res: Result<void> }
   [CHANNELS.SHELL_OPEN_EXTERNAL]: { req: ShellOpenExternalReq; res: Result<void> }
+  // §Y1: 셸 컨텍스트 verb 조회/실행(상주 PowerShell·COM Verbs)
+  [CHANNELS.SHELL_CONTEXT_VERBS]: { req: ShellContextVerbsReq; res: Result<ShellContextVerbsRes> }
+  [CHANNELS.SHELL_INVOKE_VERB]: { req: ShellInvokeVerbReq; res: Result<void> }
 
   // op:* (P4)
   [CHANNELS.OP_START]: { req: OpStartReq; res: Result<OpStartRes> }

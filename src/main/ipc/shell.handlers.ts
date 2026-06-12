@@ -16,18 +16,21 @@ import { constants as fsConstants } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import { z } from 'zod'
 import { CHANNELS } from '@shared/ipc/channels'
-import type { Result, ShellIconRes } from '@shared/ipc/contracts'
+import type { Result, ShellContextVerbsRes, ShellIconRes } from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import { fileOpError, toFileOpError } from '../fs/errors'
 import { getFileIconDataUrl } from '../os/icon'
 import { openExternalUrl, openPath, openTerminal, openWith, showProperties } from '../os/shell'
+import { shellVerbsService } from '../os/shellVerbs'
 import {
   guardPath,
   isTrustedSender,
   parseArgs,
   untrustedSenderError,
   zPath,
+  zShellContextVerbsReq,
   zShellIconReq,
+  zShellInvokeVerbReq,
   zShellOpenExternalReq,
   zShellOpenTerminalReq,
   zShellOpenWithReq,
@@ -35,6 +38,13 @@ import {
 } from './guard'
 
 const zShellOpenReq = z.object({ path: zPath })
+
+/** 원격/아카이브 prefix 거부(셸 COM 은 로컬 경로만 — §Y1·hash.handlers 선례). */
+const SHELL_REMOTE_PREFIXES = ['sftp://', 'ftp://', 'ftps://', 'archive://']
+function isNonLocalPath(raw: string): boolean {
+  const lower = raw.toLowerCase()
+  return SHELL_REMOTE_PREFIXES.some((p) => lower.startsWith(p))
+}
 
 export function registerShellHandlers(): void {
   // ── shell:open (OS 연결 프로그램 실행) ──────────────────────────────
@@ -226,5 +236,68 @@ export function registerShellHandlers(): void {
     const { ext } = parsed.value
     const dataUrl = await getFileIconDataUrl(ext === undefined ? { path } : { path, ext })
     return ok({ dataUrl: dataUrl ?? '' })
+  })
+
+  // ── shell:context-verbs (셸 컨텍스트 verb 조회, §Y1 · ADR-013) ──────
+  // sender → zod → 로컬 한정(원격/archive prefix 거부) → guardPath → fs.access →
+  // 상주 PowerShell 워커 위임. 워커 실패/타임아웃/빈 목록은 모두 ok({verbs:[]}) 로
+  // 흡수한다(empty 포괄 — 섹션 비노출=크래시 없는 정상). 잘못된 호출(sender/zod/
+  // prefix/guard)만 Result.err. 핸들러 throw 0.
+  ipcMain.handle(
+    CHANNELS.SHELL_CONTEXT_VERBS,
+    async (event, raw): Promise<Result<ShellContextVerbsRes>> => {
+      if (!isTrustedSender(event)) return err(untrustedSenderError())
+
+      const parsed = parseArgs(zShellContextVerbsReq, raw)
+      if (!parsed.ok) return parsed as Result<ShellContextVerbsRes>
+
+      // 로컬 한정: 원격/archive prefix 는 raw 입력에서 거부(guardPath 정규화 전).
+      if (isNonLocalPath(parsed.value.path)) {
+        return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.path))
+      }
+
+      // (a) 경로 정규화·상위이탈 차단.
+      const g = guardPath(parsed.value.path)
+      if (!g.ok) return g as Result<ShellContextVerbsRes>
+      const path = g.value
+
+      // (b) 대상 존재 확인 — 미존재면 빈 목록(섹션 비노출).
+      try {
+        await fsp.access(path, fsConstants.F_OK)
+      } catch {
+        return ok({ verbs: [] })
+      }
+
+      // 워커 위임 — listVerbs 는 실패/타임아웃/빈 목록을 모두 ok({verbs:[]}) 로 수렴.
+      return shellVerbsService.listVerbs(path)
+    }
+  )
+
+  // ── shell:invoke-verb (verb.DoIt 실행, §Y1 · ADR-013) ───────────────
+  // sender → zod → 로컬 한정 → guardPath → fs.access(미존재 ENOENT) → 워커 위임.
+  // EVERB(스테일)/ENOENT/EUNKNOWN 은 Result.err 전파(렌더러가 가벼운 토스트).
+  // DoIt 호출 성공=ok(fire-and-forget·외부 프로그램 결과 미추적). 핸들러 throw 0.
+  ipcMain.handle(CHANNELS.SHELL_INVOKE_VERB, async (event, raw): Promise<Result<void>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+
+    const parsed = parseArgs(zShellInvokeVerbReq, raw)
+    if (!parsed.ok) return parsed as Result<void>
+
+    if (isNonLocalPath(parsed.value.path)) {
+      return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.path))
+    }
+
+    const g = guardPath(parsed.value.path)
+    if (!g.ok) return g as Result<void>
+    const path = g.value
+
+    try {
+      await fsp.access(path, fsConstants.F_OK)
+    } catch (e) {
+      const fe = toFileOpError(e, path)
+      return err(fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', path) : fe)
+    }
+
+    return shellVerbsService.invokeVerb(path, parsed.value.verbId)
   })
 }

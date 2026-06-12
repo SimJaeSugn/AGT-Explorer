@@ -6,7 +6,7 @@
  * 본격 영속(settings:set)은 P5 이지만 상태 자리는 여기 둔다.
  */
 import type { KeyContext } from '@renderer/domain/keybindings'
-import type { SettingsSnapshot, ThemeMode } from '@shared/dto'
+import type { SettingsSnapshot, ShellVerbDTO, ThemeMode } from '@shared/dto'
 import type { SliceCreator } from './types'
 
 /** 설정 화면 카테고리(좌측 네비게이션·딥링크 대상). */
@@ -54,6 +54,12 @@ export interface ContextMenuState {
   readonly panelId: string
   /** 우클릭한 항목 경로(빈 영역이면 null). */
   readonly targetPath: string | null
+  /**
+   * "Windows 메뉴" 섹션(§Y1)의 비동기 채움 상태(loadWinVerbs 가 setWinVerbs 로 갱신).
+   * 메뉴 열림 직후 단일 로컬 항목일 때만 채워지며, 메뉴 닫힘(contextMenu=null) 시 함께
+   * 사라진다. undefined/empty=섹션 비노출 · loading=로딩 행 · ready=verb 행(items).
+   */
+  readonly winVerbs?: { readonly status: 'loading' | 'ready' | 'empty'; readonly items: ShellVerbDTO[] }
 }
 
 /**
@@ -308,6 +314,12 @@ export interface UiSlice {
   openContextMenu(menu: ContextMenuState): void
   /** 컨텍스트 메뉴 닫기(다른 다이얼로그/편집이 없으면 inputContext='list' 복귀). */
   closeContextMenu(): void
+  /**
+   * "Windows 메뉴" 섹션(§Y1) 비동기 채움 상태 갱신. 컨텍스트 메뉴가 열려 있을 때만
+   * 반영하며(닫혀 있으면 무시 — 늦은 응답 오염 차단), winVerbs 만 immer 로 교체해
+   * ContextMenu 가 리렌더하도록 한다(openContextMenu 동기 산출은 무변경).
+   */
+  setWinVerbs(winVerbs: { status: 'loading' | 'ready' | 'empty'; items: ShellVerbDTO[] }): void
 }
 
 export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
@@ -919,6 +931,14 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       ) {
         s.inputContext = 'list'
       }
+    })
+  },
+
+  setWinVerbs(winVerbs) {
+    set((s) => {
+      // 메뉴가 닫혀 있으면(또는 그 사이 닫혔으면) 무시 — 늦은 비동기 응답 오염 차단.
+      if (!s.contextMenu) return
+      s.contextMenu.winVerbs = { status: winVerbs.status, items: [...winVerbs.items] }
     })
   }
 })

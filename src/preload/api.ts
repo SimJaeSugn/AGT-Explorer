@@ -114,8 +114,11 @@ import type {
   Result,
   SessionSaveReq,
   SettingsSetReq,
+  ShellContextVerbsReq,
+  ShellContextVerbsRes,
   ShellIconReq,
   ShellIconRes,
+  ShellInvokeVerbReq,
   ShellOpenExternalReq,
   ShellOpenReq,
   ShellOpenTerminalReq,
@@ -218,6 +221,9 @@ export interface ExplorerApi {
     icon(req: ShellIconReq): Promise<Result<ShellIconRes>>
     openTerminal(req: ShellOpenTerminalReq): Promise<Result<void>>
     openExternal(req: ShellOpenExternalReq): Promise<Result<void>>
+    // §Y1: 셸 컨텍스트 verb 조회/실행(상주 PowerShell·COM Verbs)
+    contextVerbs(req: ShellContextVerbsReq): Promise<Result<ShellContextVerbsRes>>
+    invokeVerb(req: ShellInvokeVerbReq): Promise<Result<void>>
   }
 
   // ── op:* (타입만 노출, impl: P4) ───────────────────────────────
@@ -410,7 +416,9 @@ export const api: ExplorerApi = {
     showProperties: (req) => invoke(CHANNELS.SHELL_SHOW_PROPERTIES, req),
     icon: (req) => invoke(CHANNELS.SHELL_ICON, req),
     openTerminal: (req) => invoke(CHANNELS.SHELL_OPEN_TERMINAL, req),
-    openExternal: (req) => invoke(CHANNELS.SHELL_OPEN_EXTERNAL, req)
+    openExternal: (req) => invoke(CHANNELS.SHELL_OPEN_EXTERNAL, req),
+    contextVerbs: (req) => invoke(CHANNELS.SHELL_CONTEXT_VERBS, req),
+    invokeVerb: (req) => invoke(CHANNELS.SHELL_INVOKE_VERB, req)
   },
 
   op: {

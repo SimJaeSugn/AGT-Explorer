@@ -339,3 +339,35 @@ src/
 > **신규 npm 의존성**: `yauzl`(MIT)·`yazl`(MIT)만 추가(`src/main/archive/`에서만 import·네이티브 빌드 0). 해시(Node 내장 SHA-256)·grep(Node 내장 스트림)·큐·태그/프리셋·R1/S2/T2/U1/U2/U3은 **신규 의존성 0**. 외부 7z 바이너리·ripgrep 바이너리는 **비채택**(ADR-005 실행 표면 불변·ADR-008/010).
 >
 > **ESLint 경계**: archive/hash/search는 `src/main/` 일반 규칙(네트워크/TLS/원격 라이브러리 import 금지 — §5·§5-M 화이트리스트는 `src/main/remote/`만). 도메인 순수 규칙 6종은 §5 도메인 import 규칙 준수(react/zustand/infra/shared-ipc 금지).
+
+### §Y Windows 셸 컨텍스트 메뉴 연동 — 신규 파일 위치 (2026-06-12·🔜 설계 완료·구현 전·[ADR-013](./adr/ADR-013-shell-context-menu-verbs.md))
+
+> COM `Shell.Application` `Verbs()`/`DoIt()`를 **상주 PowerShell 자식 프로세스**로 호출한다. hash/grep 워커는 Worker Threads(Node)이지만 §Y는 PowerShell+COM이 필요하므로 `os/` 어댑터 계층의 **상주 자식 프로세스**로 둔다(`showProperties` COM 선례의 상주판). 신규 네이티브/npm 의존성 0·신규 IPC 채널 2종(invoke).
+
+```text
+src/main/
+├─ os/
+│  ├─ shellVerbs.ts            # ▶ 신규 — ShellVerbsService(상주 PowerShell 워커 수명·lazy 기동·crash 재기동·쿨다운·종료 정리·FIFO 요청 큐·타임아웃→섹션 비노출·블랙리스트 표시명 정규화 필터·index+표시명 결합 식별·재열거 교차검증)
+│  └─ shellVerbsWorker.ps1     # ▶ 신규 — 고정 PowerShell 스크립트(stdin JSON 루프·Shell.Application·Namespace().ParseName()·Verbs()/DoIt()·UTF-8·명령행 합성 0)
+├─ ipc/
+│  ├─ shell.handlers.ts        #   (확장) shell:context-verbs·shell:invoke-verb 핸들러(sender·zod·guardPath·로컬 한정)
+│  └─ guard.ts                 #   (확장) zShellContextVerbsReq{path}·zShellInvokeVerbReq{path,verbId}
+└─ (electron-builder.yml)      #   (확장) shellVerbsWorker.ps1 extraResources 패키징(UQ-Y1)
+
+src/renderer/
+├─ app/usecases/
+│  ├─ shellVerbs.ts            # ▶ 신규 — verb 조회(shell:context-verbs)·경로키 TTL 캐시·실행(shell:invoke-verb·fire-and-forget)
+│  └─ contextMenu.ts           #   (확장) buildMenuItems 단일 선택 말미 "Windows 메뉴" 섹션 병합(B6 자체 명령 불변)
+├─ app/stores/uiSlice.ts       #   (확장) 컨텍스트 메뉴 상태 winVerbs{status,items}
+├─ infra/api/                  #   (확장) shellApi.contextVerbs·shellApi.invokeVerb 래퍼
+└─ ui/contextmenu/ContextMenu.tsx #   (확장) "Windows 메뉴" 섹션 렌더(로딩/채움/숨김)·항목 클릭 실행
+
+src/shared/
+├─ ipc/channels.ts             #   (확장) SHELL_CONTEXT_VERBS·SHELL_INVOKE_VERB(invoke·EVENT_CHANNELS 무변)
+├─ ipc/contracts.ts            #   (확장) ShellContextVerbsReq/Res·ShellInvokeVerbReq·ChannelMap
+└─ dto/index.ts                #   (확장) ShellVerbDTO{ verbId; display }
+```
+
+- `src/main/os/shellVerbs.ts` — 상주 PowerShell 워커 오케스트레이터(수명·요청 큐·타임아웃·블랙리스트·verb 식별). 렌더러와 직접 통신하지 않고 IPC 핸들러 경유(`HashManager` 형태의 서비스).
+- `src/main/os/shellVerbsWorker.ps1` — 고정 텍스트 스크립트(경로·verbId는 stdin JSON으로만 수신·문자열 합성 0). `electron-builder` extraResources로 패키징(asar 외부·UQ-Y1).
+- **신규 npm/네이티브 의존성 0**(COM·PowerShell 시스템 내장). **ESLint 경계**: `os/`는 `src/main/` 일반 규칙(네트워크 import 금지·`remote/`만 예외). PowerShell 호출은 셸 실행 계열이므로 ADR-005 §3.3-4(명령행 합성 0) 준수.

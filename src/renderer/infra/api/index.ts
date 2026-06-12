@@ -94,6 +94,7 @@ import type {
   ArchiveTransferRes,
   WindowInitRes,
   Result,
+  ShellContextVerbsRes,
   ShellIconReq,
   ShellIconRes,
   ThumbnailRes,
@@ -182,7 +183,16 @@ export const shellApi = {
   /** shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4). */
   openTerminal: (cwd: string): Promise<Result<void>> => bridge().shell.openTerminal({ cwd }),
   /** shell:open-external — 검증된 http/https URL 을 OS 기본 브라우저로 연다(V1). */
-  openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url })
+  openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url }),
+  /**
+   * shell:context-verbs — 단일 로컬 항목의 셸 컨텍스트 verb 조회(§Y1). 빈 verbs 는
+   * "Windows 메뉴" 섹션 비노출을 의미한다(빈목록·실패·타임아웃 포괄 — empty).
+   */
+  contextVerbs: (path: string): Promise<Result<ShellContextVerbsRes>> =>
+    bridge().shell.contextVerbs({ path }),
+  /** shell:invoke-verb — 셸 verb 실행(fire-and-forget·DoIt). 실패만 err(EVERB/ENOENT/EUNKNOWN, §Y1). */
+  invokeVerb: (path: string, verbId: string): Promise<Result<void>> =>
+    bridge().shell.invokeVerb({ path, verbId })
 }
 
 // ── op:* 어댑터 (P4: 파일 작업 시작/취소/충돌해소) ──────────────────────

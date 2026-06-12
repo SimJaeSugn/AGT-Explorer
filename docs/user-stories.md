@@ -782,6 +782,28 @@
 
 ---
 
+## 에픽 23. Windows 셸 컨텍스트 메뉴 연동 (2026-06-12 신규 기획)
+
+> 앱 컨텍스트 메뉴(US-2.x·features B6, Must)를 **Windows 셸 생태계와 상호운용**하게 확장하는 에픽이다. 파일/폴더 우클릭 시 앱 React 컨텍스트 메뉴 하단에 **"Windows 메뉴" 섹션**을 더해, Windows에 설치된 프로그램들이 등록한 셸 컨텍스트 메뉴 항목(예: "반디집으로 압축하기"·"Cursor로 열기"·"AGT-Finder로 열기")을 노출하고 선택 시 실행한다. 2026-06-12 사용자 직접 요청으로 정식 편입 → 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS([qa-integration-Y](./reviews/qa-integration-Y.md)). **S(Should)·구현 완료(코드)·통합 QA PASS — 신규 채널 `shell:context-verbs`/`shell:invoke-verb`·신규 의존성 0·`verify:shellverbs` 75/0·실 GUI/실 패키지 런타임 스모크 🟡.**
+> **기술 방식(사용자 확정)**: Windows 셸 COM `Shell.Application`의 `FolderItem.Verbs()` 열거 + `verb.DoIt()` 실행(네이티브 N-API 애드온 비채택·신규 네이티브 의존성 0)·메인 프로세스 **상주 PowerShell 워커**(기존 hash/archive 워커 패턴)로 COM 호출(우클릭 지연 완화). 신규 IPC 채널 2종 예상(verb 조회·verb 실행 — 정확한 채널명/프로토콜은 chief-architect 설계 단계 확정).
+> **PoC 실증(2026-06-12)**: `package.json` 1개 파일 COM `Verbs()` 열거에서 설치 프로그램 항목(반디집·Cursor "압축하기"·"열기")이 실제로 잡힘을 확인(서브메뉴 전용 핸들러는 일부 누락 가능).
+> 상세 규칙은 [features §Y](./features.md). 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-12 §Y)"](./PRD.md#6-범위와-우선순위-moscow). 단축키는 신규 키 불요(우클릭 메뉴 내 섹션·[PRD 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)). 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
+
+### US-23.1 우클릭으로 Windows에 설치된 프로그램의 셸 메뉴 항목 실행하기 — S · 규모 M · 구현 완료(코드)·실 GUI/실 패키지 🟡
+사용자로서, 파일/폴더를 우클릭했을 때 별도로 Windows 탐색기를 열지 않고 앱 안에서 바로 설치 프로그램의 동작(반디집으로 압축·Cursor로 열기 등)을 실행하기 위해, 앱 컨텍스트 메뉴 하단의 "Windows 메뉴" 섹션에서 Windows 셸이 제공하는 항목을 보고 선택하고 싶다.
+- [ ] 🟡 단일 파일/폴더를 우클릭하면 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**이 구분선과 함께 표시되고, 셸 COM `FolderItem.Verbs()` 로 열거한 설치 프로그램 항목(예: "반디집으로 압축하기"·"Cursor로 열기"·"AGT-Finder로 열기")이 노출된다 *(섹션 병합 로직·실 COM 열거 노드 스모크 통과·실 GUI 표출 🟡)*
+- [ ] 🟡 **다중 선택 시 "Windows 메뉴" 섹션이 숨겨진다**(COM Verbs()는 단일 항목 기준·1차 단일 선택 한정·정직 한계 ②) *(숨김 로직 [x]·실 GUI 🟡)*
+- [x] **앱이 이미 자체 구현한 verb**(canonical verb name 블랙리스트: open/cut/copy/paste/delete/rename/properties 등)는 노출되지 않는다(중복 UX 방지·정직 한계 ③) *(`shellVerbsBlacklist.ts`·`verify:shellverbs`·실 노드 스모크 누출 0)*
+- [x] **캐스케이드 서브메뉴는 평탄화되거나 누락될 수 있으며 보이는 항목만 노출하는 best-effort 계약**이다(서브메뉴 전용 핸들러 일부 미표시 허용·크래시/빈 섹션 없이 정상 동작·정직 한계 ①) *(미존재→빈목록·실 COM 열거 노드 스모크 통과)*
+- [x] "Windows 메뉴" 항목 선택 시 해당 verb가 `verb.DoIt()` 로 실행되며, **실행 결과(성공/실패)는 앱이 추적하지 않는다(fire-and-forget)**(실행 실패는 무음 또는 가벼운 토스트 안내·정직 한계 ④) *(재열거 교차검증→가짜 verbId EVERB 거부 노드 스모크·실 verb 클릭 DoIt 🟡)*
+- [x] 워커 첫 기동·첫 조회 지연 시 섹션에 **로딩 상태**(예: "Windows 메뉴 불러오는 중…")가 허용되고, 조회는 **상주 PowerShell 워커**(기존 hash/archive 워커 패턴)에서 처리되어 우클릭/메인 스레드가 비차단된다(정직 한계 ⑤) *(`shellVerbs.ts` 상주 워커·`verify:shellverbs` 로딩 전이·ps1 워커 왕복 노드 스모크·실 GUI 로딩 표출 🟡)*
+- [x] 셸 verb 열거·실행은 **Windows 셸 COM `Shell.Application`(`FolderItem.Verbs()`/`verb.DoIt()`)** 으로 수행하며 **네이티브 N-API 애드온·신규 네이티브 의존성을 추가하지 않는다**(신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종·신규 npm/네이티브 의존성 0)
+- [x] verb 열거·실행은 **사용자가 우클릭한 실제 항목 경로**에 대해서만 수행하며 임의 명령 합성·임의 실행 표면을 추가하지 않는다(ADR-005 보안 모델 준수·`guard.ts §Y1`·재열거 교차검증·셸 미경유 ps1 워커)
+- [x] 기존 앱 자체 컨텍스트 메뉴(B6) 명령과 충돌·회귀 없이 "Windows 메뉴" 섹션만 추가된다 *(typecheck/build PASS·verify 회귀 0·실 GUI 회귀 0 🟡)*
+- [ ] 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현·다중 선택 일괄 invoke — **1차 범위 밖(비범위·Non-goal)**
+
+---
+
 ## 백로그 요약표
 
 | ID | 스토리 | 우선순위 | 규모 | 에픽 | 상태 |
@@ -854,5 +876,6 @@
 | US-20.4 | 탭 사용자 지정 이름(custom tab name) | S | S | 빠른 보기·탐색·탭(§U) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 탭 라벨 더블클릭 인라인 편집·우클릭 "이름 바꾸기"·Enter 확정/Esc 취소/blur 확정·빈 값=자동 제목 복귀·세션 영속·`Tab.customName?`/`TabSnapshot.customName?` 하위호환 선택 필드·`tabsSlice.setTabName`/`clearTabName`·`TabBar.tsx`/`TabRenameInput`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:store`·§U3 색상/잠금과 별개로 이름만·실 GUI 동작 런타임 스모크 🟡 / 탭 색상·잠금·탭 분리=§U3 소관·탭 아이콘 변경 1차 범위 밖) |
 | US-22.1 | 빠른 위치 ▸ 다운로드 이동 | S | S | 사이드바 빠른 위치(§X) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 사이드바 "빠른 위치" 섹션·다운로드 항목 클릭으로 활성 패널을 OS 다운로드 폴더로 이동·신규 채널 `fs:known-folders`[무인자 invoke → `KnownFoldersDTO`·`app.getPath`]·`fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx`·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡 / 현재 다운로드만 렌더[바탕화면/문서/홈 DTO로 함께 가져오나 미표시·예약]·항목 추가/제거/재정렬/고정 1차 범위 밖) |
 | US-21.1 | 자세히 보기 컬럼 헤더·너비 조절 | S | S | 자세히 컬럼(§W) | ✅ 구현 완료 (헤더 막대 이름/크기/유형/수정한 날짜·분리자 드래그·분리자 포커스 방향키 리사이즈·컬럼 min48/max600 클램프·`이름` 신축·폭 세션 영속[전역 1벌]·자세히 보기 한정·`columnWidths.ts`·`columnsSlice`·`FileListView`·`SessionSnapshot.ui.detailsColumnWidths`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:domain` 24·실 GUI 동작 런타임 스모크 🟡 / 헤더 클릭 정렬·컬럼 표시숨김/순서 1차 범위 밖) |
+| US-23.1 | Windows 셸 컨텍스트 메뉴 연동 | S | M | 셸 컨텍스트 메뉴(§Y) | ✅ 구현 완료(코드)·실 GUI/실 패키지 🟡 (2026-06-12 편입 → 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS — 우클릭 메뉴 하단 "Windows 메뉴" 섹션·셸 COM Verbs 열거+`verb.DoIt()`·상주 PowerShell 워커 `shellVerbsWorker.ps1`·**신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종**·`FileOpErrorCode` EVERB 확장·신규 의존성 0·`verify:shellverbs` 75/0·typecheck/build PASS·실 노드 스모크 통과·B6/ADR-005 확장 / 정직 한계: 캐스케이드 서브메뉴 best-effort·다중 선택 단일 한정·중복 verb 블랙리스트 필터·verb 실행 fire-and-forget·워커 첫 조회 지연 로딩 상태·**실 GUI/실 패키지 런타임 스모크 🟡** / 비범위: 네이티브 메뉴 팝업·서브메뉴 완전 재현·다중 선택 invoke) |
 
 > **[2026-06-07 스코프 축소]** US-1.3·US-5.4의 `F5`(복사)/`F6`(이동) 단축키 수용 기준은 **삭제됨/Deprecated**(사용자 요청). D&D·클립보드 복사/이동은 유지. roadmap P4·traceability 정정은 코드 반영 후 doc-synchronizer 담당.

@@ -140,6 +140,12 @@ export const zShellIconReq = z.object({
   ext: z.enum(['__dir__', '__drive__']).optional()
 })
 
+// ── §Y1: shell:context-verbs / shell:invoke-verb ──────────────────────────
+// path 는 형태(min1)만 1차 검증, 핸들러가 guardPath·존재·로컬 한정(원격/archive
+// prefix 거부) 재검증. verbId 는 "<index>:<정규화표시명>" 합성키(상한 512 — 거대 입력 차단).
+export const zShellContextVerbsReq = z.object({ path: zPath })
+export const zShellInvokeVerbReq = z.object({ path: zPath, verbId: z.string().min(1).max(512) })
+
 // ── P5: session:* / settings:* / telemetry:set-opt-in ────────────────────
 // SessionSnapshot 은 구조가 깊고 Renderer 가 생성한 직렬화 객체이므로,
 // 형태 1차만 통과시키고(중첩 무효 필드는 Store 의 coerceSession 이 정규화),

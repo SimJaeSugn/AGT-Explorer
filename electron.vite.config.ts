@@ -1,11 +1,32 @@
+import { copyFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+/**
+ * §Y1: shellVerbsWorker.ps1 을 out/main/ 으로 복사한다(rollup 은 .ps1 비-JS 를 번들하지
+ * 않음). 신규 의존성 0(node:fs) · 빌드/패키지 모두 커버. 패키징 시 asarUnpack 으로
+ * app.asar.unpacked 에 풀린다(electron-builder.yml). HashManager workerPath 와 동일하게
+ * shellVerbs.ts 는 join(__dirname,'shellVerbsWorker.ps1') 로 참조한다.
+ */
+function copyShellVerbsWorker(): { name: string; closeBundle(): void } {
+  return {
+    name: 'copy-shellverbs-ps1',
+    closeBundle(): void {
+      const outDir = resolve('out/main')
+      mkdirSync(outDir, { recursive: true })
+      copyFileSync(
+        resolve('src/main/os/shellVerbsWorker.ps1'),
+        resolve('out/main/shellVerbsWorker.ps1')
+      )
+    }
+  }
+}
+
 // main/preload/renderer 3-엔트리 빌드 설정 (ADR-001, directory-structure §3)
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin(), copyShellVerbsWorker()],
     build: {
       // P7: 별도 sourcemap(.map) 생성 — 디버깅용. NSIS 패키지에는 미포함
       // (electron-builder.yml files 의 `!out/**/*.map` 제외 규칙으로 배포 제외).

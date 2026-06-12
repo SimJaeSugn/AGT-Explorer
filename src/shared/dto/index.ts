@@ -682,6 +682,21 @@ export type RemoteErrorCode =
   | 'EUNSUPPORTED' // 프로토콜 미지원 동작/환경
 
 // ────────────────────────────────────────────────────────────────────────
+// 셸 컨텍스트 verb (shell:context-verbs / shell:invoke-verb — 신규 §Y1)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * 셸 컨텍스트 verb 1개(§Y1). Main 이 COM `Shell.Application` `Verbs()` 열거 →
+ * 블랙리스트 필터 후 렌더러로 전달한다(렌더러는 표시만).
+ * verbId = `"<index>:<정규화표시명>"` 안정 합성키(React key·실행 시 재열거 교차검증).
+ */
+export interface ShellVerbDTO {
+  readonly verbId: string
+  /** 사용자 표시 라벨(정규화된 표시명 — `&` 가속기 제거). */
+  readonly display: string
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 오류 코드 (FileOpError 와 contracts 가 공유)
 // ────────────────────────────────────────────────────────────────────────
 
@@ -706,5 +721,6 @@ export type FileOpErrorCode =
   | 'ENOSPC' // 디스크 공간 부족
   | 'ESECURITY' // guard 차단(상위 이탈·보호 경로·senderFrame 불일치)
   | 'ECANCELED' // 사용자 취소
+  | 'EVERB' // §Y1 셸 verb 미존재/스테일(재열거 교차검증 불일치 — 실행 거부)
   | 'EUNKNOWN' // 분류 불가
   | RemoteErrorCode // §M 원격 코드 확장(EAUTH/ETIMEDOUT/ECONNRESET/EHOSTUNREACH/EHOSTKEY/EUNSUPPORTED)

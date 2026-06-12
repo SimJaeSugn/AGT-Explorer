@@ -511,6 +511,25 @@ resolveFavoriteWatermark(
 
 ---
 
+## 15. §Y Windows 셸 컨텍스트 메뉴 연동 — 상주 PowerShell 워커 모듈 경계 (2026-06-12 추가·🔜 설계 완료·구현 전·[ADR-013](./adr/ADR-013-shell-context-menu-verbs.md))
+
+> 앱 컨텍스트 메뉴(B6) 하단 "Windows 메뉴" 섹션에 셸 verb를 병합·실행한다. COM `Shell.Application` `FolderItem.Verbs()`/`verb.DoIt()`를 **상주 PowerShell 자식 프로세스 1개**(stdin/stdout JSON·명령행 합성 0)로 호출해 우클릭 비차단. hash/grep/scan 워커가 Worker Threads(Node fs·CPU)인 것과 달리, §Y는 PowerShell+COM STA 의존이라 `os/` 어댑터의 **상주 자식 프로세스**로 격리한다(`showProperties` COM 선례의 상주판).
+
+| 계층 | 신규/확장 모듈 | 책임 |
+|---|---|---|
+| Main(OS) | `src/main/os/shellVerbs.ts`(신규 `ShellVerbsService`) | 상주 PowerShell 워커 수명(lazy 기동·crash 재기동·연속 실패 쿨다운·`before-quit` 정리)·FIFO 요청 큐(COM STA 단일 스레드)·짧은 타임아웃(~1500ms)→섹션 비노출·블랙리스트 표시명 정규화 필터·verb 식별(index+표시명 결합·실행 시 재열거 교차검증=오실행 방지) |
+| Main(OS) | `src/main/os/shellVerbsWorker.ps1`(신규·고정 스크립트) | stdin JSON 라인 루프·`Shell.Application`·`Namespace().ParseName()`·`Verbs()` 열거/`DoIt()` 실행·UTF-8·경로/verbId는 stdin 페이로드로만 수신(문자열 합성 0) |
+| Main(IPC) | `src/main/ipc/shell.handlers.ts`(확장)·`guard.ts`(확장) | `shell:context-verbs`·`shell:invoke-verb` 핸들러(sender·zod·guardPath·존재 확인·로컬 한정[원격/archive prefix 거부]) |
+| 애플리케이션 | `renderer/app/usecases/shellVerbs.ts`(신규)·`contextMenu.ts`(확장)·`uiSlice`(확장) | 메뉴 열림 시 verb 조회(경로키 TTL 캐시 5~10초)·로딩 상태 반영·실행(fire-and-forget)·`buildMenuItems` 단일 선택 말미 섹션 병합(B6 자체 명령 불변) |
+| UI | `ui/contextmenu/ContextMenu.tsx`(확장) | "Windows 메뉴" 섹션 렌더(로딩/채움/숨김)·항목 클릭 실행·실패만 가벼운 토스트 |
+| shared | `channels.ts`·`contracts.ts`·`dto/index.ts`(확장) | `SHELL_CONTEXT_VERBS`/`SHELL_INVOKE_VERB`(invoke·EVENT_CHANNELS 무변)·요청/응답 타입·`ShellVerbDTO` |
+
+- **신규 IPC 채널 2종**(`shell:context-verbs`·`shell:invoke-verb`·invoke·EVENT_CHANNELS 무변)·**신규 npm/네이티브 의존성 0**(COM·PowerShell 내장)·`SESSION_SCHEMA_VERSION` 무변경.
+- **보안(ADR-005·ADR-013 결정 ⑤)**: sender·zod·guardPath·로컬 한정·**명령행 합성 0**(경로는 stdin JSON)·실행 표면 미추가(verb는 OS 셸이 결정·탐색기 우클릭과 동일 신뢰 모델·fire-and-forget).
+- **정직 한계**: canonical name 부재→블랙리스트 표시명 정규화 매칭(영/한 보장·그 외 언어 best-effort)·서브메뉴 평탄화/누락(비범위)·다중 선택 섹션 숨김·실행 결과 미추적. 상태 **🔜 설계 완료·구현 전**.
+
+---
+
 ## 10. 미해결 질문
 
 0. **§P~§U 미해결**: 각 ADR-008~012 "미해결 질문(설계 deferral)" 절을 단일 출처로 둔다(압축 라이브러리 최종 픽스 UQ-Q1·zip 외 포맷 UQ-Q2·해시 고속화 UQ-H1·grep 인코딩 UQ-S1·큐 resume UQ-R2·태그 저장소 분리 UQ-T2 등). 전부 1차 범위 밖·구현 착수 비차단. **탭 분리(U3) 멀티 윈도우 범위**(세션 다중 창 복원·IPC 창 라우팅 수준)는 사용자/PM 결정 필요(§14.7·아래 보고).

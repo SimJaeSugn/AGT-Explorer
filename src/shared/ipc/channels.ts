@@ -45,6 +45,8 @@ export const CHANNELS = {
   SHELL_ICON: 'shell:icon', // impl: H6 (OS 파일 아이콘·확장자 캐시)
   SHELL_OPEN_TERMINAL: 'shell:open-terminal', // impl: H4 (wt.exe→PowerShell)
   SHELL_OPEN_EXTERNAL: 'shell:open-external', // impl: V1 (http/https 화이트리스트 → 외부 브라우저)
+  SHELL_CONTEXT_VERBS: 'shell:context-verbs', // impl: §Y1 (셸 verb 조회 — 상주 PowerShell)
+  SHELL_INVOKE_VERB: 'shell:invoke-verb', // impl: §Y1 (verb.DoIt 실행 — fire-and-forget)
 
   // ── op:* 파일 작업(비동기·취소·진행률) ─ 계약만 동결, impl: P4 ────────
   OP_START: 'op:start', // impl: P4

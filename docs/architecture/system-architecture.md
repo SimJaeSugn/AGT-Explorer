@@ -566,6 +566,14 @@ queue:set-concurrency(req: { maxConcurrent }) -> Result<void, FileOpError>
 
 > **신규 EVENT_CHANNELS 추가분**: `hash:compare:progress/done`·`hash:dup:progress/done`·`hash:verify:progress/done`·`search:content:progress/match/done`·`queue:state`(모두 Main→Renderer 단방향 푸시). `archive:*`는 전송이 op:* 재사용이라 푸시 채널 0.
 
+#### shell:context-verbs / shell:invoke-verb (Y1 — ADR-013·2026-06-12·🔜 설계 완료·구현 전)
+```text
+shell:context-verbs(req: { path }) -> Result<{ verbs: ShellVerbDTO[] }, FileOpError>   # 단일 항목 셸 verb 조회(블랙리스트 필터 후)
+   # ShellVerbDTO = { verbId: "<index>:<정규화표시명>"; display }
+shell:invoke-verb(req: { path; verbId }) -> Result<void, FileOpError>                   # verb.DoIt() — fire-and-forget(ok=호출 성공·EVERB=stale·ENOENT=경로 소실)
+```
+COM `Shell.Application` `FolderItem.Verbs()`/`verb.DoIt()`를 **상주 PowerShell 자식 프로세스**(stdin/stdout JSON·명령행 합성 0)로 호출. 검증: sender·zod·§3.3 정규화·존재·로컬 한정(원격/archive prefix 거부). 둘 다 invoke → **EVENT_CHANNELS 무변(신규 푸시 0)**. 식별=index+표시명 결합(실행 시 재열거 교차검증·오실행 방지). 신규 네이티브/npm 의존성 0(COM·PowerShell 내장).
+
 ### 5-PU.2 데이터 흐름 (대표 3종)
 
 #### F(P1) — 듀얼 패널 폴더 비교(해시 옵션)

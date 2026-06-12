@@ -15,6 +15,11 @@ files:
   - package.json
 
 asar: true
+# §Y1: 셸 verb 워커 ps1 은 PowerShell -File 이 asar 가상경로를 못 읽으므로 asar 외부로
+# 풀어둔다(app.asar.unpacked/out/main/shellVerbsWorker.ps1). shellVerbs.ts 가
+# __dirname → app.asar.unpacked 보정으로 경로를 해석한다(HashManager workerPath 선례).
+asarUnpack:
+  - '**/shellVerbsWorker.ps1'
 
 win:
   target:

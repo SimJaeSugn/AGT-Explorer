@@ -20,6 +20,8 @@ import { openArchiveAsFolder, extractToLocal } from './archive'
 import { panelPaths } from './fileOps'
 import { comparePanelsOf } from './compare'
 import { visibleEntries } from './selectors'
+import { loadWinVerbs, invokeWinVerb } from './shellVerbs'
+import { buildWinVerbsSection } from './shellVerbsSection'
 
 /** 메뉴 항목 1개. separator 면 구분선만 그린다. */
 export interface MenuItem {
@@ -42,6 +44,11 @@ export interface MenuItem {
   readonly children?: MenuItem[]
   /** 클릭/Enter 시 실행(separator·children 보유 항목은 없을 수 있음). */
   readonly run?: () => void
+  /**
+   * 비활성(정보) 행 — 클릭 무동작·흐리게 표시(예: "Windows 메뉴 불러오는 중…" 로딩 행, §Y1).
+   * run 없는 행과 함께 쓰여 시각적으로 구분만 더한다(키보드 이동은 건너뛰지 않음 — 표시 전용).
+   */
+  readonly disabled?: boolean
 }
 
 /** 우클릭 시점의 메뉴 구성 입력. */
@@ -276,6 +283,17 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     items.push({ id: 'properties', label: '속성', run: () => void showPropertiesFor(single.path) })
   }
 
+  // ── "Windows 메뉴" 섹션(§Y1) — 단일 선택(파일/폴더) + 로컬 경로일 때만 병합 ──────
+  // 다중 선택·빈 영역·원격/archive 경로는 섹션 자체 비노출(아래 분기 진입 안 함).
+  // winVerbs 는 메뉴 열림 직후 openRowContextMenu→loadWinVerbs 가 비동기로 채운다
+  // (loading→ready/empty). buildWinVerbsSection 이 상태별 MenuItem(로딩 행/verb 행/없음)
+  // 을 순수 합성한다. empty/undefined 면 빈 배열 → 기존 메뉴 무손상(append-only).
+  if (!multi && single && locationKindOf(single.path) === 'local') {
+    const winVerbs = store.getState().contextMenu?.winVerbs
+    const targetPath = single.path
+    items.push(...buildWinVerbsSection(winVerbs, (verbId) => void invokeWinVerb(targetPath, verbId)))
+  }
+
   return items
 }
 
@@ -306,6 +324,18 @@ export function openRowContextMenu(
   }
 
   s.openContextMenu({ x: clientX, y: clientY, panelId, targetPath: entry.path })
+
+  // §Y1: 메뉴가 실제로 열렸고(모달 우선 거부 아님), 단일 선택 + 로컬 경로일 때만
+  // "Windows 메뉴" 섹션을 비동기로 채운다(loading→ready/empty). 다중 선택·원격·archive 는
+  // 섹션 자체가 비노출이므로 워커 조회조차 하지 않는다(불필요한 spawn 회피).
+  const opened = store.getState().contextMenu
+  if (opened && opened.targetPath === entry.path) {
+    const finalSel = store.getState().selection[panelId]
+    const single = (finalSel?.selectedPaths.size ?? 0) === 1
+    if (single && locationKindOf(entry.path) === 'local') {
+      loadWinVerbs(entry.path)
+    }
+  }
 }
 
 /** 패널 빈 영역 우클릭 → 활성 패널 전환 + (대상 없음) 메뉴 열기. */
