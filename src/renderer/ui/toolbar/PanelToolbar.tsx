@@ -196,7 +196,13 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
                 else if (e.key === 'Escape') setAddressEditing(false)
               }}
               onFocus={() => useRootStore.getState().setInputContext('addressEdit')}
-              onBlur={() => useRootStore.getState().setInputContext('list')}
+              onBlur={() => {
+                // 포커스가 입력칸을 벗어나면(다른 곳 클릭·패널 전환) 편집 모드를 종료한다.
+                // 안 하면 addressEditing 이 true 로 남아 편집 input(테두리)이 계속 보이고,
+                // 전역 플래그라 다른 분할 창으로 전환 시 그 창이 자동으로 편집 모드/포커스가 된다.
+                setAddressEditing(false)
+                useRootStore.getState().setInputContext('list')
+              }}
               spellCheck={false}
               aria-label="경로 입력"
               style={{

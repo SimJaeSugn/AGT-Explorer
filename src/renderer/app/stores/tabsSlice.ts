@@ -542,7 +542,12 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
       if (!tab || !tab.panelIds.includes(panelId)) return
       set((s) => {
         const t = s.tabs[tabId]
-        if (t) t.activePanelId = panelId
+        if (t && t.activePanelId !== panelId) {
+          t.activePanelId = panelId
+          // 패널이 실제로 바뀌면 주소 편집 모드를 해제한다 — addressEditing 은 전역 플래그라
+          // 새로 활성화된 패널이 자동으로 주소창 편집/포커스 상태가 되는 것을 막는다(수동 진입만 허용).
+          s.addressEditing = false
+        }
       })
     },
 
