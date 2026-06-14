@@ -129,7 +129,22 @@ import type {
   WorkspaceDeleteReq,
   WorkspaceLoadReq,
   WorkspaceSaveReq,
-  FileOpError
+  FileOpError,
+  AgentRunReq,
+  AgentRunRes,
+  AgentCancelReq,
+  AgentConfirmReq,
+  AgentConfirmRes,
+  AgentProviderSetReq,
+  AgentProviderGetRes,
+  AgentProviderModelsReq,
+  AgentProviderModelsRes,
+  AgentProviderProbeReq,
+  AgentProviderProbeRes,
+  AgentKeySetReq,
+  AgentKeyHasReq,
+  AgentKeyHasRes,
+  AgentEvent
 } from '@shared/ipc/contracts'
 import type {
   DirListResult,
@@ -371,6 +386,31 @@ export interface ExplorerApi {
     extract(req: ArchiveExtractReq): Promise<Result<ArchiveTransferRes>>
     add(req: ArchiveAddReq): Promise<Result<ArchiveTransferRes>>
   }
+
+  // ── agent:* 자연어 파일 에이전트 (신규 §Z — ADR-014·ADR-015, impl: Z1) ──
+  // 비밀(apiKey)은 요청 인자(keySet)로만 흐르고 응답/이벤트엔 미수록(safeStorage·G5).
+  readonly agent: {
+    /** agent:run — 읽기 루프 시작(runId 발급, 진행은 onEvent 스트림). */
+    run(req: AgentRunReq): Promise<Result<AgentRunRes>>
+    /** agent:cancel — 진행 중 run 협조취소(runId 멱등). */
+    cancel(req: AgentCancelReq): Promise<Result<void>>
+    /** agent:confirm — 쓰기 ops 확정(Z3 배선 — 현재 EUNSUPPORTED). */
+    confirm(req: AgentConfirmReq): Promise<Result<AgentConfirmRes>>
+    /** agent:provider:set — 활성 제공자 설정(비-비밀·internal baseUrl SSRF 등록). */
+    providerSet(req: AgentProviderSetReq): Promise<Result<void>>
+    /** agent:provider:get — 활성 설정·키 보유 제공자·내부 화이트리스트(키 미포함). */
+    providerGet(): Promise<Result<AgentProviderGetRes>>
+    /** agent:provider:list-models — 제공자별 모델 목록(internal=설정 modelId 에코). */
+    providerModels(req: AgentProviderModelsReq): Promise<Result<AgentProviderModelsRes>>
+    /** agent:provider:probe — 도구 호출(function-calling) 지원 여부. */
+    providerProbe(req: AgentProviderProbeReq): Promise<Result<AgentProviderProbeRes>>
+    /** agent:key:set — 제공자별 API 키 저장(safeStorage·평문 0). */
+    keySet(req: AgentKeySetReq): Promise<Result<void>>
+    /** agent:key:has — 제공자 키 보유 여부(값 미노출). */
+    keyHas(req: AgentKeyHasReq): Promise<Result<AgentKeyHasRes>>
+    /** agent:event — run 진행 스트림(thinking/tool-call/tool-progress/plan/step/plan-ready/error·runId 상관). */
+    onEvent(cb: (evt: AgentEvent) => void): Unsubscribe
+  }
 }
 
 export const api: ExplorerApi = {
@@ -545,6 +585,19 @@ export const api: ExplorerApi = {
     close: (req) => invoke(CHANNELS.ARCHIVE_CLOSE, req),
     extract: (req) => invoke(CHANNELS.ARCHIVE_EXTRACT, req),
     add: (req) => invoke(CHANNELS.ARCHIVE_ADD, req)
+  },
+
+  agent: {
+    run: (req) => invoke(CHANNELS.AGENT_RUN, req),
+    cancel: (req) => invoke(CHANNELS.AGENT_CANCEL, req),
+    confirm: (req) => invoke(CHANNELS.AGENT_CONFIRM, req),
+    providerSet: (req) => invoke(CHANNELS.AGENT_PROVIDER_SET, req),
+    providerGet: () => invoke(CHANNELS.AGENT_PROVIDER_GET),
+    providerModels: (req) => invoke(CHANNELS.AGENT_PROVIDER_MODELS, req),
+    providerProbe: (req) => invoke(CHANNELS.AGENT_PROVIDER_PROBE, req),
+    keySet: (req) => invoke(CHANNELS.AGENT_KEY_SET, req),
+    keyHas: (req) => invoke(CHANNELS.AGENT_KEY_HAS, req),
+    onEvent: (cb) => subscribe(CHANNELS.AGENT_EVENT, cb)
   }
 }
 

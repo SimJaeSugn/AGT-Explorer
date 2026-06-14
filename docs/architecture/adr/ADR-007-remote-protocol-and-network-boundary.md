@@ -29,6 +29,8 @@ ADR-005/결정 D5는 본 앱을 **"로컬 전용·외부 네트워크 전송 없
 **기존(D5)**: "외부 네트워크 전송 없음(텔레메트리 옵트인 제외)."
 **개정(D7)**: 다음으로 **정밀화**한다 — *"네트워크 연결·전송은 (a) 텔레메트리 옵트인, 또는 (b) **사용자가 명시적으로 입력/저장한 원격 호스트(FTP/FTPS/SFTP)** 로만 발생한다. 그 외 임의 외부 송신은 여전히 전무하다."*
 
+> **[2026-06-14 추가 — 설계 단계·비파괴]** [ADR-014](./ADR-014-agentic-natural-language-file-agent.md)(§Z1 자연어 파일 에이전트)가 D7에 **(c) 사용자가 BYO 키로 활성화한 AI 제공자 엔드포인트** 송신을 추가한다(전면 개방 아님·하드코딩 자동 연결·백그라운드 호출 없음·`agent:run` 명시 실행 시에만). **[초판은 Anthropic 단일이었으나 사용자가 멀티 AI 제공자를 확정 → [ADR-015](./ADR-015-multi-llm-provider-abstraction.md)가 결정 D7→D8로 갱신]**: 목적지는 **`api.anthropic.com`·`api.openai.com`·SSRF 화이트리스트를 통과한 내부 자체 모델 호스트(OpenAI 호환)** 3종. 내부 base URL은 **화이트리스트 정확 일치 + IP 리터럴/사설망/loopback/링크로컬/메타데이터(169.254.169.254) 차단 + DNS 리바인딩(lookup all)/리다이렉트(0) 방어 + 요청 직전 Main 재검증**(ADR-015 G4·SSRF). 본 결정②의 ESLint 화이트리스트 모델을 **그대로 차용** — `@anthropic-ai/sdk`·`openai`·`node:https`/`node:tls`/`node:dns` import는 `src/main/agent/`에만 허용(`verify:eslint-agent`·`verify:eslint-remote` 동형). 본 결정③ safeStorage(DPAPI)는 **제공자별 BYO API 키 슬롯**에 재사용된다(평문·렌더러 노출 0·ADR-015 G5). 상태 🔜 설계 완료·구현 전. 기획 4종 편입 완료(features §Z1·user-stories 에픽24·flows F38~F41·PRD §6/§7 D8).
+
 - "로컬 전용"의 의미는 폐기되지 않고 **"사용자가 지시한 대상으로만 송신, 그 외 임의 송신 금지"** 로 좁혀진다.
 - 원격 연결은 **텔레메트리와 무관**하다(원격 연결 ≠ 텔레메트리 전송). 텔레메트리 임의 송신 금지·기본 꺼짐 원칙은 불변.
 - 연결 대상은 **런타임에 사용자 입력/저장 프로필에서만** 결정된다. 하드코딩된 외부 엔드포인트·자동 연결·백그라운드 동기화 없음.

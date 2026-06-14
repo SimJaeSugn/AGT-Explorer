@@ -210,6 +210,7 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
 
           <div style={sectionHeader}>도구</div>
           <TrashNode />
+          <AgentNode />
         </div>
       </div>
       <SplitDivider
@@ -301,6 +302,29 @@ function TrashNode(): JSX.Element {
       <span style={{ width: 14 }} />
       <span>🗑</span>
       <span>휴지통</span>
+    </div>
+  )
+}
+
+/** AI 에이전트 패널 진입 노드(§Z Z1). 클릭 → commandBus 'agent.ask'(읽기 전용 Q&A). */
+function AgentNode(): JSX.Element {
+  const open = useRootStore((s) => s.agentPanelOpen)
+  return (
+    <div
+      onClick={() => execCommand('agent.ask')}
+      title="에이전트에게 묻기(읽기 전용·Ctrl+Shift+A)"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        cursor: 'pointer',
+        background: open ? tokens.color.bgSelected : 'transparent'
+      }}
+    >
+      <span style={{ width: 14 }} />
+      <span>✨</span>
+      <span>에이전트에게 묻기</span>
     </div>
   )
 }

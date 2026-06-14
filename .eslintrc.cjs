@@ -112,7 +112,15 @@ module.exports = {
               // yauzl/yazl 은 순수 JS(네트워크 아님)이나, 라이브러리 표면을 감사 가능한 단일
               // 디렉토리(`src/main/archive/`)에 가둔다(remote/ 격리 모델 동형 · ADR-008).
               { name: 'yauzl', message: '압축(zip 읽기) 라이브러리 import 는 `src/main/archive/` 에만 허용(ADR-008).' },
-              { name: 'yazl', message: '압축(zip 쓰기) 라이브러리 import 는 `src/main/archive/` 에만 허용(ADR-008).' }
+              { name: 'yazl', message: '압축(zip 쓰기) 라이브러리 import 는 `src/main/archive/` 에만 허용(ADR-008).' },
+              // ── ADR-015 결정 G8 LLM SDK·네트워크 격리(agent/ 외 전면 금지) ──
+              // 멀티 LLM 제공자 SDK(@anthropic-ai/sdk·openai)와 추가 네트워크 모듈(node:dns —
+              // SSRF DNS 리바인딩 방어용)을 감사 가능한 단일 디렉토리(`src/main/agent/`)에 가둔다
+              // (remote/ 격리 모델 동형 · ADR-015 G8). node:tls 는 위 ADR-007 차단으로 이미 막혀 있다.
+              { name: '@anthropic-ai/sdk', message: 'LLM SDK(Anthropic) import 는 `src/main/agent/` 에만 허용(ADR-015 G8).' },
+              { name: 'openai', message: 'LLM SDK(OpenAI·내부 호환) import 는 `src/main/agent/` 에만 허용(ADR-015 G8).' },
+              { name: 'dns', message: '네트워크 DNS import 는 `src/main/agent/`(SSRF 방어) 에만 허용(ADR-015 G8).' },
+              { name: 'node:dns', message: '네트워크 DNS import 는 `src/main/agent/`(SSRF 방어) 에만 허용(ADR-015 G8).' }
             ],
             patterns: [
               { group: ['**/renderer/**', '@renderer/*'], message: 'main/preload 는 renderer import 금지.' }
@@ -153,6 +161,27 @@ module.exports = {
             paths: [],
             patterns: [
               { group: ['**/renderer/**', '@renderer/*'], message: 'main/remote 도 renderer import 금지(역방향 의존).' }
+            ]
+          }
+        ]
+      }
+    },
+    // ── main/agent: LLM SDK·네트워크 화이트리스트 예외(ADR-015 결정 G8) ──
+    // 유일한 LLM SDK·외부 송신 특권 디렉토리. 위 main 광역 블록의 네트워크/TLS/DNS/LLM SDK
+    // 차단(기존 8개 + node:tls·tls + @anthropic-ai/sdk·openai·dns·node:dns)을 여기서만 해제(allow)한다.
+    // ESLint override 는 후순위 매칭이 우선이므로 main 광역 블록 뒤에 두어야 agent/ 만 완화된다.
+    // 외부 송신 목적지 제한(Anthropic·OpenAI·SSRF 통과 내부 호스트만)은 코드(ssrfGuard)에서 강제하며,
+    // ESLint 는 import 경계만 격리한다(ADR-015 G8·ADR-007 결정② 동형).
+    // 단, renderer import 금지는 main 과 동일하게 유지(역방향 의존 차단).
+    {
+      files: ['src/main/agent/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [],
+            patterns: [
+              { group: ['**/renderer/**', '@renderer/*'], message: 'main/agent 도 renderer import 금지(역방향 의존).' }
             ]
           }
         ]

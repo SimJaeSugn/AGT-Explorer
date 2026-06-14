@@ -259,6 +259,15 @@ const baseBindings: KeyBinding[] = [
     context: 'global',
     label: '명령 팔레트 열기(Should)',
     group: '명령 팔레트'
+  },
+
+  // ── AI 에이전트(§Z Z1 — 읽기 전용 Q&A) ───────────────────────────────
+  {
+    chord: 'ctrl+shift+a',
+    commandId: 'agent.ask',
+    context: 'global',
+    label: '✨ 에이전트에게 묻기(읽기 전용)',
+    group: 'AI 에이전트'
   }
 ]
 

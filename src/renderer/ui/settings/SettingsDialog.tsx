@@ -16,6 +16,7 @@ import type { ThemeMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import type { SettingsCategory } from '@renderer/app/stores/uiSlice'
 import { WorkspacePanel } from '@renderer/ui/workspace/WorkspacePanel'
+import { AgentSettings } from '@renderer/ui/settings/AgentSettings'
 import {
   changeRecentLimit,
   changeShowDashboardOnStartup,
@@ -47,7 +48,8 @@ const CATEGORIES: ReadonlyArray<{ id: SettingsCategory; label: string; icon: str
   { id: 'layout', label: '레이아웃', icon: '🎨' },
   { id: 'system', label: '시스템', icon: '⚙' },
   { id: 'workspace', label: '워크스페이스', icon: '🗂' },
-  { id: 'shortcuts', label: '단축키', icon: '⌨' }
+  { id: 'shortcuts', label: '단축키', icon: '⌨' },
+  { id: 'agent', label: 'AI 에이전트', icon: '✨' }
 ]
 
 /** 단축아이콘 패널의 그룹 표시명(iconBarItems 의 group 키 → 한글 라벨). */
@@ -162,6 +164,7 @@ export function SettingsDialog(): JSX.Element | null {
             {category === 'system' && <SystemCategory />}
             {category === 'workspace' && <WorkspaceCategory onClose={close} />}
             {category === 'shortcuts' && <ShortcutsCategory />}
+            {category === 'agent' && <AgentSettings />}
           </div>
         </div>
       </div>

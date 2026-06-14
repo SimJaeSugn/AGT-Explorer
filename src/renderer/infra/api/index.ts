@@ -98,7 +98,18 @@ import type {
   ShellIconReq,
   ShellIconRes,
   ThumbnailRes,
-  TelemetryGetOptInRes
+  TelemetryGetOptInRes,
+  AgentRunReq,
+  AgentRunRes,
+  AgentConfirmReq,
+  AgentConfirmRes,
+  AgentProviderGetRes,
+  AgentProviderModelsRes,
+  AgentProviderProbeRes,
+  AgentKeyHasRes,
+  AgentEvent,
+  ProviderConfig,
+  ProviderId
 } from '@shared/ipc/contracts'
 
 /** contextBridge 로 노출된 API. (테스트/모킹 시 교체 가능하도록 게터 경유) */
@@ -629,6 +640,99 @@ export const workspaceApi = {
   load: (name: string): Promise<Result<SessionSnapshot>> => bridge().workspace.load({ name }),
   /** workspace:delete — 이름으로 삭제. */
   delete: (name: string): Promise<Result<void>> => bridge().workspace.delete({ name })
+}
+
+// ── agent:* 어댑터 (§Z — ADR-014·ADR-015: 자연어 파일 에이전트) ────────────
+// preload.agent 동형. 비밀(apiKey)은 keySet 요청 인자로만 흐르고 응답/이벤트엔 미수록.
+// jobId 대신 runId 로 agent:event 스트림을 상관(소비측 AgentPanel usecase).
+export const agentApi = {
+  /** agent:run — 읽기 루프 시작(runId 발급, 진행은 subscribeAgentEvents 스트림). */
+  run: (req: AgentRunReq): Promise<Result<AgentRunRes>> => bridge().agent.run(req),
+  /** agent:cancel — 진행 중 run 협조취소(runId 멱등). */
+  cancel: (runId: string): Promise<Result<void>> => bridge().agent.cancel({ runId }),
+  /** agent:confirm — 쓰기 ops 확정(Z3 — 현재 EUNSUPPORTED). */
+  confirm: (req: AgentConfirmReq): Promise<Result<AgentConfirmRes>> => bridge().agent.confirm(req),
+  /** agent:provider:set — 활성 제공자 설정(비-비밀·internal baseUrl SSRF 등록). */
+  providerSet: (config: ProviderConfig): Promise<Result<void>> => bridge().agent.providerSet({ config }),
+  /**
+   * agent:provider:set(hostOp) — 내부 SSRF 화이트리스트에 호스트 추가(validateRegister 통과 시).
+   * 신규 채널 0 — providerSet 채널 재사용. 목록 조회는 providerGet().allowedInternalHosts.
+   */
+  internalHostAdd: (url: string): Promise<Result<void>> =>
+    bridge().agent.providerSet({ hostOp: { action: 'add', host: url } }),
+  /** agent:provider:set(hostOp) — 내부 화이트리스트에서 호스트 삭제(URL/정규화 키 둘 다 수용). */
+  internalHostRemove: (host: string): Promise<Result<void>> =>
+    bridge().agent.providerSet({ hostOp: { action: 'remove', host } }),
+  /** agent:provider:get — 활성 설정·키 보유 제공자·내부 화이트리스트(키 미포함). */
+  providerGet: (): Promise<Result<AgentProviderGetRes>> => bridge().agent.providerGet(),
+  /** agent:provider:list-models — 제공자별 모델 목록. */
+  providerModels: (id: ProviderId): Promise<Result<AgentProviderModelsRes>> =>
+    bridge().agent.providerModels({ id }),
+  /** agent:provider:probe — 도구 호출 지원 여부. */
+  providerProbe: (id: ProviderId): Promise<Result<AgentProviderProbeRes>> =>
+    bridge().agent.providerProbe({ id }),
+  /** agent:key:set — 제공자별 API 키 저장(safeStorage·평문 0·응답에 키 미수록). */
+  keySet: (provider: ProviderId, apiKey: string): Promise<Result<void>> =>
+    bridge().agent.keySet({ provider, apiKey }),
+  /** agent:key:has — 제공자 키 보유 여부(값 미노출). */
+  keyHas: (provider: ProviderId): Promise<Result<AgentKeyHasRes>> =>
+    bridge().agent.keyHas({ provider })
+}
+
+/**
+ * agent:event 구독(thinking/tool-call/plan-ready/error). runId 상관(필터)은 소비측에서.
+ * type 별 핸들러로 분기 — 미지정 type 은 무시. 반환 dispose 로 해제(누수 방지).
+ */
+export interface AgentEventHandlers {
+  onThinking?: (runId: string, text: string) => void
+  onToolCall?: (evt: Extract<AgentEvent, { type: 'tool-call' }>) => void
+  onAction?: (evt: Extract<AgentEvent, { type: 'action' }>) => void
+  onPlanReady?: (evt: Extract<AgentEvent, { type: 'plan-ready' }>) => void
+  onPlanAdd?: (evt: Extract<AgentEvent, { type: 'plan-add' }>) => void
+  /** 추론 계획 수립/재계획(다단계 질의 — ADR-016). 단순 질의에선 미발생. */
+  onPlan?: (evt: Extract<AgentEvent, { type: 'plan' }>) => void
+  /** 추론 스텝 진행(start/done/failed — ADR-016). plan 과 함께 다단계 질의에서만. */
+  onStep?: (evt: Extract<AgentEvent, { type: 'step' }>) => void
+  /**
+   * 장시간 도구(트리 워크) 진행 피드백(§Z 프리징 완화). 패널이 현재 도구 호출 라인을 라이브
+   * 갱신할 표면("🔧 search_content: N개 검색 · M 일치 · 현재경로"). 스로틀된 누적 진행이며
+   * 결과/제어와 무관(놓쳐도 안전). 다단계 질의면 stepId 부기.
+   */
+  onToolProgress?: (evt: Extract<AgentEvent, { type: 'tool-progress' }>) => void
+  onError?: (evt: Extract<AgentEvent, { type: 'error' }>) => void
+}
+export function subscribeAgentEvents(h: AgentEventHandlers): Unsubscribe {
+  return bridge().agent.onEvent((evt: AgentEvent) => {
+    switch (evt.type) {
+      case 'thinking':
+        h.onThinking?.(evt.runId, evt.text)
+        break
+      case 'tool-call':
+        h.onToolCall?.(evt)
+        break
+      case 'action':
+        h.onAction?.(evt)
+        break
+      case 'plan-ready':
+        h.onPlanReady?.(evt)
+        break
+      case 'plan-add':
+        h.onPlanAdd?.(evt)
+        break
+      case 'plan':
+        h.onPlan?.(evt)
+        break
+      case 'step':
+        h.onStep?.(evt)
+        break
+      case 'tool-progress':
+        h.onToolProgress?.(evt)
+        break
+      case 'error':
+        h.onError?.(evt)
+        break
+    }
+  })
 }
 
 /** 직접 API 접근이 필요한 경우의 escape hatch(테스트·고급 사용). */

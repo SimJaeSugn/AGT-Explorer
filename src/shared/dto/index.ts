@@ -699,6 +699,106 @@ export interface ShellVerbDTO {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// agent:* 자연어 파일 에이전트 DTO (신규 §Z — ADR-014·ADR-015)
+// 비밀(API 키) 필드는 어떤 DTO 에도 구조적으로 부재(평문 0·렌더러 미노출·G5).
+// ────────────────────────────────────────────────────────────────────────
+
+/** LLM 제공자 식별자(ADR-015 G1). */
+export type ProviderId = 'anthropic' | 'openai' | 'internal'
+
+/** 제공자 비-비밀 설정(키 필드 없음). */
+export interface ProviderConfig {
+  readonly id: ProviderId
+  /** anthropic/openai 티어=plan 실모델 ID(선택·기본 상수). */
+  readonly planModel?: string
+  /** 티어=light 실모델 ID. */
+  readonly lightModel?: string
+  /** internal 만 — 화이트리스트 등록된 호스트 base URL. */
+  readonly baseUrl?: string
+  /** internal 단일 모델 ID. */
+  readonly modelId?: string
+  /** internal capability 플래그(degradation·G3). */
+  readonly supportsToolUse?: boolean
+}
+
+/** 모델 메타(목록·UI 표시). */
+export interface ModelInfo {
+  readonly id: string
+  readonly label: string
+  readonly tier?: 'plan' | 'light'
+}
+
+/**
+ * 이름 있는 위치 1건(§Z list_locations — 좌측 사이드바·패널 → 실경로 매핑).
+ * 렌더러가 store 상태에서 모아 `AgentRunReq.context.locations` 로 전달하고,
+ * `list_locations` 읽기 도구가 이를 **순수 패스스루**(fs 접근 0)로 모델에 반환한다.
+ * 에이전트는 name 매칭으로 path 를 획득해 list_directory 등에 넘긴다.
+ */
+export interface AgentLocationItem {
+  /** 표시 이름(즐겨찾기=별칭??폴더명, 빠른위치=라벨, 최근/드라이브=라벨, 패널=번호 라벨). */
+  readonly name: string
+  /** 실제 경로(로컬 절대경로 또는 원격/archive 가상경로). */
+  readonly path: string
+}
+
+/** 패널 위치 1건(§Z — index=패널 번호 1~4, active=활성 탭의 활성 패널 여부). */
+export interface AgentPanelLocation {
+  /** 패널 번호(1~4, 활성 탭 panelIds 순서). */
+  readonly index: number
+  readonly path: string
+  readonly active: boolean
+}
+
+/**
+ * 이름 있는 위치 모음(§Z — `AgentRunReq.context.locations`, 비파괴 옵셔널).
+ * 값은 렌더러(store)에서 모아 전달받는다(main 은 fs 미접근 패스스루). 각 카테고리는
+ * 옵셔널 — 없으면 list_locations 가 해당 항목을 비워 반환한다. 경로는 스코프 확장 시
+ * isSystemPath(시스템 폴더) / isVirtualPath(원격·archive)로 추가 필터된다(scope.ts).
+ */
+export interface AgentLocations {
+  /** 즐겨찾기(name=favoriteLabels 별칭 또는 폴더명). */
+  readonly favorites?: readonly AgentLocationItem[]
+  /** 빠른 위치(다운로드/바탕화면/문서/홈 — knownFolders). */
+  readonly quickAccess?: readonly AgentLocationItem[]
+  /** 최근 방문(name=폴더명). */
+  readonly recent?: readonly AgentLocationItem[]
+  /** 드라이브(name=드라이브 라벨). */
+  readonly drives?: readonly AgentLocationItem[]
+  /** 패널 1~4(활성 탭). */
+  readonly panels?: readonly AgentPanelLocation[]
+}
+
+/** 스테이징된 변경안 종류(쓰기 도구 — Z2 에서 적재·실행은 Z3 op:* 재사용). */
+export type PlannedOpKind = 'move' | 'copy' | 'rename' | 'mkdir' | 'trash'
+
+/** 변경안 1건(LLM 이 staged·사용자 diff 게이트·즉시 실행 0). */
+export interface PlannedOp {
+  readonly opId: string
+  readonly kind: PlannedOpKind
+  /** move/copy/trash 대상. */
+  readonly sources?: readonly string[]
+  /** move/copy/mkdir(parent). */
+  readonly destDir?: string
+  /** rename 대상. */
+  readonly path?: string
+  /** rename/mkdir 새 이름. */
+  readonly newName?: string
+  /** 사용자 diff 용 근거(LLM 설명). */
+  readonly reason: string
+}
+
+/** confirm 재검증을 통과해 op:start 로 정규화된 실행 단위(렌더러가 startOperation 호출). */
+export interface ConfirmedOpDTO {
+  readonly opId: string
+  /** 'copy'|'move'|'trash' op:start, 또는 fs:mkdir/fs:rename 경로. */
+  readonly kind: OpKind | 'mkdir' | 'rename'
+  readonly sources: readonly string[]
+  readonly destDir?: string
+  readonly newName?: string
+  readonly conflictPolicy?: ConflictResolution
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 오류 코드 (FileOpError 와 contracts 가 공유)
 // ────────────────────────────────────────────────────────────────────────
 

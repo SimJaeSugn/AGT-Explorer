@@ -30,6 +30,7 @@ import { openBatchRename } from './batchRename'
 import { startCompare } from './compare'
 import { startDedup } from './dedup'
 import { requestNewTab } from './newTab'
+import { openAgentPanel } from './agent'
 
 /** 현재 활성 패널 id 헬퍼. */
 function activePanel(): string | undefined {
@@ -296,6 +297,11 @@ export function execCommand(commandId: string): boolean {
     // ── 명령 팔레트(S2 · US-18.2) ─────────────────────────────────────
     case 'palette.open':
       s.openPalette()
+      return true
+
+    // ── AI 에이전트(§Z Z1 — 읽기 전용 Q&A) ────────────────────────────
+    case 'agent.ask':
+      openAgentPanel()
       return true
 
     // ── 퀵룩(U1 · US-20.1) — 열려 있으면 닫고, 아니면 앵커 항목을 연다(토글) ──

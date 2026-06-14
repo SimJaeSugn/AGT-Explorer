@@ -24,6 +24,7 @@ import { createDedupSlice } from './dedupSlice'
 import { createColumnsSlice } from './columnsSlice'
 import { createTagsSlice } from './tagsSlice'
 import { createSearchSlice } from './searchSlice'
+import { createAgentSlice } from './agentSlice'
 import type { AppStore } from './types'
 
 enableMapSet()
@@ -44,7 +45,8 @@ export const useRootStore = create<AppStore>()(
     ...createDedupSlice(...a),
     ...createColumnsSlice(...a),
     ...createTagsSlice(...a),
-    ...createSearchSlice(...a)
+    ...createSearchSlice(...a),
+    ...createAgentSlice(...a)
   }))
 )
 

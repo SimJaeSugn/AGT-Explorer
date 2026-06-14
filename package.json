@@ -45,6 +45,8 @@
     "verify:paste": "esbuild scripts/verify-paste.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:electron=./scripts/stub-electron.ts --banner:js=\"import { dirname as __pp } from 'node:path'; import { fileURLToPath as __fu } from 'node:url'; const __dirname = __pp(__fu(import.meta.url));\" --outfile=./out/main/verify-paste.mjs && node ./out/main/verify-paste.mjs",
     "verify:eslint-remote": "esbuild scripts/verify-eslint-remote.ts --bundle --platform=node --format=esm --packages=external --banner:js=\"import { dirname as __pp } from 'node:path'; import { fileURLToPath as __fu } from 'node:url'; const __dirname = __pp(__fu(import.meta.url));\" --outfile=./out/verify-eslint-remote.mjs && node ./out/verify-eslint-remote.mjs",
     "verify:credentials": "esbuild scripts/verify-credentials.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=./out/verify-credentials.cjs && node ./out/verify-credentials.cjs",
+    "verify:agent": "esbuild scripts/verify-agent.ts --bundle --platform=node --format=cjs --external:electron --external:@anthropic-ai/sdk --external:openai --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-agent.cjs && node ./out/verify-agent.cjs",
+    "verify:eslint-agent": "esbuild scripts/verify-eslint-agent.ts --bundle --platform=node --format=esm --packages=external --banner:js=\"import { dirname as __pp } from 'node:path'; import { fileURLToPath as __fu } from 'node:url'; const __dirname = __pp(__fu(import.meta.url));\" --outfile=./out/verify-eslint-agent.mjs && node ./out/verify-eslint-agent.mjs",
     "verify:remote": "esbuild scripts/verify-remote.ts --bundle --platform=node --format=cjs --external:electron --external:ssh2-sftp-client --external:basic-ftp --external:ssh2 --external:cpu-features --alias:@shared=./src/shared --outfile=./out/verify-remote.cjs && node ./out/verify-remote.cjs",
     "verify:remote-trust": "esbuild scripts/verify-remote-trust.ts --bundle --platform=node --format=cjs --external:electron --external:ssh2-sftp-client --external:basic-ftp --external:ssh2 --external:cpu-features --alias:@shared=./src/shared --outfile=./out/verify-remote-trust.cjs && node ./out/verify-remote-trust.cjs",
     "verify:remote-route": "esbuild scripts/verify-remote-route.ts --bundle --platform=node --format=esm --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-remote-route.mjs && node ./out/verify-remote-route.mjs",
@@ -55,6 +57,7 @@
     "verify:archive": "esbuild scripts/verify-archive.ts --bundle --platform=node --format=cjs --external:electron --external:yauzl --external:yazl --alias:@shared=./src/shared --alias:@renderer=./src/renderer --outfile=./out/verify-archive.cjs && node ./out/verify-archive.cjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "basic-ftp": "^5.3.1",
@@ -62,6 +65,7 @@
     "highlight.js": "^11.11.1",
     "immer": "^10.1.1",
     "marked": "^18.0.5",
+    "openai": "^6.42.0",
     "recharts": "^3.8.1",
     "ssh2-sftp-client": "^11.0.0",
     "yauzl": "^2.10.0",

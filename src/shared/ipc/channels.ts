@@ -207,7 +207,26 @@ export const CHANNELS = {
   ARCHIVE_LIST: 'archive:list',
   ARCHIVE_CLOSE: 'archive:close',
   ARCHIVE_EXTRACT: 'archive:extract',
-  ARCHIVE_ADD: 'archive:add'
+  ARCHIVE_ADD: 'archive:add',
+
+  // ── agent:* 자연어 파일 에이전트 (신규 §Z — ADR-014·ADR-015) ──────────────
+  // 루프=Main AgentOrchestrator(제공자 무지). 키=제공자별 safeStorage(렌더러 미노출).
+  // 읽기 즉시·쓰기 staged. 실행은 신규 채널 없이 기존 op:start(+undoMeta) 재사용.
+  // 외부 송신=Anthropic·OpenAI·SSRF 통과 내부 호스트(3목적지·D8).
+  // 전부 신규(P1 동결 후 신기능 선례 동일 규약 — preview:read·hash:*·archive:* 와 동형).
+  // ── 실행 ──
+  AGENT_RUN: 'agent:run', // invoke → Result<{ runId }> (루프 비동기 시작)
+  AGENT_EVENT: 'agent:event', // 푸시 evt (thinking/tool-call/plan-add/plan-ready/error)
+  AGENT_CONFIRM: 'agent:confirm', // invoke → Result<{ confirmed: ConfirmedOpDTO[] }>
+  AGENT_CANCEL: 'agent:cancel', // invoke → Result<void>
+  // ── 제공자 설정 (비-비밀·SSRF 검증) ──
+  AGENT_PROVIDER_SET: 'agent:provider:set', // invoke → Result<void> (id·model·baseUrl·toolUse)
+  AGENT_PROVIDER_GET: 'agent:provider:get', // invoke → Result<{ active; available[] }> (키 미포함)
+  AGENT_PROVIDER_MODELS: 'agent:provider:list-models', // invoke → Result<{ models[] }>
+  AGENT_PROVIDER_PROBE: 'agent:provider:probe', // invoke → Result<{ toolUse: boolean }>
+  // ── 키 (제공자별·safeStorage·평문 0) ──
+  AGENT_KEY_SET: 'agent:key:set', // invoke { provider, apiKey } → Result<void>
+  AGENT_KEY_HAS: 'agent:key:has' // invoke { provider } → Result<{ has: boolean }>
 } as const
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -248,7 +267,9 @@ export const EVENT_CHANNELS = [
   // search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 진행/일치/완료)
   CHANNELS.SEARCH_CONTENT_PROGRESS,
   CHANNELS.SEARCH_CONTENT_MATCH,
-  CHANNELS.SEARCH_CONTENT_DONE
+  CHANNELS.SEARCH_CONTENT_DONE,
+  // agent:* 푸시 evt (신규 §Z — ADR-014·ADR-015, runId 상관 thinking/tool-call/plan/error)
+  CHANNELS.AGENT_EVENT
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

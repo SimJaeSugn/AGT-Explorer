@@ -16,6 +16,8 @@ import type { CHANNELS } from './channels'
 import type {
   ClipboardEffectKind,
   CompareResultDTO,
+  ConfirmedOpDTO,
+  AgentLocations,
   ConflictPolicy,
   ConflictResolution,
   DirListResult,
@@ -23,6 +25,10 @@ import type {
   DupGroupDTO,
   FileEntryDTO,
   FileOpErrorCode,
+  ModelInfo,
+  PlannedOp,
+  ProviderConfig,
+  ProviderId,
   GrepMatchDTO,
   HashAlgo,
   KnownFoldersDTO,
@@ -43,6 +49,19 @@ import type {
   TrashItemDTO,
   VerifyMismatchDTO,
   WorkspaceInfo
+} from '../dto'
+
+// agent:* DTO 재노출(provider 모듈이 @shared/ipc/contracts 에서 import).
+export type {
+  AgentLocationItem,
+  AgentLocations,
+  AgentPanelLocation,
+  ConfirmedOpDTO,
+  ModelInfo,
+  PlannedOp,
+  PlannedOpKind,
+  ProviderConfig,
+  ProviderId
 } from '../dto'
 
 // ────────────────────────────────────────────────────────────────────────
@@ -577,6 +596,168 @@ export interface ArchiveTransferRes {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// agent:* 자연어 파일 에이전트 (신규 §Z — ADR-014·ADR-015)
+// 키(API 키) 는 어떤 요청/응답·이벤트에도 평문 미수록(safeStorage·G5).
+// DTO(ProviderId·ProviderConfig·PlannedOp·ConfirmedOpDTO·ModelInfo)는 shared/dto.
+// ────────────────────────────────────────────────────────────────────────
+
+// 키 (값은 즉시 safeStorage — 응답/로그/DTO 어디에도 평문 미수록)
+export interface AgentKeySetReq {
+  readonly provider: ProviderId
+  readonly apiKey: string
+}
+export interface AgentKeyHasReq {
+  readonly provider: ProviderId
+}
+export interface AgentKeyHasRes {
+  readonly has: boolean
+}
+
+// 제공자 설정 (비-비밀만)
+// 단일 채널 agent:provider:set 으로 ① 활성 제공자 설정(config) ② 내부 SSRF 화이트리스트
+// 추가/삭제(hostOp)를 모두 처리한다(신규 채널 0). 둘 중 하나만 지정한다.
+export interface AgentProviderSetReq {
+  readonly config?: ProviderConfig
+  /**
+   * 내부 호스트 화이트리스트 관리(선택). add 는 ssrfGuard.validateRegister 통과 시 등록,
+   * remove 는 정규화 키/URL 로 삭제. config 와 동시 지정 시 config 가 우선.
+   */
+  readonly hostOp?: { readonly action: 'add' | 'remove'; readonly host: string }
+}
+export interface AgentProviderGetRes {
+  readonly active: ProviderConfig // 키 미포함
+  readonly available: readonly ProviderId[] // 키 보유 제공자
+  readonly allowedInternalHosts: readonly string[] // 내부 화이트리스트(비-비밀)
+}
+export interface AgentProviderModelsReq {
+  readonly id: ProviderId
+}
+export interface AgentProviderModelsRes {
+  readonly models: readonly ModelInfo[]
+}
+export interface AgentProviderProbeReq {
+  readonly id: ProviderId
+}
+export interface AgentProviderProbeRes {
+  readonly toolUse: boolean
+  /** 판정 출처: 'probe'=실 런타임 더미 도구 completion, 'static'=정적 capability 폴백. */
+  readonly source?: 'probe' | 'static'
+  /** 폴백/판정 사유(키 없음·probe 실패 등 — 정직 표기). */
+  readonly reason?: string
+}
+
+// 실행 시작
+export interface AgentRunReq {
+  readonly prompt: string
+  readonly context: {
+    readonly cwd: string
+    readonly selection: readonly string[]
+    /**
+     * 이름 있는 위치(즐겨찾기·빠른위치·최근·드라이브·패널 1~4) → 실경로 모음(§Z).
+     * 비파괴 옵셔널 — 미제공 시 기존 동작과 동일(list_locations 빈 결과·스코프=cwd/selection만).
+     * list_locations 도구가 패스스루로 반환하고, 로컬·비시스템 경로는 스코프 루트로 추가된다.
+     */
+    readonly locations?: AgentLocations
+  }
+  /** 파일 실내용(preview) 전송 동의(SG-4). 기본 false=경로·메타만. */
+  readonly contentConsent?: boolean
+}
+export interface AgentRunRes {
+  readonly runId: string
+}
+
+// 푸시 이벤트(단방향 스트림)
+export type AgentEvent =
+  | { readonly type: 'thinking'; readonly runId: string; readonly text: string }
+  | {
+      readonly type: 'tool-call'
+      readonly runId: string
+      readonly tool: string
+      /** read=파일 읽기 / write=쓰기(Z2) / navigate=비파괴 내비(§Z open_tab). */
+      readonly mode: 'read' | 'write' | 'navigate'
+      readonly target?: string
+    }
+  | { readonly type: 'plan-add'; readonly runId: string; readonly op: PlannedOp }
+  | {
+      /**
+       * 비파괴 내비게이션 액션(§Z open_tab — 파일 미변경·확인 불요). 렌더러가 받아 즉시
+       * 실행한다(예: 'open-tab' → tabsSlice.newTab(path)). plan/confirm 흐름 밖이다.
+       * 동결 후 비파괴 확장(기존 변형 무변·신규 IPC 채널 0·기존 agent:event 재사용).
+       */
+      readonly type: 'action'
+      readonly runId: string
+      /** 현재 'open-tab'만. 향후 비파괴 내비 액션 추가 시 유니온 확장. */
+      readonly action: 'open-tab'
+      /** 새 탭으로 열 정규화된 로컬 경로(핸들러가 guardPath+scope 통과시킨 값). */
+      readonly path: string
+    }
+  | {
+      readonly type: 'plan-ready'
+      readonly runId: string
+      readonly plan: readonly PlannedOp[]
+      readonly summary: string
+      readonly truncated: boolean
+    }
+  | {
+      /**
+       * 추론 계획 단계 목록(ADR-016 하이브리드 오케스트레이션·design §14.4). 패널이 받으면
+       * 스텝 체크리스트를 thinking 위에 표시한다. 다단계 질의에서만 발생(단순 질의=plan 우회→미발생→
+       * 현재와 동일 UI). ⚠️ 쓰기 PlannedOp(plan-ready)와 별개 — 읽기 전용 추론 계획이다.
+       * 동결 후 비파괴 확장(기존 변형 무변·신규 IPC 채널 0·기존 agent:event 재사용).
+       */
+      readonly type: 'plan'
+      readonly runId: string
+      readonly steps: ReadonlyArray<{ readonly id: string; readonly goal: string }>
+      /** 재계획 횟수(0=최초 계획). */
+      readonly replanCount: number
+    }
+  | {
+      /**
+       * 추론 스텝 진행(ADR-016 §14.4). 패널이 받으면 해당 스텝의 진행 상태(진행중/완료/실패)를
+       * 갱신한다. plan 변형과 함께 다단계 질의에서만 발생. 비파괴 확장(신규 IPC 채널 0).
+       */
+      readonly type: 'step'
+      readonly runId: string
+      readonly stepId: string
+      readonly index: number
+      readonly total: number
+      readonly phase: 'start' | 'done' | 'failed'
+    }
+  | {
+      /**
+       * 장시간 도구(트리 워크) 진행 피드백(§Z 프리징 완화). search_content(및 scan/dup 보유 시)가
+       * 큰 트리를 걷는 동안 스로틀된 누적 진행(스캔/일치 파일 + 현재 경로)을 푸시한다. 패널이 받으면
+       * 현재 도구 호출 라인을 라이브 갱신한다("🔧 search_content: N개 검색 · M 일치 · 현재경로").
+       * 다단계 질의의 stepId 부기(있을 때만). 비파괴 확장(기존 변형 무변·신규 IPC 채널 0·기존
+       * agent:event 재사용). 진행 통지일 뿐 결과/제어와 무관(놓쳐도 안전).
+       */
+      readonly type: 'tool-progress'
+      readonly runId: string
+      readonly tool: string
+      readonly stepId?: string
+      /** 누적 스캔 파일 수. */
+      readonly scanned: number
+      /** 누적 일치 파일 수. */
+      readonly matched: number
+      /** 현재 처리 중 경로(길이 제한·새니타이즈됨). 없을 수 있음. */
+      readonly current?: string
+    }
+  | { readonly type: 'error'; readonly runId: string; readonly error: FileOpError }
+
+// 확정 실행(스코프 재검증·정규화)
+export interface AgentConfirmReq {
+  readonly runId: string
+  readonly ops: readonly PlannedOp[] // 사용자가 부분 수용한 ops
+  readonly conflictByOp?: Readonly<Record<string, ConflictResolution>>
+}
+export interface AgentConfirmRes {
+  readonly confirmed: readonly ConfirmedOpDTO[] // 검증 통과·op:start 정규화형
+}
+export interface AgentCancelReq {
+  readonly runId: string
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 전 채널 요청/응답 맵 — invoke/handle 채널의 단일 출처
 // 각 항목: { req: 요청타입; res: 응답타입(Result 로 감쌈) }
 // res 가 void 인 채널은 fire-and-forget(또는 Result<void>).
@@ -716,6 +897,17 @@ export interface IpcRequestMap {
   [CHANNELS.ARCHIVE_CLOSE]: { req: ArchiveCloseReq; res: Result<void> }
   [CHANNELS.ARCHIVE_EXTRACT]: { req: ArchiveExtractReq; res: Result<ArchiveTransferRes> }
   [CHANNELS.ARCHIVE_ADD]: { req: ArchiveAddReq; res: Result<ArchiveTransferRes> }
+
+  // agent:* (신규 §Z — ADR-014·ADR-015, 핸들러/Orchestrator impl: Z0~Z4)
+  [CHANNELS.AGENT_RUN]: { req: AgentRunReq; res: Result<AgentRunRes> }
+  [CHANNELS.AGENT_CONFIRM]: { req: AgentConfirmReq; res: Result<AgentConfirmRes> }
+  [CHANNELS.AGENT_CANCEL]: { req: AgentCancelReq; res: Result<void> }
+  [CHANNELS.AGENT_PROVIDER_SET]: { req: AgentProviderSetReq; res: Result<void> }
+  [CHANNELS.AGENT_PROVIDER_GET]: { req: void; res: Result<AgentProviderGetRes> }
+  [CHANNELS.AGENT_PROVIDER_MODELS]: { req: AgentProviderModelsReq; res: Result<AgentProviderModelsRes> }
+  [CHANNELS.AGENT_PROVIDER_PROBE]: { req: AgentProviderProbeReq; res: Result<AgentProviderProbeRes> }
+  [CHANNELS.AGENT_KEY_SET]: { req: AgentKeySetReq; res: Result<void> }
+  [CHANNELS.AGENT_KEY_HAS]: { req: AgentKeyHasReq; res: Result<AgentKeyHasRes> }
 }
 
 /** invoke/handle 채널 키 집합. */
@@ -926,6 +1118,9 @@ export interface IpcEventMap {
   [CHANNELS.SEARCH_CONTENT_PROGRESS]: SearchContentProgressEvt
   [CHANNELS.SEARCH_CONTENT_MATCH]: SearchContentMatchEvt
   [CHANNELS.SEARCH_CONTENT_DONE]: SearchContentDoneEvt
+
+  // agent:* 푸시 evt (신규 §Z — ADR-014·ADR-015)
+  [CHANNELS.AGENT_EVENT]: AgentEvent
 }
 
 export type EventChannel = keyof IpcEventMap

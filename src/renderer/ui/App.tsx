@@ -18,6 +18,7 @@ import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
 import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
+import { initAgentBridge } from '@renderer/app/usecases/agent'
 import { loadSettings } from '@renderer/app/usecases/settings'
 import { bootWindow } from '@renderer/app/usecases/windowInit'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
@@ -39,6 +40,7 @@ import { DuplicatesDialog } from '@renderer/ui/dedup/DuplicatesDialog'
 import { QueuePanel } from '@renderer/ui/queue/QueuePanel'
 import { ContentSearchDialog } from '@renderer/ui/search/ContentSearchDialog'
 import { CommandPalette } from '@renderer/ui/palette/CommandPalette'
+import { AgentPanel } from '@renderer/ui/agent/AgentPanel'
 import { QuickLookOverlay } from '@renderer/ui/quicklook/QuickLookOverlay'
 import { Toasts } from '@renderer/ui/dialogs/Toasts'
 import { ProgressDialog } from '@renderer/ui/dialogs/ProgressDialog'
@@ -80,6 +82,8 @@ export function App(): JSX.Element {
     initOpenPathBridge()
     // M8 S1: search:content:* 푸시 → searchSlice 미러(내용 검색 grep·전역 1회 구독·jobId 상관).
     initContentSearchBridge()
+    // §Z Z1: agent:event 푸시 → agentSlice 미러(자연어 에이전트·전역 1회 구독·runId 상관).
+    initAgentBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 창 초기화(U3 — primary 면 세션 복원+자동저장,
@@ -149,6 +153,8 @@ export function App(): JSX.Element {
       <ContentSearchDialog />
       {/* S2 명령 팔레트 · U1 Space 퀵룩(M8 Should) */}
       <CommandPalette />
+      {/* §Z Z1 AI 에이전트(읽기 전용) 우측 도킹 패널 */}
+      <AgentPanel />
       <QuickLookOverlay />
       <Toasts />
       {/* P4 오버레이: 진행률 · 충돌 · 영구삭제 확인 · D&D 의도 툴팁 */}

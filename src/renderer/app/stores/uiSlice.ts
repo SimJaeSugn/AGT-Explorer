@@ -10,14 +10,15 @@ import type { SettingsSnapshot, ShellVerbDTO, ThemeMode } from '@shared/dto'
 import type { SliceCreator } from './types'
 
 /** 설정 화면 카테고리(좌측 네비게이션·딥링크 대상). */
-export type SettingsCategory = 'layout' | 'system' | 'workspace' | 'shortcuts'
+export type SettingsCategory = 'layout' | 'system' | 'workspace' | 'shortcuts' | 'agent'
 
 /** 유효 카테고리만 통과(이벤트 객체 등 비문자열 인자 방어). */
 const SETTINGS_CATEGORIES: ReadonlySet<SettingsCategory> = new Set<SettingsCategory>([
   'layout',
   'system',
   'workspace',
-  'shortcuts'
+  'shortcuts',
+  'agent'
 ])
 
 /** 사용자 안내 토스트 1개. */

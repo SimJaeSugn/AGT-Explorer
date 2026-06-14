@@ -385,3 +385,81 @@ export const zArchiveAddReq = z.object({
   innerDir: z.string().max(4096),
   conflictPolicy: zConflictPolicy.optional()
 })
+
+// ── agent:* 자연어 파일 에이전트 (신규 §Z — ADR-014·ADR-015) ───────────────
+// 경로(cwd·selection·PlannedOp sources/destDir/path)는 핸들러가 guardPath + scope.assertInScope
+// 로 재검증한다(여기서는 형태만). 키(apiKey)는 오류 메시지에 미수록(min1·max8192). baseUrl 은
+// zod 형식 검증 후 핸들러가 ssrfGuard.validateRegister(1~4단계)로 추가 검증해야 등록된다.
+const zProviderId = z.enum(['anthropic', 'openai', 'internal'])
+const zHttpsUrl = z.string().url().max(2048).refine((u) => /^https?:\/\//.test(u), 'http(s) only')
+
+export const zAgentKeySetReq = z.object({
+  provider: zProviderId,
+  apiKey: z.string().min(1).max(8192)
+})
+export const zAgentKeyHasReq = z.object({ provider: zProviderId })
+
+export const zProviderConfig = z
+  .object({
+    id: zProviderId,
+    planModel: z.string().max(128).optional(),
+    lightModel: z.string().max(128).optional(),
+    baseUrl: zHttpsUrl.optional(),
+    modelId: z.string().max(128).optional(),
+    supportsToolUse: z.boolean().optional()
+  })
+  .refine((c) => c.id !== 'internal' || (!!c.baseUrl && !!c.modelId), 'internal requires baseUrl+modelId')
+export const zAgentProviderSetReq = z
+  .object({
+    config: zProviderConfig.optional(),
+    hostOp: z
+      .object({
+        action: z.enum(['add', 'remove']),
+        // host 는 URL(추가용·zHttpsUrl) 또는 정규화 키(삭제용·host[:port]) 둘 다 수용.
+        host: z.string().min(1).max(2048)
+      })
+      .optional()
+  })
+  .refine((r) => !!r.config || !!r.hostOp, 'config 또는 hostOp 중 하나는 필요합니다.')
+export const zAgentProviderModelsReq = z.object({ id: zProviderId })
+export const zAgentProviderProbeReq = z.object({ id: zProviderId })
+
+// 이름 있는 위치(§Z list_locations) — name/path 문자열 길이·항목수 상한(페이로드 폭주 방어).
+// path 는 로컬·가상(remote/archive) 둘 다 허용(zPath 동형 문자열) — 가상 경로 스코프 제외는 scope.ts.
+const zLocationItem = z.object({ name: z.string().max(512), path: z.string().min(1).max(4096) })
+const zPanelLocation = z.object({
+  index: z.number().int().min(1).max(64),
+  path: z.string().min(1).max(4096),
+  active: z.boolean()
+})
+const zAgentLocations = z.object({
+  favorites: z.array(zLocationItem).max(1000).optional(),
+  quickAccess: z.array(zLocationItem).max(64).optional(),
+  recent: z.array(zLocationItem).max(1000).optional(),
+  drives: z.array(zLocationItem).max(64).optional(),
+  panels: z.array(zPanelLocation).max(16).optional()
+})
+export const zAgentRunReq = z.object({
+  prompt: z.string().min(1).max(8192),
+  context: z.object({
+    cwd: zPath,
+    selection: z.array(zPath).max(10_000),
+    locations: zAgentLocations.optional()
+  }),
+  contentConsent: z.boolean().optional()
+})
+export const zPlannedOp = z.object({
+  opId: z.string().min(1),
+  kind: z.enum(['move', 'copy', 'rename', 'mkdir', 'trash']),
+  sources: z.array(zPath).optional(),
+  destDir: zPath.optional(),
+  path: zPath.optional(),
+  newName: z.string().min(1).max(255).optional(),
+  reason: z.string().max(2048)
+})
+export const zAgentConfirmReq = z.object({
+  runId: z.string().min(1),
+  ops: z.array(zPlannedOp).min(1).max(50), // MAX_STAGED_OPS 상한
+  conflictByOp: z.record(z.enum(['overwrite', 'skip', 'rename', 'merge'])).optional()
+})
+export const zAgentCancelReq = z.object({ runId: z.string().min(1) })

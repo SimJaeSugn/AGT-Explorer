@@ -10,6 +10,7 @@ import { registerIpcHandlers } from './ipc'
 import { initPersistence, sessionStore } from './persistence'
 import { initRemoteProfileStore } from './persistence/RemoteProfileStore'
 import { initCredentialStore } from './os/credentials'
+import { initAgentKeyStore } from './agent/agentKeyStore'
 import { initRemoteSessionManager, remoteSessionManager } from './remote'
 import { initArchiveSessionManager, initArchiveService, archiveSessionManager } from './archive'
 import { operationManager } from './operations/OperationManager'
@@ -90,6 +91,9 @@ if (!gotTheLock) {
     initCredentialStore(userData)
     const profiles = initRemoteProfileStore(userData)
     initRemoteSessionManager(profiles)
+
+    // §Z 에이전트: 제공자별 API 키 store(safeStorage·평문 0·credentialStore 동형) 초기화.
+    initAgentKeyStore(userData)
 
     // §Q1 압축(M9): zip 세션 매니저(open/list/close) + 추출/추가 서비스 초기화.
     //   추출/추가는 OperationManager(op:* 스트림)를 주입받아 진행률·취소·완료를 재사용한다

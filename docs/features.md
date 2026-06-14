@@ -26,6 +26,7 @@
 > **[2026-06-09 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 워커·GUI 🟡 — 파워기능 M7 2차(공용 인프라 W1·W2 + 4기능)]** M7 배정분을 구현·통합 검증 완료. **공용 해시 인프라 W1**(`src/main/hash/`[hashEngine·dupEngine·compareEngine·verifyEngine·fsDeps·HashManager]·`src/main/workers/`[hashWorker·hashProtocol]·`hash.handlers.ts`·**신규 채널 `hash:compare:*`/`hash:dup:*`/`hash:verify:*`/`hash:cancel`**·SHA-256 node:crypto·Worker Threads·취소·진행률·`verify:hash` 46)·**전송 큐 인프라 W2**(`TransferQueue.ts`·`OperationManager` 큐 승격·`queue.handlers.ts`·**신규 채널 `queue:*`**·SharedArrayBuffer 2워드 cancel+pause·`verify:queue` 47). **R2 중복 파일 찾기(§R·US-17.2·F23, Should ✅ 코드 — `domain/rules/dupGroup.ts`·`dedupSlice`·`usecases/dedup.ts`·`ui/dedup/DuplicatesDialog.tsx`·`dupEngine.ts`·`hash:dup:*`·정리=기존 `op:trash`) · R3 전송 큐 매니저(§R·US-17.3·F24, Should ✅ 코드 — `usecases/queue.ts`·`ui/queue/(QueuePanel·QueueItemRow·QueueConcurrencyControl·queueFormat)`·StatusBar 합산) · R4 복사 시 체크섬 검증(§R·US-17.4·F25, Could ✅ 코드 — `domain/rules/checksumVerdict.ts`·`usecases/checksum.ts`·`SettingsSnapshot.verifyOnCopy`·SettingsDialog 토글·op:done 후 `hash:verify` 트리거) · P1 해시/재귀 비교 확장(§P·US-15.1, ✅ 코드 — `ComparePairDTO.relPath?`·`compare.ts` useHash/recursive·`fromCompareResult`·`compareSlice` 해시잡·`usecases/compare` `hash:compare:*` 구독·`compareEngine.ts`·옵션 off는 M6 메타 동치).** **신규 IPC 채널 `hash:*`·`queue:*`·신규 npm 의존성 0(SHA-256=node:crypto 내장).** 검증: typecheck/lint/build 0·`verify:hash` 46·`verify:queue` 47·`verify:domain` 168·`verify:store` 207·`verify:persistence` 128·`verify:operations` 75·`verify:ops` 35·`verify:paste` 13·`verify:scan` 39·`verify:fs` 19·`verify:perf` 25·`verify:p5` 52(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·해시/큐 불변식만 증명. 실 동작(해시 워커 잡·큐 스케줄러 일시정지/재개·중복 정리·복사후 검증 트리거·해시/재귀 실 GUI 비교)은 런타임 스모크 권장 🟡. R4 비원자 복사 검증 타이밍·원격 큐 일시정지 미배선 정직 표기. 나머지 §P~§U 7종(Q1·S1·S2·T1·T2·U1·U2·U3)은 🔜 미착수(M8~M9).** 상세 §P·§R·[roadmap.md §0.5](./roadmap.md).
 > **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커 🟡 — 파워기능 M8 6종(§S·§T·§U) + 신규 Should §W1]** M8 배정 6종을 구현·통합 검증 완료. **S1 내용 검색(grep)(§S·US-18.1, Should ✅ 코드 — **신규 채널 `search:content:*` 5종**·`main/search/{grepEngine,binaryDetect,GrepManager,fsDeps}`·`main/workers/grep{Worker,Protocol}`·`search.handlers.ts`·`usecases/contentSearch`·`searchSlice`·`ui/search/ContentSearchDialog`·`domain/rules/contentSearch`·ADR-010·점프=기존 `preview:read`·신규 의존성 0[Node 내장]·`verify:search` 58·`verify:contentsearch` 38) · S2 명령 팔레트(§S·US-18.2, Should ✅ 코드 — 신규 채널 0·`ui/palette/CommandPalette`·`paletteMatch`·`Ctrl+Shift+P`·`verify:palette` 20) · T1 파일 태그/색상 라벨(§T·US-19.1, Should ✅ 코드 — 신규 채널 0·`domain/rules/tags.ts` 7색·`tagsSlice`·세션 메타 `tagsByPath`·**T3 폐기로 삭제됐던 filterComposition 태그 합성 재설계**) · T2 폴더 용량 인라인(§T·US-19.2, Should ✅ 코드 — 신규 채널 0·`usecases/folderSize`·`analyze:scan:*` 재사용) · U1 Space 퀵룩(§U·US-20.1, Should ✅ 코드 — 신규 채널 0·`ui/quicklook/QuickLookOverlay`[J5 재사용]·`Space`·`preview:read` 재사용) · U2 브레드크럼 드롭다운(§U·US-20.2, Should ✅ 코드 — 신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용).** **신규 Should §W1 자세히 보기 컬럼 헤더·너비 드래그(§W·US-21.1·F34, ✅ 코드 — 신규 채널 0·`domain/rules/columnWidths.ts`·`columnsSlice`·`FileListView` sticky 헤더 밴드·세션 영속).** **S1만 신규 IPC 채널 추가·나머지 5종+§W1 신규 채널 0·신규 npm 의존성 0.** 검증: `npm run build`(typecheck node+web+electron-vite) PASS·ESLint 0·신규 `verify:search` 58·`verify:palette` 20·`verify:contentsearch` 38 + `verify:domain` 204·`verify:store` 222·`verify:persistence` 119(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify는 순수 로직·store·세션 영속·계약 불변식만 증명. 실 GUI·실 워커(grep 스트리밍·결과 점프·미리보기 표출·팔레트 검색/실행·Space 퀵룩·태그 부여/필터·폴더용량 실 스캔·브레드크럼 ▾ 이동·컬럼 헤더 드래그/키보드 리사이즈/재시작 후 폭 유지)는 런타임 스모크 권장 🟡. Electron 앱 미실행. M8 잔여 0 — 파워기능 잔여는 M9(Q1 압축·U3 멀티윈도우) 2종(아래 M9 배너에서 구현 완료).** 상세 §S·§T·§U·§W·[roadmap.md §0.5·§1](./roadmap.md).
 > **[2026-06-12 편입·구현 완료(코드)·통합 QA PASS ✅ / 실 GUI·실 패키지 🟡 — §Y Windows 셸 컨텍스트 메뉴 연동 1종(Y1·US-23.1, Should)]** 사용자 직접 요청으로 정식 편입 → 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS([qa-integration-Y](./reviews/qa-integration-Y.md))로 완료(상태 🔜→구현 완료(코드)). **Y1 Windows 셸 컨텍스트 메뉴 연동(Should ✅ 코드)** — 파일/폴더 우클릭 시 앱의 React 컨텍스트 메뉴 하단에 "Windows 메뉴" 섹션을 추가해, Windows에 설치된 프로그램들이 등록한 셸 컨텍스트 메뉴 항목(예: "반디집으로 압축하기", "Cursor로 열기", "AGT-Finder로 열기")을 노출하고 선택 시 실행한다. **기술 방식(확정·실코드): Windows 셸 COM Verbs 열거 + `verb.DoIt()` 실행**(네이티브 N-API 애드온 비채택·신규 네이티브 의존성 0)·메인 프로세스 **상주 PowerShell 워커 `shellVerbsWorker.ps1`**(기존 hash/archive 워커 패턴)로 COM 호출. **신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종**(P1 동결 후 신기능 선례 동일 규약)·`os/shellVerbs.ts`(워커 서비스·before-quit dispose)·`os/shellVerbsBlacklist.ts`(자체구현 verb 누출 차단·설계와 달리 분리)·`shellVerbsSection.ts`(메뉴 섹션 병합·설계와 달리 분리)·`shell.handlers.ts`(sender·zod·재열거 교차검증→`EVERB` 거부)·`FileOpErrorCode`에 `'EVERB'` 비파괴 확장·electron.vite ps1 복사·electron-builder asarUnpack. 기존 B6 컨텍스트 메뉴 인프라(`ui/contextmenu/`)·ADR-005 보안 모델의 확장이며 우선순위 **Should**(우클릭 메뉴 내 섹션·신규 키 불요). 검증: typecheck(node+web)/build PASS(out/main/shellVerbsWorker.ps1 생성)·ESLint 0·`verify:shellverbs` 75/0·일회성 실 노드 스모크(ps1 워커 한글 경로 왕복·실 COM 열거·블랙리스트 필터·EVERB 거부·dispose 좀비 0) 통과. **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify·실 노드 스모크로 증명된 항목만 ✅·실 GUI(우클릭 "Windows 메뉴" 섹션 표출·로딩→채움/숨김·verb 클릭→외부 프로그램 DoIt·다중선택/원격/archive 숨김·한글 display 실 렌더)·실 패키지 설치본(asar ps1 경로·ExecutionPolicy·`npm run dist` 미수행)은 런타임 스모크 권장 🟡. 별도 트랙: `verify:worker` FAIL은 §Y 무관 사전 환경 결함(Node 22.17 워커 atomics·clean HEAD 동일 재현·§Y 회귀 아님).** 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-12 §Y)"](./PRD.md#6-범위와-우선순위-moscow). 상세 §Y·user-stories 에픽23(US-23.1)·flows F37·[roadmap.md §0.5 2026-06-12 §Y 단락](./roadmap.md).
+> **[2026-06-14 §Z Agentic 자연어 파일 에이전트 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기(US-24.2) 🔜 deferred] Z장(Agentic 자연어 파일 에이전트, US-24.1~24.5·F38~F41)** 사용자 직접 요청으로 정식 편입(설계 ADR-014/015·`docs/architecture/agent-natural-language-design.md` 완료). **읽기 전용 범위(US-24.1 자연어→읽기 도구 자율 탐색·US-24.3 제공자/키·US-24.4 내부 엔드포인트 SSRF·US-24.5 도구 범위/안전 레일)는 코드 구현 완료(실 동작 런타임 스모크 🟡) / 쓰기(US-24.2 plan diff 확인·실행)는 사용자 "읽기 전용으로 완성" 결정으로 🔜 deferred(`agent:confirm`=EUNSUPPORTED).** **상태 단일 출처는 roadmap §0.5 — 본 챕터 수용기준 본문은 행동 계약(무엇을·왜) 수준이며 구현 상태는 roadmap §0.5가 확정한다(✅로 단정 금지).** **Z1 자연어 파일 에이전트(Plan→Confirm→Execute)·Could** — 자연어 지시 → 읽기 도구 자율 탐색 → plan diff 확인·부분 수용 → 기존 `op:*`(휴지통·`Ctrl+Z` undo) 실행. **읽기 자유 / 쓰기는 확인 전 미실행**(쓰기 도구는 plan 적재만)이 안전 핵심. **멀티 AI 제공자(사용자 확정): Claude(Anthropic 2-티어)·OpenAI·내부 자체 모델(OpenAI 호환 HTTP 엔드포인트)** 셋 다 연결(설정 선택·전환·동일 UX 추상화)·내부 base URL **화이트리스트 SSRF 차단**·**BYO 키 safeStorage 암호화**(평문/렌더러 0)·키 미보유/`tool-use` 미지원 시 비활성+안내. **1차 도구 범위: 로컬·휴지통 한정**(영구삭제·원격·압축·셸 제외)·경로 스코프·**내용 전송 명시 동의**(기본 경로·메타만)·비용 상한. 우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-14 §Z)"](./PRD.md#6-범위와-우선순위-moscow). 신규 채널 `agent:*`·신규 npm 의존성 `@anthropic-ai/sdk`+`openai`(네이티브 0)·`SESSION_SCHEMA_VERSION` 무변(에이전트 상태 휘발). **상태(2026-06-14): 읽기 전용 범위(US-24.1·24.3·24.4·24.5) 구현 완료(코드·verify:agent 225/0·2026-06-14 `open_tab` 내비 도구 추가로 201→225·도구 8종=읽기 7종+`open_tab`[비파괴 내비·파일 쓰기 아님])·실 동작 🟡 / 쓰기(US-24.2 plan·실행) 🔜 deferred(사용자 "읽기 전용으로 완성" 결정·`agent:confirm`=EUNSUPPORTED) — 구현 상태 단일 출처는 roadmap §0.5·✅로 단정 금지.** 상세 §Z·user-stories 에픽24(US-24.1~24.5)·flows F38~F41·PRD §6/§7(D8)/§8/§11(D8)/§12(M11).
 > **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커·멀티윈도우 🟡 — 파워기능 M9 2종(§Q·§U) + 신규 Should §U4·§X1]** M9 배정 2종 + 사용자 명시 요청 신규 Should 2건을 구현·통합 검증 완료. **Q1 압축파일 `archive://` 어댑터(§Q·US-16.1, Should ✅ 코드 — **신규 채널 `archive:open/list/close/extract/add` 5종**·**신규 의존성 `yauzl`+`yazl`**[MIT·네이티브 0]·`src/main/archive/*`[`ArchiveService`·`ZipReader`(yauzl)·`ZipWriter`(yazl)·`ArchiveSessionManager`·`archiveProtocol`·`archiveErrors`]·`src/main/workers/archiveWorker.ts`·`src/shared/archive/{safePath,archivePath}.ts`[Zip Slip 순수]·`renderer/app/usecases/archive.ts`·추출/추가=기존 `op:*`·1차 zip만·암호 zip 제외·중첩 zip 제외·Zip Slip 차단[ADR-008]·`verify:archive` 56·`verify:archiveui` 43) · U3 탭 색상/잠금·탭 분리(새 창)(§U·US-20.3, Could ✅ 코드 — 색상/잠금=세션 메타[`Tab.color?`/`locked?`·신규 채널 0·닫기 가드]·탭 분리=멀티 윈도우[`src/main/windows/windowManager.ts`·`renderer/app/usecases/windowSplit.ts`·**신규 채널 `window:split-tab`/`window:get-init` 2종**]·신규 의존성 0).** **신규 Should §U4 탭 사용자 지정 이름(§U·US-20.4, ✅ 코드 — 신규 채널 0·`tabsSlice.setTabName/clearTabName`·`TabBar TabRenameInput`·`TabSnapshot.customName?` 영속) · §X1 좌측 사이드바 "빠른 위치 ▸ 다운로드"(§X·US-22.1, ✅ 코드 — **신규 채널 `fs:known-folders` 1종**·`KnownFoldersDTO`·`sidebarSlice.loadKnownFolders`·`Sidebar` 빠른 위치 섹션·다운로드만 렌더).** **Q1만 신규 의존성 추가(yauzl/yazl)·Q1·U3·X1 신규 채널 추가·U4 신규 채널 0.** 검증: `npm run build`(typecheck node+web + archiveWorker.js 번들) PASS·ESLint 0·부팅 스모크 정상·`verify:archive` 56·`verify:archiveui` 43 + store/persistence 증분(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify·코드 정합·부팅 스모크(창 표시)만 ✅. 실 기능 동작(zip 실 열기/추출/추가 IPC 왕복·op:* 진행률·멀티 윈도우 실 분리/이동/복원·탭 인라인 이름변경·색상/잠금·다운로드 노드 이동)은 런타임 스모크 권장 🟡. U3 정직 한계: 멀티 윈도우 세션 복원은 주 창만(분리 창 reopen-only·재시작 복원 안 함·의도적 MVP). M9 잔여 0 — §P~§U 14종 전부 완료(M6~M9 종료·T3 폐기).** 상세 §Q·§U·§X·[roadmap.md §0.5·§1](./roadmap.md).
 
 ---
@@ -1655,3 +1656,97 @@
 - [x] verb 열거·실행은 **사용자가 우클릭한 실제 항목 경로**에 대해서만 수행하며, 임의 명령 합성·임의 실행 표면을 추가하지 않는다(ADR-005 보안 모델 준수·`guard.ts §Y1` zod·재열거 교차검증·셸 미경유 ps1 워커)
 - [x] 기존 앱 자체 컨텍스트 메뉴(B6) 명령(열기·연결 프로그램·복사/잘라내기/이름바꾸기·삭제·속성·빈 영역 메뉴)과 충돌·회귀 없이 "Windows 메뉴" 섹션만 추가된다 *(typecheck/build PASS·verify 회귀 0·`ContextMenu.tsx` 섹션 병합 / 실 GUI 회귀 0은 🟡)*
 - [ ] 네이티브 메뉴 팝업(HMENU)·캐스케이드 서브메뉴 완전 재현 — **1차 범위 밖(비범위·Non-goal)**
+
+---
+
+## Z. Agentic 자연어 파일 에이전트 (2026-06-14 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기 US-24.2 🔜 deferred)
+
+> 자연어 지시로 파일 정리·이동·이름변경 등을 **에이전트가 제안하고 사용자가 확인해 실행**하는 부가 기능 영역이다. 새 파일시스템 동작을 만드는 것이 아니라, 기존 읽기 인프라(`fs:list`·검색·스캔·해시)와 실행 파이프(`op:*`·휴지통·되돌리기)를 **자연어로 구동**하는 표면을 더한다. 그 전에는 모든 파일 작업이 사용자의 직접 조작(클릭·D&D·단축키)으로만 이뤄졌다.
+> **[챕터 식별자 주의]** 본 챕터 식별자 "**Z**"는 MoSCoW 우선순위 마커와 무관한 챕터 라벨이다(§M·§N·§Y 동일 규약). 우선순위는 항상 "Must/Should/Could/Won't". §V는 roadmap/traceability에서 **비계획 구현 플래그 장**으로 쓰이므로 본 신규 사용자 기능 챕터는 문자 **Z**를 쓴다.
+> 2026-06-14 사용자 직접 요청으로 정식 편입(편입 시점 🔜 설계 완료·구현 전 → **읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기(US-24.2) 🔜 deferred·상태 단일 출처 roadmap §0.5**). 우선순위는 **C(Could)** — 강력 차별화이지만 외부 LLM 의존·BYO 키·프라이버시/비용 책임을 동반하는 실험적 부가 기능으로 핵심 가치(다중 디렉토리 작업)와 독립적이다(우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-14 §Z)"](./PRD.md#6-범위와-우선순위-moscow)).
+> **설계(아키텍트 확정·정합 대상)**: [ADR-014](./architecture/adr/ADR-014-agentic-natural-language-file-agent.md)·[agent-natural-language-design.md](./architecture/agent-natural-language-design.md). 에이전트 루프는 **메인 프로세스**에 위치(키·네트워크 단일 신뢰 경계)·읽기 도구는 즉시 실행·쓰기 도구는 plan 적재만·실행은 기존 `op:*`+undo 재사용. 신규 IPC 채널 `agent:*`·신규 npm 의존성(제공자 SDK)·정확한 채널명/프로토콜/컴포넌트는 **chief-architect 설계 단계에서 확정**하므로 본 명세는 **행동 계약(무엇을·왜) 수준**으로만 기술한다(설계·코드 아님).
+> **멀티 AI 제공자(사용자 확정)**: **Claude(Anthropic)·OpenAI·내부 자체 모델(OpenAI 호환 HTTP 엔드포인트)** 셋 다 연결 가능하며 설정에서 선택·전환한다. ADR-014 본문은 Claude 단일 엔드포인트를 전제로 작성됐으나, **사용자 결정으로 멀티 제공자 추상화가 요구**되므로 본 기획은 그 상위 요구(제공자 선택·동일 UX 추상화·내부 base URL 화이트리스트 SSRF 차단·function-calling 정규화)를 수용기준으로 명시한다. 제공자 추상화 계층·내부 엔드포인트 검증·function-calling 정규화의 구체 설계는 chief-architect로 넘긴다(아래 §리스크/넘길 사항).
+> 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다(명령 팔레트/아이콘바 진입·신규 전용 키 최소·진입 `Ctrl+Shift+A`). 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수. **[2026-06-14 상태] 읽기 전용 범위(US-24.1·24.3·24.4·24.5)는 코드 구현 완료·실 동작 런타임 스모크 🟡 / 쓰기(US-24.2 plan diff·실행)는 사용자 "읽기 전용으로 완성" 결정으로 🔜 deferred(`agent:confirm`=EUNSUPPORTED). 본 챕터 수용 기준 본문은 행동 계약(무엇을·왜) 수준이며 구현 상태의 단일 출처는 roadmap §0.5다(✅로 단정하지 않는다·읽기 도구 실 SDK 왕복·실 GUI는 API 키+Electron 필요로 미검증 🟡).**
+
+### Z1. 자연어 파일 에이전트 (Plan → Confirm → Execute) (C) — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기 US-24.2 🔜 deferred
+**목적**: 사용자가 자연어로 지시하면(예: "다운로드 폴더에서 2023년 송장 PDF를 찾아 `Invoices/2023/`로 옮겨줘"), 에이전트가 읽기 도구로 폴더를 자율 탐색해 **변경안(plan)** 을 만들고, 사용자가 **diff로 확인·부분 수용**한 뒤 기존 파일작업 파이프로 **안전하게 실행**(휴지통·되돌리기 보장)한다. (US-24.1~24.5)
+
+> **핵심 안전 모델 — 읽기 자유 / 쓰기는 확인 전 미실행**: LLM은 읽기 도구(목록·검색·미리보기·스캔·중복·비교)를 자유롭게 호출하지만, 쓰기 도구(이동·복사·이름변경·새 폴더·휴지통)는 **실제 파일을 건드리지 않고 plan에 적재(stage)만** 한다. 모든 실제 변경은 **사용자 confirm(diff) 후** 기존 `op:*` 파이프(휴지통·`Ctrl+Z` undo)로만 실행된다. → LLM이 직접·즉시 파괴할 경로가 존재하지 않는다(프롬프트 인젝션이 그럴듯한 op를 쌓아도 사용자 diff 확인 전 실행 0).
+
+#### Z1-a. 에이전트 루프 (자연어 → plan)
+| 항목 | 동작 규칙 |
+|---|---|
+| 진입 | 명령 팔레트(`Ctrl+Shift+P`) "AI 에이전트 열기" 또는 아이콘바 도구 그룹에서 에이전트 패널을 연다(신규 전용 키 최소) |
+| 입력 | 자연어 지시 입력. 현재 활성 패널 경로·선택 항목이 컨텍스트로 함께 전달된다 |
+| 읽기 도구(즉시 실행) | 디렉토리 목록·파일 검색·미리보기·용량 스캔·중복 찾기·폴더 비교 등 **부수효과 0** 읽기 도구를 에이전트가 자율 호출해 근거를 수집한다. 호출 내역은 사용자에게 실시간 표시(은폐 0) |
+| 내비게이션 도구(즉시 실행·비파괴) | **(2026-06-14 코드 추가) `open_tab`** — 새 탭을 열고 지정 경로로 이동(`mode:'navigate'`). **파일을 변경하지 않는 비파괴 내비게이션 액션**(확인 불요·즉시 실행)이며 **파일 쓰기 도구가 아님**(이동·복사·이름변경·새 폴더·휴지통 등 쓰기 도구는 여전히 plan 적재만·미실행). 읽기 도구와 동일 경로 스코프(시스템 폴더 차단). 상태: 코드 구현 완료·실 GUI 🟡(상태 단일 출처 roadmap §0.5) |
+| 쓰기 도구(plan 적재만) | 이동·복사·이름변경·새 폴더·휴지통 도구를 LLM이 "호출"하면 **실제 파일 변경 없이** plan에 변경안을 적재하고 사용자에게 증분 표시한다(미실행) |
+| 진행 표시 | 에이전트의 사고(thinking)·도구 호출·plan 누적을 스트리밍으로 표시해 체감 응답성을 준다 |
+| 종료 | 에이전트가 plan을 완성하면 변경안 요약과 함께 확인 단계로 넘어간다 |
+
+#### Z1-b. Preview / Confirm (부분 수용)
+| 항목 | 동작 규칙 |
+|---|---|
+| plan diff | 적재된 변경안을 op 단위(새 폴더·이동·이름변경·휴지통)로 **무엇을·어디로·왜**(에이전트 근거) 사람이 읽는 diff로 보여 준다 |
+| 부분 수용 | 항목별 체크박스로 일부 op만 선택 수용·거부할 수 있다(전체 수락 강요 없음) |
+| 충돌 정책 | op별 충돌 정책(덮어쓰기/건너뛰기/이름변경/병합)을 기존 규칙(D4)으로 선택한다 |
+| 실행 게이트 | "실행"을 눌러야만 실제 변경이 시작된다. 그 전에는 **무변경** |
+
+#### Z1-c. Execute (되돌릴 수 있게)
+| 항목 | 동작 규칙 |
+|---|---|
+| 실행 경로 | 확정된 op는 **기존 파일작업 파이프(`op:*`·진행률·취소·충돌)** 로만 실행된다(신규 실행 엔진 없음) |
+| 휴지통·undo | 삭제는 **휴지통만**(영구삭제 없음)·모든 변경은 `Ctrl+Z` 다단계 undo(K1)로 되돌릴 수 있다 |
+| 재검증 | 실행 직전 각 경로를 다시 검증(경로 스코프·시스템 폴더 차단)해 plan 생성과 실행 사이의 오염을 막는다 |
+
+#### Z1-d. 멀티 AI 제공자 설정 (Claude · OpenAI · 내부 모델)
+| 항목 | 동작 규칙 |
+|---|---|
+| 제공자 선택 | 설정에서 **AI 제공자(Claude·OpenAI·내부 자체 모델)** 를 선택·전환한다. 전환해도 에이전트는 동일 UX로 동작(추상화) |
+| 모델 선택 | Claude=2-티어(계획용 상위/경량 보조)·OpenAI=제공 모델 선택·내부=모델 ID 입력 |
+| 키 입력 | 제공자별 API 키를 입력한다(**BYO 키**·과금 사용자 책임). 키는 **safeStorage 암호화 저장**·평문/렌더러 노출 0·UI엔 보유 여부만 표시 |
+| 내부 엔드포인트 | 내부 자체 모델은 **base URL + API 키 + 모델 ID**(OpenAI 호환)를 입력한다. base URL은 **화이트리스트(허용 호스트)** 로만 등록·관리한다(SSRF 차단·임의 URL 전면 개방 금지) |
+| 키 미보유 | 선택한 제공자의 키가 없으면 에이전트 기능을 **비활성**하고 키 설정 안내를 표시한다(핵심 파일 기능은 무영향) |
+| tool-use 미지원 | tool-use(function-calling)를 지원하지 않는 제공자/모델을 선택하면 **명확한 안내와 함께 에이전트를 비활성 또는 제한**한다(조용한 오작동 금지·degradation) |
+| 영속 | 제공자 선택·모델 ID·base URL 화이트리스트 등 **비-비밀 설정만 세션 영속**한다(비밀=키는 safeStorage·스냅샷 미수록) |
+
+#### Z1-e. 안전 레일 (도구 범위 · 경로 스코프 · 내용 동의 · 비용 상한)
+| 항목 | 동작 규칙 |
+|---|---|
+| 도구 범위(1차) | **로컬 파일 한정**·삭제는 **휴지통만**. 영구삭제·원격(FTP)·압축 내부·셸 명령 실행 도구는 **에이전트에 노출하지 않는다**(존재하지 않으므로 LLM이 호출 불가) |
+| 경로 스코프 | 에이전트 도구의 경로는 **사용자가 연 루트/선택 항목의 조상 경계 안**으로 제한하고 **시스템 폴더(`%WINDIR%`·`Program Files` 등)를 차단**한다. 원격/압축 prefix 경로 거부 |
+| 내용 동의 | 기본은 **경로·메타데이터(이름·크기·수정일)만** 제공자로 전송한다. 파일 **실내용**(미리보기)은 **작업별 명시 동의** 후에만 전송하며 상한 바이트만 보낸다. 무엇을 읽고 전송했는지 도구 로그로 정직 표시 |
+| 비용 상한 | 턴 수·op 수·토큰 예산·시간에 **하드 상한**을 두고 초과 시 루프를 중단해 부분 plan을 반환한다. 사용자 취소(중단)를 즉시 반영한다. BYO 키라 비용은 사용자에게 가시 표시 |
+| 프롬프트 인젝션 | 파일명·파일 내용에 섞인 지시는 도구 결과로 **데이터로 명시 래핑**(지시 아님)되고, 쓰기 도구가 즉시 실행되지 않으므로(plan 적재만) 사용자 diff 확인 전 실행 0 |
+
+**범위 밖 (1차 — 비범위·Non-goal·정직 표기)**
+| 항목 | 사유 |
+|---|---|
+| 영구삭제·원격(FTP)·압축 내부·셸 명령 도구 | 1차 도구 범위는 로컬·휴지통 한정. 되돌림 보장이 어려운/외부 표면이 큰 도구는 제외(후속 확대는 PM 결정·ADR-014 SG-3/UQ-Z5) |
+| 완전 자동 실행 | 사용자 확인 없이 파일을 변경하지 않는다(항상 diff confirm 게이트) |
+| 전 디스크 자율 작업 | 에이전트는 경로 스코프(연 루트/선택 조상) 안에서만 동작한다 |
+| 창 간 동시 다중 run | 1차는 창당 단일 run(멀티 윈도우 동시 에이전트는 후속·ADR-014 UQ-Z3) |
+| LLM plan 정확성 보장 | LLM 제안은 비결정적·오류 가능. "정확한 자동화"가 아니라 "검토 가능한 제안"으로 포지셔닝(최종 방어선=사용자 diff 확인·undo) |
+
+**수용 기준** (2026-06-14: 읽기 전용 범위 US-24.1·24.3·24.4·24.5 구현 완료(코드)·실 동작 🟡 / 쓰기 US-24.2 🔜 deferred — 체크박스는 쓰기 미구현+실 SDK/GUI 런타임 미검증으로 `[ ]` 유지·상태 단일 출처는 roadmap §0.5·✅로 단정 금지)
+- [ ] 자연어 지시를 입력하면 에이전트가 읽기 도구로 폴더를 자율 탐색해 **변경안(plan)** 을 만들고, 사고·도구 호출·plan 누적이 사용자에게 표시된다(US-24.1)
+- [ ] **읽기 도구는 즉시 실행되고 쓰기 도구는 plan에 적재만 된다** — 사용자 확인 전에는 실제 파일이 변경되지 않는다(읽기 자유/쓰기 미실행·US-24.2)
+- [ ] plan을 op 단위 diff(무엇을·어디로·왜)로 확인하고, **항목별 체크박스로 부분 수용·거부**하며 op별 충돌 정책(D4)을 선택할 수 있다(US-24.2)
+- [ ] "실행"을 눌러야만 변경이 시작되고, 확정된 op는 **기존 `op:*` 파이프로 실행**되어 진행률·취소·충돌이 동작한다(US-24.2)
+- [ ] 모든 변경은 **삭제=휴지통만·`Ctrl+Z` 다단계 undo(K1)** 로 되돌릴 수 있다(영구삭제·원격·셸 도구는 1차 미노출·US-24.2)
+- [ ] 설정에서 **AI 제공자(Claude·OpenAI·내부 자체 모델)를 선택·전환**할 수 있고, 전환해도 에이전트가 동일 UX로 동작한다(US-24.3)
+- [ ] 제공자별 **API 키(BYO)를 입력**하면 **safeStorage로 암호화 저장**되고 평문/렌더러/로그/plan에 노출되지 않으며, UI에는 보유 여부만 표시된다(US-24.3)
+- [ ] **내부 자체 모델은 base URL + 키 + 모델 ID(OpenAI 호환)** 로 등록하며, base URL은 **화이트리스트(허용 호스트)로만 허용**되어 임의 URL 요청이 차단된다(SSRF 차단·US-24.4)
+- [ ] **키 미보유 시 에이전트 기능이 비활성**되고 키 설정 안내가 표시된다(핵심 파일 기능은 무영향·US-24.3)
+- [ ] **tool-use(function-calling) 미지원 제공자/모델 선택 시 명확한 안내와 함께 에이전트가 비활성 또는 제한**된다(조용한 오작동 금지·degradation·US-24.3)
+- [ ] 에이전트 도구는 **로컬 파일 한정·삭제는 휴지통만**이며, **경로 스코프(연 루트/선택 조상 경계)·시스템 폴더 차단**이 강제된다(US-24.5)
+- [ ] **기본은 경로·메타데이터만 제공자로 전송**되고, 파일 **실내용 전송은 작업별 명시 동의** 후에만 일어나며 어떤 항목을 읽고 전송했는지 도구 로그로 표시된다(US-24.5)
+- [ ] **비용 상한(턴/op/토큰/시간)** 이 있고 초과 시 부분 plan으로 중단되며, 사용자가 언제든 **취소**할 수 있다(US-24.5)
+- [ ] 제공자 선택·모델 ID·base URL 화이트리스트 등 **비-비밀 설정만 세션 영속**되고 비밀(키)은 스냅샷에 수록되지 않는다(US-24.4)
+- [ ] 영구삭제·원격·압축·셸 도구·완전 자동 실행·전 디스크 자율 작업 — **1차 범위 밖(비범위·Non-goal)**
+
+**의존성 및 제약**
+- 핵심 파일 기능(§A~§Y)과 **완전 독립**: 에이전트는 부가 기능이며, 키 없음·네트워크 오류·API 변경 시 기능 전면 비활성돼도 핵심 작업은 무영향이다.
+- 실행은 기존 `op:*`+undo(K1) 재사용(신규 실행/undo 코드 0)·도구는 기존 읽기 인프라(`fs:list`·검색·스캔·해시·`preview:read`) 재사용.
+- 네트워크 경계는 PRD §7 D8(에이전트 송신=선택한 제공자 엔드포인트만·내부=화이트리스트)·자격증명은 D6 동형(safeStorage).
+- 설계 정합 대상: ADR-014·`agent-natural-language-design.md`. **멀티 제공자 추상화·내부 엔드포인트 SSRF 검증·function-calling 정규화는 chief-architect 설계로 넘긴다**(본 기획은 요구·수용기준만 확정).

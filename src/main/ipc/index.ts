@@ -8,6 +8,7 @@
  *   - registerSessionHandlers()   // P5
  *   - registerWorkspaceHandlers() // P6
  */
+import { registerAgentHandlers } from './agent.handlers'
 import { registerAnalyzeHandlers } from './analyze.handlers'
 import { registerArchiveHandlers } from './archive.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
@@ -42,6 +43,7 @@ export function registerIpcHandlers(): void {
   registerSearchHandlers() // M8 S1: search:content:start/cancel (+ progress/match/done 푸시 — ADR-010)
   registerWindowHandlers() // U3: window:split-tab/get-init (멀티 윈도우 — 탭 분리, US-20.3)
   registerArchiveHandlers() // M9 Q1: archive:open/list/close/extract/add (압축 어댑터 — ADR-008)
+  registerAgentHandlers() // §Z Z0: agent:* + agent:provider:*/key:* (계약+키/제공자 store·루프 골격 — ADR-014·ADR-015)
   registerClipboardHdropAndDndRemote()
 }
 
