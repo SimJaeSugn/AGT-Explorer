@@ -2,7 +2,7 @@
  * LayoutHost — 활성 탭의 레이아웃(단일/2분할/4분할)에 따라 패널 배치 (US-1.2, US-1.4).
  *
  * roadmap P3: single·split-2-h(좌우)·split-2-v(상하). 분할선·최소폭.
- * roadmap P6: grid-4(2x2). panelIds row-major(0=좌상,1=우상,2=좌하,3=우하)로
+ * roadmap P6: grid-4(2x2). panelIds row-major(0=패널1/좌상,1=패널2/우상,2=패널3/좌하,3=패널4/우하)로
  * 셀에 배치하고 셀 경계에 분할선을 둔다. 각 패널 독립 상태.
  *
  * H-5(분할 크기조절): SplitDivider 드래그로 비율 조절. 축 매핑은 LayoutHost 가
@@ -86,7 +86,13 @@ export function LayoutHost(): JSX.Element {
                 borderTop: r > 0 ? `1px solid ${tokens.color.borderStrong}` : undefined
               }}
             >
-              <Panel panelId={pid} tabId={tab.id} active={pid === tab.activePanelId} />
+              <Panel
+                panelId={pid}
+                tabId={tab.id}
+                active={pid === tab.activePanelId}
+                panelNumber={i + 1}
+                totalPanels={tab.panelIds.length}
+              />
             </div>
           )
         })}
@@ -171,7 +177,13 @@ export function LayoutHost(): JSX.Element {
             overflow: 'hidden'
           }}
         >
-          <Panel panelId={pid} tabId={tab.id} active={pid === tab.activePanelId} />
+          <Panel
+            panelId={pid}
+            tabId={tab.id}
+            active={pid === tab.activePanelId}
+            panelNumber={i + 1}
+            totalPanels={tab.panelIds.length}
+          />
         </div>
       )
     })
@@ -201,9 +213,15 @@ export function LayoutHost(): JSX.Element {
         background: tokens.color.bgAlt
       }}
     >
-      {tab.panelIds.map((pid) => (
+      {tab.panelIds.map((pid, i) => (
         <div key={pid} style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-          <Panel panelId={pid} tabId={tab.id} active={pid === tab.activePanelId} />
+          <Panel
+            panelId={pid}
+            tabId={tab.id}
+            active={pid === tab.activePanelId}
+            panelNumber={i + 1}
+            totalPanels={tab.panelIds.length}
+          />
         </div>
       ))}
     </div>

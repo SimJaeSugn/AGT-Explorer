@@ -15,9 +15,13 @@ interface Props {
   readonly panelId: string
   readonly tabId: string
   readonly active: boolean
+  /** 분할 시 패널 위치 번호(1-based, row-major). 패널 헤더 배지·Alt+N 안내용. */
+  readonly panelNumber: number
+  /** 현재 탭의 전체 패널 수. 2개 이상일 때만 번호 배지를 표시한다. */
+  readonly totalPanels: number
 }
 
-export function Panel({ panelId, tabId, active }: Props): JSX.Element {
+export function Panel({ panelId, tabId, active, panelNumber, totalPanels }: Props): JSX.Element {
   const setActivePanel = useRootStore((s) => s.setActivePanel)
   const searchOpen = useRootStore((s) => s.panels[panelId]?.filter.open ?? false)
 
@@ -38,7 +42,12 @@ export function Panel({ panelId, tabId, active }: Props): JSX.Element {
         background: tokens.color.bg
       }}
     >
-      <PanelToolbar panelId={panelId} active={active} />
+      <PanelToolbar
+        panelId={panelId}
+        active={active}
+        panelNumber={panelNumber}
+        showNumber={totalPanels > 1}
+      />
       {searchOpen && <SearchBar panelId={panelId} />}
       {/*
         본문 영역(목록) 컨테이너 — N1 워터마크 절대배치 기준(position:relative).

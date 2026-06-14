@@ -402,6 +402,11 @@ export interface RemoteConnectRes {
   readonly sessionId: string
   /** 암호화 연결 여부(평문 FTP=false → 비암호화 경고 신호). */
   readonly encrypted: boolean
+  /**
+   * 접속 직후 서버가 보고한 초기 작업 디렉토리(FTP pwd·SFTP cwd, 보통 홈 폴더).
+   * 미보고/조회 실패 시 미존재 → 호출측이 루트('/')로 폴백한다.
+   */
+  readonly initialPath?: string
 }
 export interface RemoteDisconnectReq {
   readonly sessionId: string

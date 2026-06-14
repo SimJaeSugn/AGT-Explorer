@@ -20,6 +20,10 @@ import { tokens } from '@renderer/ui/theme/tokens'
 interface Props {
   readonly panelId: string
   readonly active: boolean
+  /** 분할 시 패널 위치 번호(1-based, row-major: 패널 1=좌상 … 패널 4=우하). */
+  readonly panelNumber: number
+  /** 번호 배지 표시 여부(분할 = 패널 2개 이상일 때만). */
+  readonly showNumber: boolean
 }
 
 const btnStyle: React.CSSProperties = {
@@ -36,7 +40,7 @@ const btnStyle: React.CSSProperties = {
   justifyContent: 'center'
 }
 
-export function PanelToolbar({ panelId, active }: Props): JSX.Element {
+export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props): JSX.Element {
   const path = useRootStore((s) => s.panels[panelId]?.path ?? '')
   const nav = useRootStore((s) => s.panels[panelId]?.nav)
   const view = useRootStore((s) => s.panels[panelId]?.view)
@@ -50,6 +54,11 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
   const activeTabId = useRootStore((s) => s.activeTabId)
   const isFav = useRootStore((s) => s.favorites.includes(path))
   const toggleFavorite = useRootStore((s) => s.toggleFavorite)
+  // 루트 잠금(백로그 ①): 패널이 속한 활성 탭이 잠겨 있고 루트가 있으면 "루트로" 버튼 노출.
+  const lockedRoot = useRootStore((s) => {
+    const t = s.tabs[s.activeTabId]
+    return t?.locked && t.panelIds.includes(panelId) ? t.lockedRoot : undefined
+  })
 
   // 주소 편집 모드는 활성 패널만 전역 addressEditing 과 연동.
   const addressEditing = useRootStore((s) => s.addressEditing && active)
@@ -124,6 +133,31 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
         background: tokens.color.bgAlt
       }}
     >
+      {showNumber && (
+        <span
+          // 분할 시 패널 위치 번호 배지(패널 1~4). Alt+N 으로 직접 포커스.
+          title={`패널 ${panelNumber} (Alt+${panelNumber})`}
+          aria-label={`패널 ${panelNumber}`}
+          style={{
+            flex: '0 0 auto',
+            minWidth: 18,
+            height: 18,
+            padding: '0 5px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 9,
+            fontSize: 11,
+            fontWeight: 600,
+            userSelect: 'none',
+            color: active ? tokens.color.bg : tokens.color.textMuted,
+            background: active ? tokens.color.accentBorder : tokens.color.bg,
+            border: `1px solid ${active ? tokens.color.accentBorder : tokens.color.border}`
+          }}
+        >
+          {panelNumber}
+        </span>
+      )}
       <button
         style={{ ...btnStyle, opacity: nav && nav.back.length ? 1 : 0.4 }}
         disabled={!nav || nav.back.length === 0}
@@ -153,6 +187,19 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
       <button style={btnStyle} onClick={() => refresh(panelId)} title="새로고침 (Ctrl+R)" aria-label="새로고침">
         ⟳
       </button>
+      {lockedRoot && (
+        <button
+          style={{ ...btnStyle, color: tokens.color.folder }}
+          onClick={() => {
+            focusPanel()
+            navigate(panelId, lockedRoot, true)
+          }}
+          title={`잠긴 루트로 이동 (${lockedRoot})`}
+          aria-label="잠긴 루트로 이동"
+        >
+          🏠
+        </button>
+      )}
       <button
         style={{ ...btnStyle, opacity: path === '' ? 0.4 : 1, color: isFav ? tokens.color.folder : tokens.color.text }}
         disabled={path === ''}
@@ -226,16 +273,17 @@ export function PanelToolbar({ panelId, active }: Props): JSX.Element {
         ) : (
           <div
             onClick={(e) => {
-              // 개별 브레드크럼 <button> 클릭은 navigate 전담 → 컨테이너 클릭만 편집 진입.
+              // 단일 클릭은 패널 활성화만(편집 진입 안 함) — 클릭 한 번에 주소 편집으로
+              // 빠지던 불편(목록/업로드/붙여넣기 방해) 제거. 편집은 더블클릭·Ctrl+L 로만.
+              // 개별 브레드크럼 <button> 클릭은 navigate 전담.
               if ((e.target as HTMLElement).closest('button')) return
               focusPanel()
-              setAddressEditing(true)
             }}
             onDoubleClick={() => {
               focusPanel()
               setAddressEditing(true)
             }}
-            title="클릭/더블클릭 또는 Ctrl+L 로 경로 편집"
+            title="더블클릭 또는 Ctrl+L 로 경로 편집"
             style={{
               display: 'flex',
               alignItems: 'center',

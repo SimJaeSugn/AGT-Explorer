@@ -119,6 +119,11 @@ export interface Tab {
   readonly color?: string
   /** 탭 잠금(US-20.3). 잠긴 탭은 닫기 가드(closeTab 거부 + 안내 토스트). */
   readonly locked?: boolean
+  /**
+   * 루트 잠금 경로(백로그 ①). 탭을 잠근 시점 활성 패널 경로. 잠긴 동안 패널은 이 경로
+   * 자신/하위로만 이동 가능(상위 이탈 차단)하며 툴바 "루트로" 버튼의 목적지. 잠금 해제 시 제거.
+   */
+  readonly lockedRoot?: string
 }
 
 /** 닫은 탭 복원 스택 항목(휘발 — 세션 비직렬화). */

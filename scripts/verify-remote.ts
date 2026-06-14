@@ -21,13 +21,13 @@ import type {
   RemoteError,
   TransferProgress
 } from '../src/main/remote/RemoteService'
-import { startDownload, type OpRegistrar } from '../src/main/remote/remoteTransfer'
-import type { FileEntryDTO, OpSummary } from '../src/shared/dto'
+import { startDownload, startUpload, type OpRegistrar } from '../src/main/remote/remoteTransfer'
+import type { ConflictPolicy, FileEntryDTO, OpSummary } from '../src/shared/dto'
 import type { Result } from '../src/shared/ipc/contracts'
 import { err, ok } from '../src/shared/ipc/contracts'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 
 let pass = 0
 let fail = 0
@@ -62,6 +62,10 @@ function makeEntry(name: string, parent: string): FileEntryDTO {
 class StubAdapter implements RemoteAdapter {
   capturedSecret: string | undefined
   connectCalls = 0
+  /** 업로드 호출 기록(폴더 재귀·충돌 정책 검증용). */
+  uploads: Array<{ local: string; remote: string }> = []
+  /** mkdir 호출 기록(원격 디렉토리 생성 순서·경로 검증용). */
+  mkdirs: string[] = []
   constructor(
     private readonly opts: {
       encrypted?: boolean
@@ -69,6 +73,9 @@ class StubAdapter implements RemoteAdapter {
       callHostKey?: 'unknown'
       listError?: RemoteError
       downloadBytes?: number[]
+      initialPath?: string
+      /** stat 가 존재(ok)로 답할 원격 경로 집합(충돌 정책 검증용). */
+      existingRemote?: Set<string>
     } = {}
   ) {}
 
@@ -76,12 +83,13 @@ class StubAdapter implements RemoteAdapter {
     this.connectCalls++
     this.capturedSecret = opts.secret?.value
     if (this.opts.connectError) return err(this.opts.connectError)
+    const initial = this.opts.initialPath ? { initialPath: this.opts.initialPath } : {}
     // 신 계약: 어댑터는 호스트키를 거부하지 않고 연결 후 지문만 올린다(거부 시 ssh2-sftp-client
     // hang 회피). 매니저가 연결 성립 후 known_hosts 대조로 TOFU(accept/reject/prompt)를 판정한다.
     if (this.opts.callHostKey) {
-      return ok({ encrypted: this.opts.encrypted ?? true, fingerprint: 'SHA256:ABC', algo: 'ssh' })
+      return ok({ encrypted: this.opts.encrypted ?? true, fingerprint: 'SHA256:ABC', algo: 'ssh', ...initial })
     }
-    return ok({ encrypted: this.opts.encrypted ?? true })
+    return ok({ encrypted: this.opts.encrypted ?? true, ...initial })
   }
   async disconnect(): Promise<Result<void>> {
     return ok(undefined)
@@ -91,9 +99,14 @@ class StubAdapter implements RemoteAdapter {
     return ok({ entries: [makeEntry('a.txt', path), makeEntry('b.txt', path)] })
   }
   async stat(path: string): Promise<Result<FileEntryDTO, RemoteError>> {
+    // existingRemote 가 주어지면 그 집합만 존재(ok)로, 아니면 모두 존재로 응답(기존 동작 보존).
+    if (this.opts.existingRemote && !this.opts.existingRemote.has(path)) {
+      return err({ code: 'ENOENT', message: '없음', path })
+    }
     return ok(makeEntry('x', path))
   }
-  async mkdir(): Promise<Result<void, RemoteError>> {
+  async mkdir(parentPath: string, name: string): Promise<Result<void, RemoteError>> {
+    this.mkdirs.push(posix.join(parentPath, name))
     return ok(undefined)
   }
   async rename(): Promise<Result<void, RemoteError>> {
@@ -115,7 +128,13 @@ class StubAdapter implements RemoteAdapter {
     await fsp.writeFile(localPath, 'data').catch(() => undefined)
     return ok(undefined)
   }
-  async upload(): Promise<Result<void, RemoteError>> {
+  async upload(
+    localPath: string,
+    remotePath: string,
+    onProgress: TransferProgress
+  ): Promise<Result<void, RemoteError>> {
+    this.uploads.push({ local: localPath, remote: remotePath })
+    onProgress(10)
     return ok(undefined)
   }
 }
@@ -290,6 +309,91 @@ async function main(): Promise<void> {
     check('[CN-4] 완료 통지(op:done summary) 도착', finished !== null)
     check('[CN-4] 다운로드 성공 1건', finished !== null && (finished as OpSummary).succeededItems === 1)
     await fsp.rm(base, { recursive: true, force: true }).catch(() => undefined)
+  }
+
+  // ════ 7) #4 connect initialPath 전파(서버 홈 → '/' 대신 진입) ════════════
+  {
+    const adapter = new StubAdapter({ initialPath: '/home/user' })
+    const mgr = new RemoteSessionManager(() => adapter, makeKnownHosts())
+    const r = await mgr.connect({ profile: FTP_PROFILE, secret: { kind: 'password', value: SECRET } }, null)
+    check('[#4] connect initialPath 전파', r.ok && r.value.initialPath === '/home/user')
+
+    // 어댑터가 미보고하면 initialPath 미존재(호출측 '/' 폴백).
+    const adapter2 = new StubAdapter()
+    const mgr2 = new RemoteSessionManager(() => adapter2, makeKnownHosts())
+    const r2 = await mgr2.connect({ profile: FTP_PROFILE }, null)
+    check('[#4] initialPath 미보고 → 미존재(폴백 대상)', r2.ok && r2.value.initialPath === undefined)
+  }
+
+  // ════ 8) #3 폴더 업로드(재귀) + #5 충돌 정책 ═══════════════════════════
+  // 로컬 트리: root/{f1.txt, sub/f2.txt} → /remote 로 업로드.
+  async function makeTree(): Promise<string> {
+    const dir = await fsp.mkdtemp(join(os.tmpdir(), 'remote-ul-'))
+    const root = join(dir, 'root')
+    await fsp.mkdir(join(root, 'sub'), { recursive: true })
+    await fsp.writeFile(join(root, 'f1.txt'), 'a')
+    await fsp.writeFile(join(root, 'sub', 'f2.txt'), 'b')
+    return root
+  }
+  function makeReg(sink: { finished: OpSummary | null }): OpRegistrar {
+    return {
+      registerExternalOperation: () => ({
+        operationId: 'op-ul',
+        reportProgress: () => undefined,
+        finishOp: (s) => {
+          sink.finished = s
+        }
+      })
+    }
+  }
+  async function runUpload(adapter: StubAdapter, root: string, policy?: ConflictPolicy): Promise<OpSummary> {
+    const sink: { finished: OpSummary | null } = { finished: null }
+    startUpload(adapter, [root], '/remote', null as never, makeReg(sink), policy)
+    for (let i = 0; i < 50 && sink.finished === null; i++) await new Promise((res) => setTimeout(res, 10))
+    return sink.finished as OpSummary
+  }
+  {
+    const root = await makeTree()
+    const adapter = new StubAdapter()
+    const summary = await runUpload(adapter, root)
+    check('[#3] 폴더 재귀 — 파일 2건 업로드', adapter.uploads.length === 2)
+    check(
+      '[#3] 하위 폴더 원격 디렉토리 생성(/remote/root·/remote/root/sub)',
+      adapter.mkdirs.includes('/remote/root') && adapter.mkdirs.includes('/remote/root/sub')
+    )
+    check(
+      '[#3] 파일 원격 경로 구조 보존(/remote/root/sub/f2.txt)',
+      adapter.uploads.some((u) => u.remote === '/remote/root/sub/f2.txt')
+    )
+    check('[#3] 부모 디렉토리가 자식보다 먼저 생성', adapter.mkdirs.indexOf('/remote/root') < adapter.mkdirs.indexOf('/remote/root/sub'))
+    check('[#3] 완료 통지 succeeded=2', summary.succeededItems === 2)
+    await fsp.rm(join(root, '..'), { recursive: true, force: true }).catch(() => undefined)
+  }
+  {
+    // #5 skip: f1.txt 가 이미 원격에 존재 → 건너뜀(업로드 1건만).
+    const root = await makeTree()
+    const adapter = new StubAdapter({ existingRemote: new Set(['/remote/root/f1.txt']) })
+    await runUpload(adapter, root, 'skip')
+    check('[#5] skip — 기존 원격 파일 건너뜀(업로드 1건)', adapter.uploads.length === 1)
+    check('[#5] skip — 건너뛴 파일은 f1.txt', !adapter.uploads.some((u) => u.remote === '/remote/root/f1.txt'))
+    await fsp.rm(join(root, '..'), { recursive: true, force: true }).catch(() => undefined)
+  }
+  {
+    // #5 rename: f1.txt 충돌 → '/remote/root/f1 (1).txt' 로 업로드.
+    const root = await makeTree()
+    const adapter = new StubAdapter({ existingRemote: new Set(['/remote/root/f1.txt']) })
+    await runUpload(adapter, root, 'rename')
+    check('[#5] rename — 충돌 파일 유니크명 업로드', adapter.uploads.some((u) => u.remote === '/remote/root/f1 (1).txt'))
+    check('[#5] rename — 총 2건 업로드(둘 다 전송)', adapter.uploads.length === 2)
+    await fsp.rm(join(root, '..'), { recursive: true, force: true }).catch(() => undefined)
+  }
+  {
+    // #5 overwrite(미지정 동치): 충돌 무시하고 원래 경로로 덮어씀.
+    const root = await makeTree()
+    const adapter = new StubAdapter({ existingRemote: new Set(['/remote/root/f1.txt']) })
+    await runUpload(adapter, root, 'overwrite')
+    check('[#5] overwrite — 원래 경로로 업로드(2건)', adapter.uploads.length === 2 && adapter.uploads.some((u) => u.remote === '/remote/root/f1.txt'))
+    await fsp.rm(join(root, '..'), { recursive: true, force: true }).catch(() => undefined)
   }
 
   // eslint-disable-next-line no-console

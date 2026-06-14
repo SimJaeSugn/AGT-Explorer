@@ -1249,6 +1249,7 @@ if (sid) {
           customName: '복원된 탭',
           color: 'purple',
           locked: true,
+          lockedRoot: 'C:\\',
           panels: [
             {
               id: 'mp1',
@@ -1269,6 +1270,30 @@ if (sid) {
   ok('TAB restoreWindows customName 복원', rt.customName === '복원된 탭')
   ok('TAB restoreWindows color 복원', rt.color === 'purple')
   ok('TAB restoreWindows locked 복원', rt.locked === true)
+  ok('TAB restoreWindows lockedRoot 복원(백로그 ①)', rt.lockedRoot === 'C:\\')
+
+  // ── 백로그 ①: 루트 잠금(lockedRoot 캡처·이탈 차단·하위 허용·복귀·해제·영속) ──
+  s().newTab('D:\\lockroot\\sub')
+  const lrTab = s().activeTabId
+  const lrPanel = s().tabs[lrTab]!.activePanelId
+  s().toggleTabLock(lrTab)
+  ok('LOCKROOT 잠금 시 활성 패널 경로를 루트로 캡처', s().tabs[lrTab]!.lockedRoot === 'D:\\lockroot\\sub')
+  const beforeLrToasts = s().toasts.length
+  s().navigate(lrPanel, 'D:\\lockroot', true)
+  ok('LOCKROOT 루트 상위 이동 차단(경로 불변)', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub')
+  ok('LOCKROOT 차단 안내 토스트', s().toasts.length === beforeLrToasts + 1)
+  s().navUp(lrPanel)
+  ok('LOCKROOT navUp 차단(루트 고정)', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub')
+  s().navigate(lrPanel, 'D:\\lockroot\\sub\\deep', true)
+  ok('LOCKROOT 하위 이동 허용', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub\\deep')
+  s().navigate(lrPanel, 'D:\\lockroot\\sub', true)
+  ok('LOCKROOT 루트로 복귀 허용', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub')
+  const lrSnapTab = buildSessionSnapshot().windows[0]!.tabs.find((t) => t.id === lrTab)!
+  ok('LOCKROOT 스냅샷 lockedRoot 직렬화', lrSnapTab.lockedRoot === 'D:\\lockroot\\sub')
+  s().toggleTabLock(lrTab)
+  ok('LOCKROOT 잠금 해제 시 lockedRoot 제거', s().tabs[lrTab]!.lockedRoot === undefined)
+  s().navigate(lrPanel, 'D:\\lockroot', true)
+  ok('LOCKROOT 해제 후 루트 위 이동 허용', s().panels[lrPanel]!.path === 'D:\\lockroot')
 
   // ── U3: 탭 분리(새 창) 스냅샷 추출 + 분리 창 어돕트(restoreWindows 단일 탭) ──
   const { buildTabSnapshot } = await import('../src/renderer/app/usecases/session')

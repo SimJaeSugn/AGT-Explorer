@@ -1,16 +1,14 @@
 ## 아이디어 백로그 
 
-
 ### ftp 관련
-- 창 클릭시 주소로 가게 되어서 업로드하거나 복사 붙여넣기 힘듬
-- 업로드 파일은 되는데 폴더는 안되는듯
-- ftp 연결하면 처음 접속되는 폴더 설정 필요(지금은 / 로만 가고 있음)(이전 기록을 저장하거나 home폴더로 이동)
-- 업로드 옵션 필요(덮어쓰기, 크기가 다르거나 최신이면 덮어쓰기, 건너뛰기 등)
-- 폴더연동 기능
+- 폴더연동 기능 → **보류(사용자 결정 2026-06-14)**: 사양 모호(양방향 sync vs 일방 미러·트리거(수동/감시)·충돌 해소·삭제 전파 여부). 제품 정의 후 착수.
 
-### 일반기능
-- 탭이 이동되거나 뒤로가기(키보드<- 버튼)등 어떤 작업이 끝나면 무조건 파일경로로 포커스가 가서 불편함
-
+## 처리됨 (2026-06-14)
+- ✅ **탭 루트 잠금(백로그 ①)** — 탭 잠금 시 그 시점 활성 패널 경로를 `Tab.lockedRoot` 로 고정. 잠긴 동안 navigate/navBack/navForward/navUp 가 루트 밖(상위) 이동 차단(안내 토스트)·하위는 허용. 각 패널 툴바에 🏠 "루트로" 버튼(잠김 시 노출)으로 즉시 복귀. 세션 비파괴 영속(`lockedRoot`·스키마 미상향). 동작 사양: **바로가기 + 루트 위 이동 차단**(사용자 결정). (entities·dto·defaults·session·tabsSlice·panelsSlice·PanelToolbar·domain/rules/tabLock·verify:domain +11·verify:store +10) ※ 실 GUI 🟡
+- ✅ **FTP 폴더 업로드(재귀)** — `startUpload` 가 디렉토리 소스를 걸어 원격 디렉토리(부모→자식)를 만들고 하위 파일을 개별 업로드(이전엔 파일만·폴더 누락). (remoteTransfer.ts·verify:remote +5) ※ 실 FTP 스모크 🟡
+- ✅ **FTP 업로드 충돌 옵션** — `RemoteUploadReq.conflictPolicy` 배선(핸들러→startUpload)+원격 존재 확인으로 skip(건너뜀)·rename(유니크명)·overwrite/merge/미지정(덮어쓰기). (remote.handlers.ts·remoteTransfer.ts·verify:remote +4) ※ 실 FTP 스모크 🟡
+- ✅ **FTP/SFTP 접속 초기 폴더** — 연결 직후 서버 보고 작업 디렉토리(FTP `pwd`·SFTP `cwd`, 보통 홈)로 진입(`/` 폴백). connect 체인에 `initialPath` 전파. (FtpAdapter·SftpAdapter·RemoteSessionManager·remote.handlers·contracts·remote.ts·verify:remote +2) ※ 실 FTP 스모크 🟡
+- ✅ **주소 표시줄 단일 클릭 편집 진입 제거** — 패널/주소창 단일 클릭은 패널 활성화만, 편집은 더블클릭·Ctrl+L 로만(클릭 한 번에 주소 편집으로 빠져 업로드·붙여넣기 방해하던 불편 제거). (PanelToolbar.tsx) ※ 실 GUI 🟡 — "작업 후 무조건 주소창 포커스"(아래 일반기능)도 같은 원인으로 함께 완화될 것으로 추정·런타임 확인 필요
 
 ## 버그리포트
 - 대용량 파일 복사시 전송큐를 열어 일시정지 했는데도 우측하단의 파일작업에서는 계속 작업이 진행된다.( 전송큐에서 멈췄던 작업제계하면 처리량 프로그래스바가 실시간 동기화되지 않는다. ) → **보류**: 설계 한계(파일 경계 일시정지만·진행 중 단일 파일/청크 미반영·일시정지 중 진행률 푸시 차단). 청크 단위 재개대기 + 일시정지 중 진행률 유지 구조개선 필요.

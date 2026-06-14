@@ -85,7 +85,7 @@ export class RemoteSessionManager implements RemoteService {
     req: ConnectRequest,
     wc: WebContents | null,
     connectId: string = randomUUID()
-  ): Promise<Result<{ sessionId: string; encrypted: boolean }, RemoteError>> {
+  ): Promise<Result<{ sessionId: string; encrypted: boolean; initialPath?: string }, RemoteError>> {
     const { profile } = req
     const adapter = this.makeAdapter(profile.protocol)
 
@@ -140,7 +140,11 @@ export class RemoteSessionManager implements RemoteService {
 
     const sessionId = randomUUID()
     this.sessions.set(sessionId, { sessionId, adapter, profile, wc })
-    return ok({ sessionId, encrypted: r.value.encrypted })
+    return ok({
+      sessionId,
+      encrypted: r.value.encrypted,
+      ...(r.value.initialPath ? { initialPath: r.value.initialPath } : {})
+    })
   }
 
   async disconnect(sessionId: string): Promise<Result<void>> {

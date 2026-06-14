@@ -65,7 +65,16 @@ export class FtpAdapter implements RemoteAdapter {
       })
       this.client = client
       this.encrypted = opts.protocol === 'ftps'
-      return ok({ encrypted: this.encrypted })
+      // 접속 직후 작업 디렉토리(보통 사용자 홈) — 호출측이 '/' 대신 여기로 진입한다.
+      // pwd 실패는 치명 아님(폴백 '/').
+      let initialPath: string | undefined
+      try {
+        const cwd = await client.pwd()
+        if (typeof cwd === 'string' && cwd.startsWith('/')) initialPath = cwd
+      } catch {
+        initialPath = undefined
+      }
+      return ok({ encrypted: this.encrypted, ...(initialPath ? { initialPath } : {}) })
     } catch (e) {
       client.close()
       return err(toRemoteError(e))

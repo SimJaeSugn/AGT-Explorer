@@ -78,6 +78,18 @@ export function execCommand(commandId: string): boolean {
     }
   }
 
+  // panel.focus.N (패널 1~4 직접 포커스, Alt+N). 단일 레이아웃·범위 밖이면
+  // 가로채지 않고(false) 네이티브 동작에 양보한다.
+  if (commandId.startsWith('panel.focus.')) {
+    const n = Number(commandId.slice('panel.focus.'.length))
+    if (Number.isFinite(n)) {
+      const tab = s.activeTab()
+      if (!tab || tab.panelIds.length <= 1 || n < 1 || n > tab.panelIds.length) return false
+      s.focusPanelByIndex(n)
+      return true
+    }
+  }
+
   switch (commandId) {
     // ── 탭 ───────────────────────────────────────────────────────────
     case 'tab.new':

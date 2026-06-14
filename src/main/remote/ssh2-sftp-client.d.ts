@@ -66,6 +66,8 @@ declare module 'ssh2-sftp-client' {
     constructor(name?: string)
     connect(options: ConnectOptions): Promise<unknown>
     end(): Promise<boolean>
+    /** 원격 작업 디렉토리(접속 직후 보통 사용자 홈). */
+    cwd(): Promise<string>
     list(remotePath: string): Promise<FileInfo[]>
     stat(remotePath: string): Promise<SftpStats>
     exists(remotePath: string): Promise<false | 'd' | '-' | 'l'>

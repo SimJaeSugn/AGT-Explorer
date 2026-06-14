@@ -277,5 +277,27 @@ function tabNumberBindings(): KeyBinding[] {
   return out
 }
 
+/**
+ * Alt+1~4 (패널 1~4 직접 포커스) 4개 펼침. row-major(패널 1=좌상 … 패널 4=우하).
+ * 단일 레이아웃·범위 밖이면 CommandBus 가 가로채지 않고 양보한다.
+ */
+function panelNumberBindings(): KeyBinding[] {
+  const out: KeyBinding[] = []
+  for (let n = 1; n <= 4; n++) {
+    out.push({
+      chord: `alt+${n}`,
+      commandId: `panel.focus.${n}`,
+      context: 'global',
+      label: `패널 ${n}로 포커스`,
+      group: '패널 포커스'
+    })
+  }
+  return out
+}
+
 /** PRD §8 전체 바인딩(단일 출처). */
-export const KEYBINDINGS: readonly KeyBinding[] = [...baseBindings, ...tabNumberBindings()]
+export const KEYBINDINGS: readonly KeyBinding[] = [
+  ...baseBindings,
+  ...tabNumberBindings(),
+  ...panelNumberBindings()
+]

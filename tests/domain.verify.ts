@@ -69,6 +69,8 @@ import {
   type TagKey
 } from '../src/renderer/domain/rules/tags'
 import { folderSizeKeyFor } from '../src/renderer/app/usecases/folderSize'
+// 백로그 ①: 루트 잠금 경계 규칙.
+import { isWithinLockedRoot } from '../src/renderer/domain/rules/tabLock'
 import { coerceTagsByPath } from '../src/main/persistence/defaults'
 
 /**
@@ -817,6 +819,24 @@ eq(
     'C:\\b': ['gray']
   })
   eq('TAG coerce 전무효→빈맵', coerceTagsByPath({ 'C:\\a': ['cyan', 1] }), {})
+}
+
+// ── 백로그 ①: isWithinLockedRoot(루트 잠금 경계) ────────────────────────────
+{
+  const root = 'D:\\lockroot\\sub'
+  eq('LOCKROOT 루트 자신 허용', isWithinLockedRoot(root, root), true)
+  eq('LOCKROOT 하위 허용', isWithinLockedRoot('D:\\lockroot\\sub\\deep\\x', root), true)
+  eq('LOCKROOT 상위 차단', isWithinLockedRoot('D:\\lockroot', root), false)
+  eq('LOCKROOT 형제 차단', isWithinLockedRoot('D:\\lockroot\\sub2', root), false)
+  eq('LOCKROOT 접두사 유사 형제 차단(sub vs sub2)', isWithinLockedRoot('D:\\lockroot\\sub2\\a', root), false)
+  eq('LOCKROOT 대소문자 무시(로컬)', isWithinLockedRoot('d:\\LOCKROOT\\SUB\\z', root), true)
+  eq('LOCKROOT 후행 구분자 무시', isWithinLockedRoot('D:\\lockroot\\sub\\', root), true)
+  eq('LOCKROOT 다른 드라이브 차단', isWithinLockedRoot('C:\\lockroot\\sub', root), false)
+  // 원격(대소문자 구분).
+  const rroot = 'sftp://h/home/user'
+  eq('LOCKROOT 원격 하위 허용', isWithinLockedRoot('sftp://h/home/user/docs', rroot), true)
+  eq('LOCKROOT 원격 상위 차단', isWithinLockedRoot('sftp://h/home', rroot), false)
+  eq('LOCKROOT 원격 대소문자 구분(차단)', isWithinLockedRoot('sftp://h/home/USER/x', rroot), false)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

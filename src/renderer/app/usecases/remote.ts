@@ -133,11 +133,14 @@ async function handleConnectResult(
       s.pushToast('info', `${profile.host} 는 평문(비암호화) 연결입니다. 자격증명이 보호되지 않습니다.`)
     }
     s.closeRemoteDialog()
-    // 활성 패널을 원격 루트로 이동(탐색 진입). 원격 URI 로 navigate → load 가 remote:list.
+    // 활성 패널을 원격 진입 폴더로 이동(탐색 진입). 원격 URI 로 navigate → load 가 remote:list.
+    // 서버가 초기 작업 디렉토리(홈)를 보고하면 그곳으로, 아니면 루트('/')로 폴백한다.
     const tab = s.activeTab()
     const panelId = tab?.activePanelId
-    const rootUri = `${profile.protocol}://${profile.host}/`
-    if (panelId) s.navigate(panelId, rootUri, true)
+    const initial = res.value.initialPath
+    const startPath = initial && initial.startsWith('/') ? initial : '/'
+    const startUri = makeRemotePath(profile.protocol, profile.host, startPath)
+    if (panelId) s.navigate(panelId, startUri, true)
     return
   }
   // 호스트키 미신뢰/변경은 remote:host-key 푸시로 모달이 뜬다 → 여기선 상태만 유지.

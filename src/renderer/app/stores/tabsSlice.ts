@@ -87,7 +87,7 @@ export interface TabsSlice {
   /**
    * 4분할 토글(single/split-2 ↔ grid-4, P6a US-1.4). grid-4 진입 시 부족한
    * 패널을 활성 패널 경로로 채워 panelIds 를 4개로 맞춘다(row-major:
-   * 0=좌상,1=우상,2=좌하,3=우하). grid-4 에서 호출하면 single 로 복귀한다.
+   * 0=패널1/좌상,1=패널2/우상,2=패널3/좌하,3=패널4/우하). grid-4 에서 호출하면 single 로 복귀한다.
    */
   toggleGrid4(tabId?: string): void
   /** 활성 패널을 다음 패널로 순환(Tab). */
@@ -97,6 +97,11 @@ export interface TabsSlice {
    * grid-4(2x2)에서는 같은 행 내 수평 이동(left=현재 행의 좌열, right=우열).
    */
   focusPanelDir(dir: 'left' | 'right' | 'up' | 'down'): void
+  /**
+   * 번호로 패널 활성화(Alt+1~4). n 은 1-based 위치(패널 1=panelIds[0]/좌상 …).
+   * 해당 번호의 패널이 없으면(단일 레이아웃·범위 밖) 무시한다.
+   */
+  focusPanelByIndex(n: number): void
   /** 특정 패널을 활성으로(클릭 포커스). */
   setActivePanel(tabId: string, panelId: string): void
 
@@ -212,7 +217,8 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
           // 탭 메타 복원(Feature A 이름 · US-20.3 색상/잠금). 누락은 main coerce 가 생략.
           ...(tabSnap.customName ? { customName: tabSnap.customName } : {}),
           ...(tabSnap.color ? { color: tabSnap.color } : {}),
-          ...(tabSnap.locked ? { locked: true } : {})
+          ...(tabSnap.locked ? { locked: true } : {}),
+          ...(tabSnap.locked && tabSnap.lockedRoot ? { lockedRoot: tabSnap.lockedRoot } : {})
         }
         insertTab(tab, false)
         if (tabSnap.id === win.activeTabId) activeTabId = tabId
@@ -409,12 +415,21 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
     },
 
     toggleTabLock(tabId) {
+      // 잠글 때 그 시점 활성 패널 경로를 루트로 고정(백로그 ①). 해제 시 루트도 함께 제거.
+      const tabNow = get().tabs[tabId]
+      const rootAtLock = tabNow ? get().panels[tabNow.activePanelId]?.path : undefined
       set((s) => {
         const t = s.tabs[tabId]
         if (!t) return
         // true 일 때만 보관(false 는 키 삭제 → 직렬화 안정·미잠금 동치).
-        if (t.locked) delete t.locked
-        else t.locked = true
+        if (t.locked) {
+          delete t.locked
+          delete t.lockedRoot
+        } else {
+          t.locked = true
+          // 활성 패널 경로를 루트로 고정(없으면 미설정 = 제약 없음).
+          if (rootAtLock) t.lockedRoot = rootAtLock
+        }
       })
     },
 
@@ -531,6 +546,17 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
         target = dir === 'left' ? tab.panelIds[0] : tab.panelIds[tab.panelIds.length - 1]
       }
       if (!target) return
+      set((s) => {
+        const t = s.tabs[tab.id]
+        if (t) t.activePanelId = target
+      })
+    },
+
+    focusPanelByIndex(n) {
+      const tab = get().activeTab()
+      if (!tab || tab.panelIds.length <= 1) return
+      const target = tab.panelIds[n - 1]
+      if (!target || target === tab.activePanelId) return
       set((s) => {
         const t = s.tabs[tab.id]
         if (t) t.activePanelId = target

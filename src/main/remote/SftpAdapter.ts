@@ -106,8 +106,17 @@ export class SftpAdapter implements RemoteAdapter {
     try {
       await client.connect(connectOptions as never)
       this.client = client
+      // 접속 직후 작업 디렉토리(보통 사용자 홈) — 호출측이 '/' 대신 여기로 진입한다.
+      // cwd 실패는 치명 아님(폴백 '/').
+      let initialPath: string | undefined
+      try {
+        const cwd = await client.cwd()
+        if (typeof cwd === 'string' && cwd.startsWith('/')) initialPath = cwd
+      } catch {
+        initialPath = undefined
+      }
       // SFTP 는 항상 암호화. 캡처한 지문을 상위 TOFU 판정용으로 반환.
-      return ok({ encrypted: true, fingerprint, algo: 'ssh' })
+      return ok({ encrypted: true, fingerprint, algo: 'ssh', ...(initialPath ? { initialPath } : {}) })
     } catch (e) {
       await client.end().catch(() => undefined)
       return err(toRemoteError(e))

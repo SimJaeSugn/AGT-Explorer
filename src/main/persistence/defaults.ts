@@ -232,6 +232,10 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
   const rawColor = o['color']
   const color = typeof rawColor === 'string' && TAG_KEYS.has(rawColor) ? rawColor : undefined
   const locked = o['locked'] === true
+  // lockedRoot: 잠긴 탭의 루트 경로(백로그 ①). 비-빈 문자열만 보존(잠금 동반·미잠금이면 무의미).
+  const rawLockedRoot = o['lockedRoot']
+  const lockedRoot =
+    locked && typeof rawLockedRoot === 'string' && rawLockedRoot.trim() !== '' ? rawLockedRoot : undefined
   return {
     id,
     activePanelId,
@@ -241,7 +245,8 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
     ...(splitRatios ? { splitRatios } : {}),
     ...(customName ? { customName } : {}),
     ...(color ? { color } : {}),
-    ...(locked ? { locked: true } : {})
+    ...(locked ? { locked: true } : {}),
+    ...(lockedRoot ? { lockedRoot } : {})
   }
 }
 

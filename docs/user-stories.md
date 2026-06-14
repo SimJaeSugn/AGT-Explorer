@@ -454,6 +454,7 @@
 > 상세 규칙은 [features §M](./features.md). 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-08 신규 3건 — §M 외부 연계)"](./PRD.md#6-범위와-우선순위-moscow). 단축키는 기존 D&D/`Ctrl+C/X/V`/컨텍스트 메뉴 재사용(신규 키 불요·[PRD 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)).
 > **보안(필수 수용 기준)**: ① 원격 자격증명은 **OS 자격증명 보관소(Windows Credential Manager/DPAPI)에만 저장·평문 금지**(D6), ② "로컬 전용(D5)" 원칙을 M3에 한해 부분 개정 — 사용자가 명시 입력한 원격 호스트로만 연결·임의 송신 금지 유지(D7).
 > **[2026-06-08 상태] US-12.1~12.5 전부 ✅ 구현 완료·통합 QA PASS**(편입 당일 MP0~MP5 구현). **코드 정합·verify 충족 ✅ / 실 동작은 런타임 스모크 권장 🟡**(외부 앱 실드롭·탐색기 양방향 왕복·실 SFTP/FTP/FTPS·실 DPAPI·실 전송). 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
+> **[2026-06-14 동작 확장 정식 편입] US-12.3(연결 직후 서버 작업 디렉토리 진입·미보고 시 `/` 폴백)·US-12.5(폴더 재귀 업로드·업로드 충돌 정책 배선) 3건이 정식 편입됨**(상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md)). 셋 다 **구현 완료(코드)·실 동작 런타임 스모크 🟡**(라이브 FTP/SFTP 미연동·헤드리스 스텁 `verify:remote` 36/0)·**신규 채널 0·기존 `remote:connect`/`remote:upload` 계약 비파괴 확장·MoSCoW(C) 무변경**.
 > **[2026-06-09 결함 수정·드리프트 정정] US-12.4 원격 탐색의 디렉토리 더블클릭 ENOENT·US-12.1 외부 D&D의 "여기에 드롭" 오버레이 잔존 2건을 수정**. 직전 "코드 정합 ✅"가 실제로는 원격 진입·드래그 종료가 코드 레벨에서 깨져 있던 ✅위장 드리프트였음을 정정(코드 정합 회복·실 동작은 여전히 런타임 스모크 🟡·수용 기준 무변경·신규 스코프 아님). 상세 [roadmap.md §0.5 "추가(2026-06-09)"](./roadmap.md)·traceability §1-M.
 
 ### US-12.1 외부 프로그램으로 드래그해 복사 — S · 규모 M · ✅ 구현 완료 (실 OS 드롭 런타임 스모크 🟡)
@@ -482,6 +483,7 @@
 - [x] 비밀번호 인증과 SFTP **SSH 키 인증**을 지원하고, 미신뢰/변경된 **호스트 키는 경고·사용자 확인 후에만** 진행한다(TOFU·`HostKeyModal`) — 🟡 실 호스트키 모달 스모크 권장
 - [x] **자격증명(비밀번호·키 패스프레이즈)은 OS 자격증명 보관소(safeStorage/DPAPI)에만 저장되며, 설정/세션/로그/오류 메시지에 평문으로 저장·노출되지 않는다**(미저장 시 메모리 사용 후 폐기·미가용 시 EUNSUPPORTED 거부·평문 폴백 금지·`verify:credentials` 평문 0) — *필수 수용 기준(D6)* · 🟡 실 DPAPI 암복호 스모크 권장
 - [x] 저장한 원격 연결 프로필(비밀 제외 메타: 이름·호스트·사용자명 등)을 목록·재접속·편집·삭제할 수 있다(`RemoteProfileStore` 화이트리스트)
+- [x] **(2026-06-14 동작 확장) 연결 직후 서버가 보고한 작업 디렉토리로 진입한다**(FTP `pwd`·SFTP `cwd`·보통 사용자 홈) — 서버가 미보고하거나 조회에 실패하면 루트 `/`로 폴백한다(`RemoteConnectRes.initialPath?` 체인·`FtpAdapter`/`SftpAdapter` connect·`RemoteService`·`RemoteSessionManager`·`remote.handlers.ts`·`app/usecases/remote.ts#handleConnectResult`·신규 채널 0). 🟡 실 서버 작업 디렉토리 진입 스모크 권장
 - [x] 평문 FTP 사용 시 **비암호화 경고**가 표시되고, SFTP/FTPS는 암호화 전송한다(`FtpAdapter` encrypted=false→경고) — 🟡 실 경고 표시 스모크 권장
 - [x] 네트워크 연결은 **사용자가 명시적으로 입력/저장한 원격 호스트로만** 발생하며 그 외 임의 외부 송신이 없다(D7·네트워크 import remote/ ESLint 화이트리스트·`verify:eslint-remote`)
 
@@ -497,6 +499,8 @@
 ### US-12.5 원격 업로드와 연결 끊김/타임아웃 처리 — C · 규모 L · ✅ 구현 완료 (실 전송/끊김 런타임 스모크 🟡)
 사용자로서, 로컬 파일을 원격에 올리고 불안정한 연결에서도 데이터를 잃지 않기 위해 업로드와 오류 처리가 안전하길 원한다.
 - [x] 로컬→원격 패널로 **드래그&드롭 또는 복사/붙여넣기**로 업로드되고, **US-5.2 진행률·취소·부분 실패 요약**을 따른다(`remote:upload`·operationId→기존 `op:*` 브리지) — 🟡 실 업로드 스모크 권장
+- [x] **(2026-06-14 동작 확장) 디렉토리(폴더)를 업로드하면 하위 트리를 재귀해 원격 디렉토리를 부모→자식 순으로 생성하고 하위 파일을 개별 업로드한다**(이전엔 폴더가 누락되고 파일만 처리됨·`remoteTransfer.ts#startUpload` 재귀 walk·기존 `remote:upload` 계약 재사용·신규 채널 0). 🟡 실 폴더 재귀 업로드 스모크 권장
+- [x] **(2026-06-14 동작 확장) 업로드 이름 충돌은 다운로드(US-12.4)와 동일한 `ConflictPolicy`(덮어쓰기/건너뜀/이름변경)로 해결된다**(원격 존재 확인 후 skip/rename/overwrite·`RemoteUploadReq.conflictPolicy`·`remote.handlers.ts`→`remoteTransfer.startUpload`·D4 준용). 🟡 실 충돌 해결 스모크 권장
 - [x] **연결/전송 타임아웃·끊김·인증 실패·도달 불가** 시 사유가 안내되고, 해당 원격 패널만 오류를 표시하며 앱·다른 패널이 중단되지 않는다(패널 단위 격리·`RemoteSessionManager`·`remote:session-error` 푸시) — 🟡 실 타임아웃/끊김 세션격리 스모크 권장
 - [x] 전송 중 끊김 시 진행분/실패분이 요약되고 재시도/재접속이 안내된다(부분 산출물·이어받기 처리는 1차 범위 밖·ADR-007 미해결질문 deferral) — 🟡 실 끊김 복원 스모크 권장
 - [ ] 전송 중 끊김 시 도착지에 남은 부분 파일이 완료본으로 오인되지 않도록 처리된다(임시명/정리 또는 명시 표식 — 구체 방식은 설계 단계 확정, 안전 원칙은 PRD §5 원칙3)
@@ -700,7 +704,7 @@
 ## 에픽 20. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획)
 
 > 완성도 UX: **Space 퀵룩 오버레이·브레드크럼 드롭다운·탭 색상/잠금·탭 분리(새 창)**. 기존 미리보기(US-4.3·US-9.5)·주소 표시줄(US-3.1)·탭 관리(US-1.1) 확장. U1·U2 = **S(Should)**, U3 = **C(Could)**.
-> 상세 [features §U](./features.md). 상태: **US-20.1·US-20.2(U1·U2)는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10·신규 채널 0·기존 `preview:read`/`fs:tree-children` 재사용) / US-20.3(U3 탭 색상/잠금·새 창)은 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금=세션 메타 신규 채널 0·탭 분리=신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only·주 창만 세션 복원)**. **US-20.4(U4 탭 사용자 지정 이름)는 2026-06-10 사용자 직접 요청으로 §U 연장 편입·✅ 구현 완료(코드)·실 GUI 🟡(신규 채널 0·신규 의존성 0·`SESSION_SCHEMA_VERSION` 무변경·§U3 색상/잠금과 별개로 이름 부여만 추가).** 범례: ✅ · 🟡 · 🔜.
+> 상세 [features §U](./features.md). 상태: **US-20.1·US-20.2(U1·U2)는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10·신규 채널 0·기존 `preview:read`/`fs:tree-children` 재사용) / US-20.3(U3 탭 색상/잠금·새 창)은 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금=세션 메타 신규 채널 0·탭 분리=신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only·주 창만 세션 복원) + **2026-06-14 동작 확장 정식 편입: 탭 잠금이 "닫기 방지"에 더해 활성 패널 경로를 `Tab.lockedRoot`로 고정(루트 밖 이동 차단·🏠 복귀 버튼·해제 시 동반 해제·세션 영속)·구현 완료(코드)·실 GUI 🟡·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경**(상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md))**. **US-20.4(U4 탭 사용자 지정 이름)는 2026-06-10 사용자 직접 요청으로 §U 연장 편입·✅ 구현 완료(코드)·실 GUI 🟡(신규 채널 0·신규 의존성 0·`SESSION_SCHEMA_VERSION` 무변경·§U3 색상/잠금과 별개로 이름 부여만 추가).** 범례: ✅ · 🟡 · 🔜.
 
 ### US-20.1 Space 퀵룩으로 큰 미리보기 — S · 규모 M · 구현 완료(코드)·실 GUI 🟡
 사용자로서, 파일을 열지 않고 크게 확인하기 위해, 선택 항목을 `Space`로 큰 미리보기 오버레이로 즉시 보고 싶다.
@@ -718,12 +722,16 @@
 - [ ] 형제 폴더 목록이 온디맨드 비동기 로드되어 주소 표시줄을 막지 않고 권한 없음/지연이 안내된다
 - [ ] (범위 밖) 다단계 트리 펼침·파일 표시·즐겨찾기/최근 혼합은 1차 제외
 
-### US-20.3 탭 색상/잠금·탭을 새 창으로 — C · 규모 M · ✅ 구현 완료(코드) (실 GUI·멀티윈도우 🟡)
-파워유저로서, 많은 탭을 구분·보호하고 화면을 분리하기 위해, 탭에 색상·잠금을 주고 탭을 새 창으로 분리하고 싶다.
+### US-20.3 탭 색상/잠금(닫기 방지·루트 잠금)·탭을 새 창으로 — C · 규모 M · 구현 완료(코드)·실 GUI/멀티윈도우 🟡
+파워유저로서, 많은 탭을 구분·보호하고 화면을 분리하기 위해, 탭에 색상·잠금(닫기 방지 및 작업 루트 고정)을 주고 탭을 새 창으로 분리하고 싶다.
 - [x] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다 — `Tab.color?`·`TabBar` 우클릭 색상. ※ 실 GUI 🟡
 - [x] 탭을 잠그면(닫기 방지) `Ctrl+W`·가운데클릭·X로 닫히지 않고 잠금 표식이 표시되며 해제로 토글된다 — `Tab.locked?`·닫기 가드. ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장) 탭을 잠그면 그 시점의 활성 패널 경로가 "잠긴 루트"로 함께 고정된다**(`Tab.lockedRoot`·`tabsSlice.toggleTabLock` 캡처). ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장) 잠긴 동안 그 탭의 모든 패널은 잠긴 루트 자신/하위로만 이동 가능하고, 상위(위로/뒤로/앞으로/주소 직접 입력)로의 이동은 차단되며 안내 토스트(`탭이 잠겨 있어 잠긴 루트 밖으로 이동할 수 없습니다.`)가 표시된다**(`panelsSlice` navigate/navBack/navForward 가드·`domain/rules/tabLock.ts#isWithinLockedRoot`(parentOf 조상사슬·로컬 대소문자무시/원격/압축 분기)·`LOCKED_ROOT_MSG`). ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장) 잠김 상태일 때 각 패널 툴바에 🏠 "잠긴 루트로 이동" 버튼이 노출되어 잠긴 루트에 즉시 복귀할 수 있다**(`ui/toolbar/PanelToolbar.tsx`). ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장) 잠금을 해제하면 잠긴 루트도 함께 해제된다**(`toggleTabLock` 해제 분기에서 `lockedRoot` 클리어). ※ 실 GUI 🟡
 - [x] 탭을 "새 창으로 분리"하면 그 탭이 새 창으로 이동하고 원 창에서 제거된다 — `windowSplit.ts`·`window:split-tab`·`windowManager.ts`. ※ 실 멀티윈도우 🟡
-- [x] 탭 색상·잠금 상태가 세션에 영속되어 재시작 후 유지된다(US-5.5 연계 범위) — 세션 메타. ※ 분리 창은 reopen-only(주 창만 복원·의도적 MVP·정직 표기)
+- [x] 탭 색상·잠금 상태**·잠긴 루트(`lockedRoot`)**가 세션에 비파괴 영속되어 재시작 후 유지된다(US-5.5 연계 범위·`TabSnapshot.lockedRoot`·`coerceTab`·`SESSION_SCHEMA_VERSION` 무변경·`buildTabSnapshot` 직렬화) — 세션 메타. ※ 분리 창은 reopen-only(주 창만 복원·의도적 MVP·정직 표기)
 - [ ] (범위 밖) 창 간 탭 드래그 이동·창별 독립 워크스페이스·탭 그룹화는 1차 제외
 
 ### US-20.4 탭에 사용자 지정 이름 붙이기 — S · 규모 S · ✅ 구현 완료 (실 GUI 동작 🟡)
@@ -854,9 +862,9 @@
 | US-11.1 | 그리드 이미지 썸네일 미리보기 | S | M | 그리드 이미지 썸네일 | ✅ (J3 보류분 정식 구현·신규 채널 `preview:thumbnail`·`os/thumbnail.ts` nativeImage 비율보존 resize·30MB 상한·LRU 256·세마포어 4·`thumbnailCache.ts`·`domain/image.ts`·`FileListView ThumbnailIcon`·이미지 한정 실내용 썸네일·미지원/손상/대용량/null OS 아이콘 폴백·가시 셀 생성/캐시/비차단·data URL CSP·신규 의존성 0·verify:thumbnail 33; nativeImage 실 디코드·GUI 그리드 렌더 런타임 스모크 권장) |
 | US-12.1 | 외부 프로그램으로 D&D 복사 | S | M | 외부 연계(§M) | ✅ 구현 완료 (`verify:dnd` 29·`dnd:start-drag`·A3 외부 확장·복사 고정·도착지 분기·로컬 항목 한정 / 🟡 실 OS 드롭·드래그 고스트 스모크 권장) |
 | US-12.2 | 클립보드 외부 연계(CF_HDROP 양방향) | S | M | 외부 연계(§M) | ✅ 구현 완료 (`verify:clipboard-hdrop` 33·`clipboard:write/read/has-files`·앱↔탐색기 양방향·Preferred DropEffect·D4 충돌 준용 / 🟡 실 탐색기 양방향 왕복 스모크 권장) |
-| US-12.3 | FTP/SFTP 접속(자격증명 OS 보관소) | C | L | 외부 연계(§M) | ✅ 구현 완료 (`verify:credentials` 17·`verify:remote` 23·`remote:*`·Won't→편입 D6·safeStorage/DPAPI만/평문 금지·호스트키 TOFU·D7 네트워크 경계 / 🟡 실 SFTP/FTP/FTPS·실 DPAPI 스모크 권장) |
+| US-12.3 | FTP/SFTP 접속(자격증명 OS 보관소·초기 폴더 진입) | C | L | 외부 연계(§M) | ✅ 구현 완료 (`verify:credentials` 17·`verify:remote` 36·`remote:*`·Won't→편입 D6·safeStorage/DPAPI만/평문 금지·호스트키 TOFU·D7 네트워크 경계 + **2026-06-14 동작 확장: 연결 직후 서버 작업 디렉토리(`pwd`/`cwd`·보통 홈) 진입·미보고 시 `/` 폴백·`RemoteConnectRes.initialPath?` 체인·신규 채널 0** / 🟡 실 SFTP/FTP/FTPS·실 DPAPI·실 초기 폴더 진입 스모크 권장) |
 | US-12.4 | 원격 탐색·다운로드 | C | L | 외부 연계(§M) | ✅ 구현 완료 (`verify:remote-trust` 35·`verify:remote-route` 47·원격 패널 UX·다운로드 D&D/붙여넣기·.part 원자 rename·op:* 재사용 / 🟡 실 서버 디렉토리 렌더·실 다운로드 스모크 권장) |
-| US-12.5 | 원격 업로드·연결 끊김/타임아웃 | C | L | 외부 연계(§M) | ✅ 구현 완료 (`verify:remote` 23·업로드·세션 격리·`remote:session-error`·재시도 안내 / 🟡 실 업로드·실 타임아웃/끊김 세션격리 스모크 권장) |
+| US-12.5 | 원격 업로드(폴더 재귀·충돌 정책)·연결 끊김/타임아웃 | C | L | 외부 연계(§M) | ✅ 구현 완료 (`verify:remote` 36·업로드·세션 격리·`remote:session-error`·재시도 안내 + **2026-06-14 동작 확장: 폴더 업로드 시 하위 트리 재귀(부모→자식 원격 디렉토리 생성+파일 개별 업로드)·업로드 충돌 정책 `ConflictPolicy` 배선(skip/rename/overwrite·D4 준용)·`remoteTransfer.startUpload`·기존 `remote:upload` 재사용·신규 채널 0** / 🟡 실 업로드·실 폴더 재귀·실 충돌 해결·실 타임아웃/끊김 세션격리 스모크 권장) |
 | US-13.1 | 즐겨찾기 경로 워터마크 | S | S | 즐겨찾기 UX 향상(§N) | ✅ (현재 패널=즐겨찾기 정확 일치 시 배경 반투명 워터마크·J7 별칭 우선·basename 폴백·본문 위 비중첩·테마별 반투명도·패널 격리·`favoriteWatermark.ts`·verify 302·실 GUI 렌더 런타임 스모크 🟡) |
 | US-13.2 | 즐겨찾기 드래그 정렬 | S | S | 즐겨찾기 UX 향상(§N) | ✅ (사이드바 즐겨찾기 드래그 재정렬·`SidebarSnapshot.favorites` 순서 영속·DropLine 시각 피드백·키보드 대체수단 `Alt+Shift+↑/↓`·타 섹션 격리·J7 별칭 불변·`useFavoriteReorder.ts`·`reorderFavorite`·실 드래그/키보드 런타임 스모크 🟡) |
 | US-14.1 | 파일/폴더 상단 고정(pin) | S | S | 상단 고정(§O) | ✅ (컨텍스트 메뉴 "상단 고정"/"해제" 토글·단일 파일/폴더·정렬/필터 무관 목록 최상단[폴더 우선보다 위]·그룹 내부 정렬 순서 유지·📌 그리드 배지/목록 이름 앞·디렉토리 단위·원격 경로 동일·세션 영속·`applyPins`·`pinnedByDir`·verify:domain 60/store 121/persistence 101·렌더러 전용·신규 채널 0·의존성 0·실 GUI 동작 런타임 스모크 🟡 / 수동 재정렬·다중선택 일괄 고정 1차 범위 밖) |
@@ -873,7 +881,7 @@
 | ~~US-19.3~~ | ~~정렬/필터 프리셋 저장~~ | ~~S~~ | ~~S~~ | 메타·표시 UX(§T) | ❌ **폐기 (2026-06-09 사용자 결정·코드 전면 제거)** — M6 구현 완료(코드)됐다가 제거(`filterComposition.ts`·`presetsSlice`·`usecases/presets`·`ui/preset/*`·`FilterPreset` DTO 삭제·`computeVisible`→`filterEntries` 환원·`SESSION_SCHEMA_VERSION` 2→1 환원) |
 | US-20.1 | Space 퀵룩 오버레이 | S | M | 빠른 보기·탐색·탭(§U) | 구현 완료(코드)/실 GUI 🟡 (M8·2026-06-10 — 신규 채널 0·`QuickLookOverlay`[J5 재사용]·`Space` list 컨텍스트·`preview:read` 재사용 / 동영상/오디오·PDF 다중·편집·다중동시 1차 제외) |
 | US-20.2 | 브레드크럼 드롭다운 | S | S | 빠른 보기·탐색·탭(§U) | 구현 완료(코드)/실 GUI 🟡 (M8·2026-06-10 — 신규 채널 0·`BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시 / 다단계 트리·파일 표시·즐겨찾기 혼합 1차 제외) |
-| US-20.3 | 탭 색상/잠금·탭을 새 창으로 | C | M | 빠른 보기·탐색·탭(§U) | ✅ 구현 완료(코드)·실 GUI·멀티윈도우 🟡 (M9·신규 채널 `window:split-tab`/`window:get-init`·색상/잠금=세션 메타 신규 채널 0·세션 영속[분리 창 reopen-only·주 창만 복원] / 창간 탭 이동·창별 워크스페이스·탭 그룹화 1차 제외) |
+| US-20.3 | 탭 색상/잠금(닫기 방지·루트 잠금)·탭을 새 창으로 | C | M | 빠른 보기·탐색·탭(§U) | 구현 완료(코드)·실 GUI/멀티윈도우 🟡 (M9·신규 채널 `window:split-tab`/`window:get-init`·색상/잠금=세션 메타 신규 채널 0·세션 영속[분리 창 reopen-only·주 창만 복원] + **2026-06-14 동작 확장: 탭 잠금 시 활성 패널 경로를 `Tab.lockedRoot`로 고정·잠긴 동안 루트 밖(상위) 이동 차단+안내 토스트·🏠 "잠긴 루트로 이동" 버튼·해제 시 루트 동반 해제·`lockedRoot` 세션 영속·`domain/rules/tabLock.ts`·`panelsSlice` navigate 가드·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경** / 창간 탭 이동·창별 워크스페이스·탭 그룹화 1차 제외) |
 | US-20.4 | 탭 사용자 지정 이름(custom tab name) | S | S | 빠른 보기·탐색·탭(§U) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 탭 라벨 더블클릭 인라인 편집·우클릭 "이름 바꾸기"·Enter 확정/Esc 취소/blur 확정·빈 값=자동 제목 복귀·세션 영속·`Tab.customName?`/`TabSnapshot.customName?` 하위호환 선택 필드·`tabsSlice.setTabName`/`clearTabName`·`TabBar.tsx`/`TabRenameInput`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:store`·§U3 색상/잠금과 별개로 이름만·실 GUI 동작 런타임 스모크 🟡 / 탭 색상·잠금·탭 분리=§U3 소관·탭 아이콘 변경 1차 범위 밖) |
 | US-22.1 | 빠른 위치 ▸ 다운로드 이동 | S | S | 사이드바 빠른 위치(§X) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 사이드바 "빠른 위치" 섹션·다운로드 항목 클릭으로 활성 패널을 OS 다운로드 폴더로 이동·신규 채널 `fs:known-folders`[무인자 invoke → `KnownFoldersDTO`·`app.getPath`]·`fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx`·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡 / 현재 다운로드만 렌더[바탕화면/문서/홈 DTO로 함께 가져오나 미표시·예약]·항목 추가/제거/재정렬/고정 1차 범위 밖) |
 | US-21.1 | 자세히 보기 컬럼 헤더·너비 조절 | S | S | 자세히 컬럼(§W) | ✅ 구현 완료 (헤더 막대 이름/크기/유형/수정한 날짜·분리자 드래그·분리자 포커스 방향키 리사이즈·컬럼 min48/max600 클램프·`이름` 신축·폭 세션 영속[전역 1벌]·자세히 보기 한정·`columnWidths.ts`·`columnsSlice`·`FileListView`·`SessionSnapshot.ui.detailsColumnWidths`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:domain` 24·실 GUI 동작 런타임 스모크 🟡 / 헤더 클릭 정렬·컬럼 표시숨김/순서 1차 범위 밖) |

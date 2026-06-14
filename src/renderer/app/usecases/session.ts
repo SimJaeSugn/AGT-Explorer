@@ -56,7 +56,8 @@ export function buildTabSnapshot(tabId: string): TabSnapshot | null {
     // 탭 메타 직렬화(Feature A 이름 · US-20.3 색상/잠금). 미설정은 생략(스키마 미상향·비파괴).
     ...(tab.customName ? { customName: tab.customName } : {}),
     ...(tab.color ? { color: tab.color } : {}),
-    ...(tab.locked ? { locked: true } : {})
+    ...(tab.locked ? { locked: true } : {}),
+    ...(tab.locked && tab.lockedRoot ? { lockedRoot: tab.lockedRoot } : {})
   }
 }
 

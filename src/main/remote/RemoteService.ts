@@ -71,6 +71,8 @@ export interface ConnectResult {
   readonly fingerprint?: string
   /** 호스트키 알고리즘(표시용). */
   readonly algo?: string
+  /** 접속 직후 초기 작업 디렉토리(FTP pwd·SFTP cwd, 보통 홈). 조회 실패 시 미존재. */
+  readonly initialPath?: string
 }
 
 /** 전송 진행률 콜백(누적 바이트). remoteTransfer 가 op:progress 로 중계한다. */

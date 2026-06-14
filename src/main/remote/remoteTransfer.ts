@@ -155,16 +155,48 @@ export function startDownload(
   return ok({ operationId: handle.operationId })
 }
 
+/** 원격 경로 존재 여부(stat 성공=존재). 충돌 정책 판정용. */
+async function remoteExists(adapter: RemoteAdapter, remotePath: string): Promise<boolean> {
+  const r = await adapter.stat(remotePath)
+  return r.ok
+}
+
+/** 원격 동명 충돌 시 `name (1).ext` … 로 유니크 원격 경로 산출(rename 정책). */
+async function uniqueRemotePath(adapter: RemoteAdapter, remotePath: string): Promise<string> {
+  const dir = posix.dirname(remotePath)
+  const ext = posix.extname(remotePath)
+  const base = posix.basename(remotePath, ext)
+  for (let i = 1; i < 10000; i++) {
+    const cand = posix.join(dir, `${base} (${i})${ext}`)
+    if (!(await remoteExists(adapter, cand))) return cand
+  }
+  return posix.join(dir, `${base} (${Date.now()})${ext}`)
+}
+
+/** 평탄화된 업로드 작업 1건(로컬 파일 → 원격 경로). */
+interface UploadFile {
+  readonly localFile: string
+  readonly remotePath: string
+  readonly name: string
+}
+
 /**
- * 업로드 실행: 로컬 파일들 → 원격 remoteDir. operationId 즉시 반환, 진행률은 op:* 스트림.
+ * 업로드 실행: 로컬 파일/폴더들 → 원격 remoteDir. operationId 즉시 반환, 진행률은 op:* 스트림.
  * 로컬 소스는 핸들러가 guardPath 로 검증한 절대경로 전제. 원격 경로는 POSIX join.
+ *
+ * **폴더 업로드(재귀)**: 디렉토리 소스는 하위 트리를 걸어 원격 디렉토리를 먼저 만들고(부모→자식)
+ * 파일을 개별 업로드한다(이전엔 파일만 가능 — 폴더는 createReadStream 실패로 누락됐다).
+ * **충돌 정책(conflictPolicy)**: 원격에 동명 파일이 있으면 skip(건너뜀)·rename(유니크명)·
+ * overwrite/merge/미지정(덮어쓰기) 으로 처리한다. 디렉토리는 항상 존재 보장(merge 동작)이며
+ * 정책은 파일 단위로만 적용한다(1차 단순화 — 폴더 단위 rename 미지원).
  */
 export function startUpload(
   adapter: RemoteAdapter,
   localPaths: string[],
   remoteDir: string,
   wc: WebContents,
-  reg: OpRegistrar
+  reg: OpRegistrar,
+  conflictPolicy?: ConflictPolicy
 ): Result<{ operationId: string }, RemoteError> {
   if (localPaths.length === 0) return err(remoteError('ENOENT', remoteDir))
 
@@ -175,29 +207,85 @@ export function startUpload(
     const failures: OpFailure[] = []
     let succeeded = 0
     let baseBytes = 0
-    for (let i = 0; i < localPaths.length; i++) {
-      if (cancel.aborted) break
-      const localPath = localPaths[i] as string
+
+    // ── 1) 로컬 소스 평탄화: 폴더는 재귀해 파일 목록 + 먼저 만들 원격 디렉토리(부모 우선) 수집 ──
+    const files: UploadFile[] = []
+    const dirsToEnsure: string[] = [] // 원격 절대경로(walk 순서 = 부모→자식)
+
+    async function walk(localPath: string, remoteParent: string): Promise<void> {
+      if (cancel.aborted) return
       const name = win32.basename(localPath)
-      const remotePath = posix.join(remoteDir, name)
+      const remotePath = posix.join(remoteParent, name)
+      let st: import('node:fs').Stats
+      try {
+        st = await fsp.stat(localPath)
+      } catch {
+        failures.push({ path: localPath, code: 'ENOENT', message: '원본을 찾을 수 없습니다.' })
+        return
+      }
+      if (st.isDirectory()) {
+        dirsToEnsure.push(remotePath)
+        let children: string[]
+        try {
+          children = (await fsp.readdir(localPath)).map((c) => win32.join(localPath, c))
+        } catch {
+          failures.push({ path: localPath, code: 'EACCES', message: '폴더를 읽을 수 없습니다.' })
+          return
+        }
+        for (const child of children) {
+          if (cancel.aborted) return
+          await walk(child, remotePath)
+        }
+      } else if (st.isFile()) {
+        files.push({ localFile: localPath, remotePath, name })
+      }
+      // 기타(소켓/장치 등)는 건너뜀.
+    }
+
+    for (const lp of localPaths) {
+      if (cancel.aborted) break
+      await walk(lp, remoteDir)
+    }
+
+    // ── 2) 원격 디렉토리 생성(부모→자식 순). 이미 존재 시 오류는 무시(존재 보장이 목적). ──
+    for (const dir of dirsToEnsure) {
+      if (cancel.aborted) break
+      const parent = posix.dirname(dir)
+      const base = posix.basename(dir)
+      await adapter.mkdir(parent, base) // 실패(이미 존재 등)는 후속 업로드에서 다시 드러남.
+    }
+
+    // ── 3) 파일 업로드(충돌 정책 적용). ──
+    const totalItems = files.length
+    for (let i = 0; i < files.length; i++) {
+      if (cancel.aborted) break
+      const f = files[i] as UploadFile
+      let finalRemote = f.remotePath
+      if (conflictPolicy !== 'overwrite' && conflictPolicy !== 'merge' && conflictPolicy !== undefined) {
+        // skip/rename 만 존재 확인이 필요(overwrite/merge/미지정은 그대로 덮어씀).
+        if (await remoteExists(adapter, f.remotePath)) {
+          if (conflictPolicy === 'skip') continue
+          if (conflictPolicy === 'rename') finalRemote = await uniqueRemotePath(adapter, f.remotePath)
+        }
+      }
       let lastTransferred = 0
       const r = await adapter.upload(
-        localPath,
-        remotePath,
+        f.localFile,
+        finalRemote,
         (transferred) => {
           lastTransferred = transferred
           handle.reportProgress({
             processedBytes: baseBytes + transferred,
             totalBytes: 0,
             processedItems: i,
-            totalItems: localPaths.length,
-            currentName: name
+            totalItems,
+            currentName: f.name
           })
         },
         cancel
       )
       if (!r.ok) {
-        failures.push({ path: localPath, code: r.error.code, message: r.error.message })
+        failures.push({ path: f.localFile, code: r.error.code, message: r.error.message })
         continue
       }
       succeeded++

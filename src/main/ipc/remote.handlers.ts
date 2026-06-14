@@ -136,7 +136,11 @@ export function registerRemoteHandlers(): void {
       )
       // secret 폐기는 GC 위임(여기서 참조 종료). 응답에 비밀 미수록.
       if (!r.ok) return err(r.error)
-      return ok({ sessionId: r.value.sessionId, encrypted: r.value.encrypted })
+      return ok({
+        sessionId: r.value.sessionId,
+        encrypted: r.value.encrypted,
+        ...(r.value.initialPath ? { initialPath: r.value.initialPath } : {})
+      })
     }
   )
   handleGuarded(CHANNELS.REMOTE_DISCONNECT, zRemoteDisconnectReq, async (req): Promise<Result<void>> =>
@@ -193,7 +197,14 @@ export function registerRemoteHandlers(): void {
       }
       const adapter = remoteSessionManager().getAdapter(req.sessionId)
       if (!adapter) return err(fileOpError('ECONNRESET', '세션이 유효하지 않습니다.'))
-      return startUpload(adapter, localPaths, req.remoteDir, event.sender, operationManager)
+      return startUpload(
+        adapter,
+        localPaths,
+        req.remoteDir,
+        event.sender,
+        operationManager,
+        req.conflictPolicy
+      )
     }
   )
 }

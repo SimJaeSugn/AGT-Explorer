@@ -11,6 +11,7 @@ import type {
   DirectoryView,
   NavHistory,
   Panel,
+  Tab,
   ViewState
 } from '@renderer/domain/entities'
 import type { SortKey, ViewMode } from '@shared/dto'
@@ -21,8 +22,23 @@ import {
 } from '@renderer/infra/api'
 import { isMyPc, parentOf } from '@renderer/domain/paths'
 import { isRemotePath, locationKindOf } from '@renderer/domain/rules/remoteLocation'
+import { isWithinLockedRoot } from '@renderer/domain/rules/tabLock'
 import { computeVisible } from '@renderer/app/usecases/selectors'
 import type { SliceCreator } from './types'
+
+/**
+ * 패널이 속한 탭이 루트 잠금 상태면 잠긴 루트 경로를, 아니면 undefined (백로그 ①).
+ * 잠긴 동안 navigate/navBack/navForward 가 이 루트 밖 이동을 차단한다.
+ */
+function lockedRootForPanel(tabs: Record<string, Tab>, panelId: string): string | undefined {
+  for (const t of Object.values(tabs)) {
+    if (t.panelIds.includes(panelId)) return t.locked && t.lockedRoot ? t.lockedRoot : undefined
+  }
+  return undefined
+}
+
+/** 루트 잠금 이탈 차단 안내 토스트 문구(공통). */
+const LOCKED_ROOT_MSG = '탭이 잠겨 있어 잠긴 루트 밖으로 이동할 수 없습니다.'
 
 /** 패널 기본 뷰 상태. */
 function defaultView(): ViewState {
@@ -359,6 +375,12 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     navigate(panelId, path, pushHistory = true) {
       const cur = get().panels[panelId]
       if (!cur) return
+      // 루트 잠금(백로그 ①): 잠긴 루트 밖이면 이동 차단(자신/하위만 허용).
+      const root = lockedRootForPanel(get().tabs, panelId)
+      if (root && !isWithinLockedRoot(path, root)) {
+        get().pushToast('info', LOCKED_ROOT_MSG)
+        return
+      }
       set((s) => {
         const p = s.panels[panelId]
         if (!p) return
@@ -380,6 +402,13 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     navBack(panelId) {
       const cur = get().panels[panelId]
       if (!cur || cur.nav.back.length === 0) return
+      // 루트 잠금: 직전 기록이 잠긴 루트 밖이면 차단(잠금 이전 외부 기록으로 이탈 방지).
+      const rootB = lockedRootForPanel(get().tabs, panelId)
+      const prevPeek = cur.nav.back[cur.nav.back.length - 1]
+      if (rootB && prevPeek && !isWithinLockedRoot(prevPeek, rootB)) {
+        get().pushToast('info', LOCKED_ROOT_MSG)
+        return
+      }
       let target = ''
       set((s) => {
         const p = s.panels[panelId]
@@ -399,6 +428,13 @@ export const createPanelsSlice: SliceCreator<PanelsSlice> = (set, get) => {
     navForward(panelId) {
       const cur = get().panels[panelId]
       if (!cur || cur.nav.forward.length === 0) return
+      // 루트 잠금: 앞 기록이 잠긴 루트 밖이면 차단.
+      const rootF = lockedRootForPanel(get().tabs, panelId)
+      const nextPeek = cur.nav.forward[cur.nav.forward.length - 1]
+      if (rootF && nextPeek && !isWithinLockedRoot(nextPeek, rootF)) {
+        get().pushToast('info', LOCKED_ROOT_MSG)
+        return
+      }
       let target = ''
       set((s) => {
         const p = s.panels[panelId]
