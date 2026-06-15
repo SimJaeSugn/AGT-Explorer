@@ -207,6 +207,16 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
           0,
           tabSnap.panels.findIndex((p) => p.id === tabSnap.activePanelId)
         )
+        // 루트 잠금 맵 복원(백로그 ①): 스냅샷 패널 id → 새 panelId 로 재매핑.
+        let lockedRoots: Record<string, string> | undefined
+        if (tabSnap.locked && tabSnap.lockedRoots) {
+          const remapped: Record<string, string> = {}
+          tabSnap.panels.forEach((pn, i) => {
+            const root = tabSnap.lockedRoots?.[pn.id]
+            if (root) remapped[panelIds[i] as string] = root
+          })
+          if (Object.keys(remapped).length > 0) lockedRoots = remapped
+        }
         const tab: Tab = {
           id: tabId,
           layout: tabSnap.layout,
@@ -218,7 +228,7 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
           ...(tabSnap.customName ? { customName: tabSnap.customName } : {}),
           ...(tabSnap.color ? { color: tabSnap.color } : {}),
           ...(tabSnap.locked ? { locked: true } : {}),
-          ...(tabSnap.locked && tabSnap.lockedRoot ? { lockedRoot: tabSnap.lockedRoot } : {})
+          ...(lockedRoots ? { lockedRoots } : {})
         }
         insertTab(tab, false)
         if (tabSnap.id === win.activeTabId) activeTabId = tabId
@@ -415,20 +425,26 @@ export const createTabsSlice: SliceCreator<TabsSlice> = (set, get) => {
     },
 
     toggleTabLock(tabId) {
-      // 잠글 때 그 시점 활성 패널 경로를 루트로 고정(백로그 ①). 해제 시 루트도 함께 제거.
+      // 잠글 때 각 분할 패널이 자기 경로를 루트로 고정(백로그 ①). 해제 시 맵 전체 제거.
       const tabNow = get().tabs[tabId]
-      const rootAtLock = tabNow ? get().panels[tabNow.activePanelId]?.path : undefined
+      const rootsAtLock: Record<string, string> = {}
+      if (tabNow) {
+        for (const pid of tabNow.panelIds) {
+          const path = get().panels[pid]?.path
+          if (path) rootsAtLock[pid] = path
+        }
+      }
       set((s) => {
         const t = s.tabs[tabId]
         if (!t) return
         // true 일 때만 보관(false 는 키 삭제 → 직렬화 안정·미잠금 동치).
         if (t.locked) {
           delete t.locked
-          delete t.lockedRoot
+          delete t.lockedRoots
         } else {
           t.locked = true
-          // 활성 패널 경로를 루트로 고정(없으면 미설정 = 제약 없음).
-          if (rootAtLock) t.lockedRoot = rootAtLock
+          // 각 패널을 자신의 경로로 고정(없으면 미설정 = 제약 없음).
+          if (Object.keys(rootsAtLock).length > 0) t.lockedRoots = rootsAtLock
         }
       })
     },

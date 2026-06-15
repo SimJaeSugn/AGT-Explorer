@@ -1402,7 +1402,7 @@
 
 > **완성도 UX 묶음.** **U1 Space 퀵룩 오버레이 · U2 브레드크럼 드롭다운 · U3 탭 색상/잠금·탭을 새 창으로** 3기능. 기존 미리보기(D3·J5)·주소 표시줄(C1)·탭 관리(A1)를 확장한다.
 > 우선순위: U1 = **S(Should)**, U2 = **S(Should)**, U3 = **C(Could)**(탭 분리=새 창은 멀티 윈도우 복잡도).
-> 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금 세션 메타 신규 채널 0·탭 분리 신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only) / U4는 구현 완료(코드)·실 GUI 🟡(신규 채널 0)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. **[2026-06-14 동작 확장 정식 편입] U3 탭 잠금이 "닫기 방지"에 더해 "루트 잠금"(잠긴 루트 밖 이동 차단·🏠 복귀 버튼·`lockedRoot` 세션 영속)으로 확장됨 — 렌더러 전용·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경·구현 완료(코드)·실 GUI 🟡(상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md)).** 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
+> 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금 세션 메타 신규 채널 0·탭 분리 신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only) / U4는 구현 완료(코드)·실 GUI 🟡(신규 채널 0)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. **[2026-06-14 동작 확장 정식 편입·2026-06-15 패널별 결함 수정] U3 탭 잠금이 "닫기 방지"에 더해 "루트 잠금"(각 분할 패널이 자기 경로로 독립 잠김·잠긴 루트 밖 이동 차단·🏠 복귀 버튼·패널별 맵 `lockedRoots` 세션 영속·구버전 단일값 하위호환)으로 확장됨 — 렌더러 전용·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경·구현 완료(코드)·실 GUI 🟡(상태 단일 출처 [roadmap §0.5 2026-06-14·2026-06-15 단락](./roadmap.md)).** 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
 ### U1. Space 퀵룩 오버레이 (S) — 구현 완료(코드)·실 GUI 🟡
 **목적**: macOS Quick Look처럼 Space로 선택 항목을 큰 미리보기 오버레이로 즉시 본다. (US-20.1)
@@ -1449,9 +1449,9 @@
 |---|---|
 | 색상 | 탭 우클릭 "탭 색상" → 색 지정(구분용). 색은 세션 영속 |
 | 잠금(닫기 방지) | 탭 우클릭 "탭 잠금" → `Ctrl+W`·가운데클릭·X로 닫히지 않음(잠금 표식), 해제로 토글 |
-| 잠금(루트 잠금) | **(2026-06-14 동작 확장)** 탭을 잠그면 그 시점의 활성 패널 경로가 **"잠긴 루트"(`Tab.lockedRoot`)** 로 함께 고정된다. 잠긴 동안 그 탭의 모든 패널은 **잠긴 루트 자신/하위로만 이동 가능**하고, 상위(위로/뒤로/앞으로/주소 직접 입력)로의 이동은 차단되며 안내 토스트(`탭이 잠겨 있어 잠긴 루트 밖으로 이동할 수 없습니다.`)가 표시된다. 각 패널 툴바에 🏠 "잠긴 루트로 이동" 버튼(잠김 시 노출)으로 즉시 복귀. 잠금 해제 시 잠긴 루트도 함께 해제 |
+| 잠금(루트 잠금) | **(2026-06-14 동작 확장·2026-06-15 패널별 결함 수정)** 탭을 잠그면 그 시점 **각 분할 패널이 자신의 경로**를 **"잠긴 루트"** 로 고정한다(패널별 맵 `Tab.lockedRoots`·panelId→root). 잠긴 동안 그 탭의 각 패널은 **자기 잠긴 루트 자신/하위로만 이동 가능**하고, 상위(위로/뒤로/앞으로/주소 직접 입력)로의 이동은 차단되며 안내 토스트(`탭이 잠겨 있어 잠긴 루트 밖으로 이동할 수 없습니다.`)가 표시된다. 각 패널 툴바에 🏠 "잠긴 루트로 이동" 버튼(잠김 시 노출)으로 자기 루트에 즉시 복귀. 잠금 해제 시 잠긴 루트도 함께 해제 |
 | 새 창으로 | 탭 우클릭 "새 창으로 분리" 또는 탭을 창 밖으로 드래그 → 그 탭을 새 창으로 이동(원 창에서 제거) |
-| 세션 | 탭 색상·잠금 상태**·잠긴 루트(`lockedRoot`)**·다중 창 구성은 세션 비파괴 영속(자동 복원 US-5.5 연계 범위·`SESSION_SCHEMA_VERSION` 무변경) |
+| 세션 | 탭 색상·잠금 상태**·잠긴 루트(패널별 맵 `lockedRoots`)**·다중 창 구성은 세션 비파괴 영속(자동 복원 US-5.5 연계 범위·`SESSION_SCHEMA_VERSION` 무변경) |
 
 **MVP 경계**: 1차 포함 = 탭 색상 지정·탭 잠금(닫기 방지 **+ 루트 잠금: 잠긴 루트 밖 이동 차단·🏠 복귀 버튼·세션 영속**)·탭을 새 창으로 분리·색상/잠금/잠긴 루트 세션 영속. 1차 제외 = 창 간 탭 드래그 이동(서로 다른 창끼리 탭 주고받기)·창별 독립 워크스페이스 저장·탭 그룹화(폴더링).
 
@@ -1462,12 +1462,12 @@
 **수용 기준** (M9 구현 완료(코드)·실 GUI·멀티윈도우 🟡 · 2026-06-14 루트 잠금 동작 확장 정식 편입·상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md))
 - [x] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다 — `Tab.color?`·`TabSnapshot.color?`·`TabBar` 우클릭 색상(TAG_PALETTE 재사용). ※ 실 GUI 🟡
 - [x] 탭을 잠그면(닫기 방지) `Ctrl+W`·가운데클릭·X로 닫히지 않고 잠금 표식이 표시되며 해제로 토글된다 — `Tab.locked?`·닫기 가드·commandBus 가드. ※ 실 GUI 🟡
-- [x] **(2026-06-14 동작 확장) 탭을 잠그면 그 시점의 활성 패널 경로가 "잠긴 루트"로 함께 고정된다** — `Tab.lockedRoot`·`tabsSlice.toggleTabLock` 캡처. ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장·2026-06-15 패널별 결함 수정) 탭을 잠그면 그 시점 각 분할 패널이 자기 경로를 "잠긴 루트"로 고정한다** — `Tab.lockedRoots`(패널별 맵)·`tabsSlice.toggleTabLock`(모든 패널 순회 캡처). ※ 실 GUI 🟡
 - [x] **(2026-06-14 동작 확장) 잠긴 동안 그 탭의 모든 패널은 잠긴 루트 자신/하위로만 이동 가능하고, 상위(위로/뒤로/앞으로/주소 직접 입력)로의 이동은 차단되며 안내 토스트가 표시된다** — `panelsSlice` navigate/navBack/navForward 가드·`domain/rules/tabLock.ts#isWithinLockedRoot`(parentOf 조상사슬·로컬 대소문자무시/원격/압축 분기)·`LOCKED_ROOT_MSG`. ※ 실 GUI 🟡
 - [x] **(2026-06-14 동작 확장) 잠김 상태일 때 각 패널 툴바에 🏠 "잠긴 루트로 이동" 버튼이 노출되어 잠긴 루트에 즉시 복귀한다** — `ui/toolbar/PanelToolbar.tsx`. ※ 실 GUI 🟡
-- [x] **(2026-06-14 동작 확장) 잠금을 해제하면 잠긴 루트도 함께 해제된다** — `toggleTabLock` 해제 분기에서 `lockedRoot` 클리어. ※ 실 GUI 🟡
+- [x] **(2026-06-14 동작 확장) 잠금을 해제하면 잠긴 루트도 함께 해제된다** — `toggleTabLock` 해제 분기에서 `lockedRoots` 맵 클리어. ※ 실 GUI 🟡
 - [x] 탭을 "새 창으로 분리"하면 그 탭이 새 창으로 이동하고 원 창에서 제거된다 — `windowSplit.ts#splitTabToNewWindow`·`window:split-tab`·`main/windows/windowManager.ts`. ※ 실 멀티윈도우 🟡
-- [x] 탭 색상·잠금 상태**·잠긴 루트(`lockedRoot`)**가 세션에 비파괴 영속되어 재시작 후 유지된다(US-5.5 연계 범위·`TabSnapshot.lockedRoot`·`coerceTab`·`buildTabSnapshot`·`SESSION_SCHEMA_VERSION` 무변경) — 세션 메타. ※ 분리 창은 reopen-only·재시작 복원 안 함(주 창만·의도적 MVP·정직 표기)
+- [x] 탭 색상·잠금 상태**·잠긴 루트(패널별 맵 `lockedRoots`)**가 세션에 비파괴 영속되어 재시작 후 유지된다(US-5.5 연계 범위·`TabSnapshot.lockedRoots`·`coerceTab`[맵 검증+구버전 단일값 하위호환]·`buildTabSnapshot`[맵 직렬화]·`restoreWindows`[panelId 재매핑]·`SESSION_SCHEMA_VERSION` 무변경) — 세션 메타. ※ 분리 창은 reopen-only·재시작 복원 안 함(주 창만·의도적 MVP·정직 표기)
 - [ ] (범위 밖) 창 간 탭 드래그 이동·창별 독립 워크스페이스·탭 그룹화는 1차 제외
 
 ### U4. 탭 사용자 지정 이름(custom tab name) (S) ✅ 구현 완료 (실 GUI 동작 런타임 스모크 🟡)

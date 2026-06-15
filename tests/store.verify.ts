@@ -1249,7 +1249,7 @@ if (sid) {
           customName: '복원된 탭',
           color: 'purple',
           locked: true,
-          lockedRoot: 'C:\\',
+          lockedRoots: { mp1: 'C:\\' },
           panels: [
             {
               id: 'mp1',
@@ -1270,14 +1270,14 @@ if (sid) {
   ok('TAB restoreWindows customName 복원', rt.customName === '복원된 탭')
   ok('TAB restoreWindows color 복원', rt.color === 'purple')
   ok('TAB restoreWindows locked 복원', rt.locked === true)
-  ok('TAB restoreWindows lockedRoot 복원(백로그 ①)', rt.lockedRoot === 'C:\\')
+  ok('TAB restoreWindows lockedRoot 복원(백로그 ①)', rt.lockedRoots?.[rt.activePanelId] === 'C:\\')
 
   // ── 백로그 ①: 루트 잠금(lockedRoot 캡처·이탈 차단·하위 허용·복귀·해제·영속) ──
   s().newTab('D:\\lockroot\\sub')
   const lrTab = s().activeTabId
   const lrPanel = s().tabs[lrTab]!.activePanelId
   s().toggleTabLock(lrTab)
-  ok('LOCKROOT 잠금 시 활성 패널 경로를 루트로 캡처', s().tabs[lrTab]!.lockedRoot === 'D:\\lockroot\\sub')
+  ok('LOCKROOT 잠금 시 활성 패널 경로를 루트로 캡처', s().tabs[lrTab]!.lockedRoots?.[lrPanel] === 'D:\\lockroot\\sub')
   const beforeLrToasts = s().toasts.length
   s().navigate(lrPanel, 'D:\\lockroot', true)
   ok('LOCKROOT 루트 상위 이동 차단(경로 불변)', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub')
@@ -1289,11 +1289,29 @@ if (sid) {
   s().navigate(lrPanel, 'D:\\lockroot\\sub', true)
   ok('LOCKROOT 루트로 복귀 허용', s().panels[lrPanel]!.path === 'D:\\lockroot\\sub')
   const lrSnapTab = buildSessionSnapshot().windows[0]!.tabs.find((t) => t.id === lrTab)!
-  ok('LOCKROOT 스냅샷 lockedRoot 직렬화', lrSnapTab.lockedRoot === 'D:\\lockroot\\sub')
+  ok('LOCKROOT 스냅샷 lockedRoot 직렬화', lrSnapTab.lockedRoots?.[lrPanel] === 'D:\\lockroot\\sub')
   s().toggleTabLock(lrTab)
-  ok('LOCKROOT 잠금 해제 시 lockedRoot 제거', s().tabs[lrTab]!.lockedRoot === undefined)
+  ok('LOCKROOT 잠금 해제 시 lockedRoot 제거', s().tabs[lrTab]!.lockedRoots === undefined)
   s().navigate(lrPanel, 'D:\\lockroot', true)
   ok('LOCKROOT 해제 후 루트 위 이동 허용', s().panels[lrPanel]!.path === 'D:\\lockroot')
+
+  // ── 백로그 ①(분할): 각 분할 패널이 잠금 시점 자기 경로를 루트로 독립 고정 ──
+  s().newTab('E:\\splitlock\\left')
+  const slTab = s().activeTabId
+  const slLeft = s().tabs[slTab]!.activePanelId
+  s().toggleSplit2(slTab)
+  const slRight = s().tabs[slTab]!.panelIds.find((p) => p !== slLeft)!
+  s().navigate(slRight, 'E:\\splitlock\\right', true)
+  s().toggleTabLock(slTab)
+  ok('SPLITLOCK 좌측 패널 자기 경로로 잠금', s().tabs[slTab]!.lockedRoots?.[slLeft] === 'E:\\splitlock\\left')
+  ok('SPLITLOCK 우측 패널 자기 경로로 잠금', s().tabs[slTab]!.lockedRoots?.[slRight] === 'E:\\splitlock\\right')
+  // 우측 루트(E:\splitlock\right)는 좌측 루트(E:\splitlock\left) 밖이지만 우측은 자기 루트라 허용·유지.
+  s().navigate(slRight, 'E:\\splitlock\\left', true)
+  ok('SPLITLOCK 우측 패널은 좌측 루트로 이동 차단(자기 루트 밖)', s().panels[slRight]!.path === 'E:\\splitlock\\right')
+  s().navigate(slLeft, 'E:\\splitlock\\right', true)
+  ok('SPLITLOCK 좌측 패널은 우측 루트로 이동 차단(자기 루트 밖)', s().panels[slLeft]!.path === 'E:\\splitlock\\left')
+  s().navigate(slRight, 'E:\\splitlock\\right\\deep', true)
+  ok('SPLITLOCK 우측 패널 자기 하위 이동 허용', s().panels[slRight]!.path === 'E:\\splitlock\\right\\deep')
 
   // ── U3: 탭 분리(새 창) 스냅샷 추출 + 분리 창 어돕트(restoreWindows 단일 탭) ──
   const { buildTabSnapshot } = await import('../src/renderer/app/usecases/session')

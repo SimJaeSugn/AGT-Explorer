@@ -57,7 +57,9 @@ export function buildTabSnapshot(tabId: string): TabSnapshot | null {
     ...(tab.customName ? { customName: tab.customName } : {}),
     ...(tab.color ? { color: tab.color } : {}),
     ...(tab.locked ? { locked: true } : {}),
-    ...(tab.locked && tab.lockedRoot ? { lockedRoot: tab.lockedRoot } : {})
+    ...(tab.locked && tab.lockedRoots && Object.keys(tab.lockedRoots).length > 0
+      ? { lockedRoots: { ...tab.lockedRoots } }
+      : {})
   }
 }
 

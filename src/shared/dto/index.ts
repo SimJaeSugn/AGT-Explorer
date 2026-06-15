@@ -322,8 +322,11 @@ export interface TabSnapshot {
   readonly color?: string
   /** 탭 잠금(US-20.3). true 일 때만 직렬화(false/누락은 미잠금). */
   readonly locked?: boolean
-  /** 루트 잠금 경로(백로그 ①). 잠금 시점 활성 패널 경로. 비-빈 문자열만 직렬화. */
-  readonly lockedRoot?: string
+  /**
+   * 루트 잠금 맵(백로그 ①). 잠금 시점 **각 분할 패널이 자신의 경로**로 고정된 루트를
+   * 패널 id(PanelSnapshot.id) 별로 보관한다. 잠금 동반·비-빈 항목만 직렬화.
+   */
+  readonly lockedRoots?: Readonly<Record<string, string>>
 }
 
 /** 창 1개의 직렬화 상태. closedHistory(닫은 탭 복원 스택)는 휘발 → 제외(SA §5.1). */

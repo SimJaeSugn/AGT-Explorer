@@ -57,7 +57,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
   // 루트 잠금(백로그 ①): 패널이 속한 활성 탭이 잠겨 있고 루트가 있으면 "루트로" 버튼 노출.
   const lockedRoot = useRootStore((s) => {
     const t = s.tabs[s.activeTabId]
-    return t?.locked && t.panelIds.includes(panelId) ? t.lockedRoot : undefined
+    return t?.locked && t.panelIds.includes(panelId) ? t.lockedRoots?.[panelId] : undefined
   })
 
   // 주소 편집 모드는 활성 패널만 전역 addressEditing 과 연동.

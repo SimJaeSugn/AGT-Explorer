@@ -232,10 +232,29 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
   const rawColor = o['color']
   const color = typeof rawColor === 'string' && TAG_KEYS.has(rawColor) ? rawColor : undefined
   const locked = o['locked'] === true
-  // lockedRoot: 잠긴 탭의 루트 경로(백로그 ①). 비-빈 문자열만 보존(잠금 동반·미잠금이면 무의미).
-  const rawLockedRoot = o['lockedRoot']
-  const lockedRoot =
-    locked && typeof rawLockedRoot === 'string' && rawLockedRoot.trim() !== '' ? rawLockedRoot : undefined
+  // lockedRoots: 잠긴 탭의 패널별 루트 맵(백로그 ①). 알려진 패널 id·비-빈 문자열 항목만 보존.
+  //  구버전 호환: 단일 문자열 lockedRoot 는 활성 패널 id 에 매핑(잠금 동반시).
+  const validPanelIds = new Set(panels.map((p) => p.id))
+  let lockedRoots: Record<string, string> | undefined
+  if (locked) {
+    const out: Record<string, string> = {}
+    const rawRoots = o['lockedRoots']
+    if (rawRoots && typeof rawRoots === 'object') {
+      for (const [k, v] of Object.entries(rawRoots as Record<string, unknown>)) {
+        if (validPanelIds.has(k) && typeof v === 'string' && v.trim() !== '') out[k] = v
+      }
+    }
+    const rawLockedRoot = o['lockedRoot']
+    if (
+      Object.keys(out).length === 0 &&
+      typeof rawLockedRoot === 'string' &&
+      rawLockedRoot.trim() !== '' &&
+      validPanelIds.has(activePanelId)
+    ) {
+      out[activePanelId] = rawLockedRoot
+    }
+    if (Object.keys(out).length > 0) lockedRoots = out
+  }
   return {
     id,
     activePanelId,
@@ -246,7 +265,7 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
     ...(customName ? { customName } : {}),
     ...(color ? { color } : {}),
     ...(locked ? { locked: true } : {}),
-    ...(lockedRoot ? { lockedRoot } : {})
+    ...(lockedRoots ? { lockedRoots } : {})
   }
 }
 

@@ -27,12 +27,13 @@ import { computeVisible } from '@renderer/app/usecases/selectors'
 import type { SliceCreator } from './types'
 
 /**
- * 패널이 속한 탭이 루트 잠금 상태면 잠긴 루트 경로를, 아니면 undefined (백로그 ①).
+ * 패널이 속한 탭이 루트 잠금 상태면 **그 패널 자신의** 잠긴 루트 경로를, 아니면 undefined
+ * (백로그 ①). 각 분할 패널은 잠금 시점 자기 경로를 루트로 갖는다(lockedRoots[panelId]).
  * 잠긴 동안 navigate/navBack/navForward 가 이 루트 밖 이동을 차단한다.
  */
 function lockedRootForPanel(tabs: Record<string, Tab>, panelId: string): string | undefined {
   for (const t of Object.values(tabs)) {
-    if (t.panelIds.includes(panelId)) return t.locked && t.lockedRoot ? t.lockedRoot : undefined
+    if (t.panelIds.includes(panelId)) return t.locked ? t.lockedRoots?.[panelId] : undefined
   }
   return undefined
 }
