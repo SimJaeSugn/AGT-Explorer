@@ -31,11 +31,37 @@ export const PATH_ERROR_MARKER = 'list_locations'
 /** 연속 경로 에러 임계 — 도달 시 1회 강한 list_locations 힌트 주입(반복 환각 가드). */
 export const MAX_CONSECUTIVE_PATH_ERRORS = 3
 
+/**
+ * 힌트 주입 후에도 연속 경로 거부가 이 임계에 도달하면 루프를 중단한다(턴 낭비 방지·정직 종료).
+ * 힌트로도 그라운딩에 실패하는 모델이 MAX_TURNS(24)까지 같은 창작 경로를 반복하는 것을 막는다.
+ */
+export const MAX_PATH_ERRORS_BEFORE_ABORT = 6
+
 /** 반복 환각 가드 주입 힌트(실제 경로 조회 강제). */
 export const REPEATED_PATH_ERROR_HINT =
   '[시스템 안내] 경로 인자가 연속으로 거부되었습니다. 더 이상 경로를 추측·창작하지 마세요. ' +
   '지금 즉시 list_locations 를 호출해 실제 경로 목록(드라이브·즐겨찾기·빠른위치·최근·패널)을 받은 뒤, ' +
   '거기서 반환된 path 문자열을 그대로 복사해 다음 도구를 호출하세요. 이 시스템은 Windows 입니다.'
+
+/** 경로 그라운딩 반복 실패로 중단할 때 사용자에게 보일 정직한 요약(부분 답이 없을 때). */
+export const PATH_ERROR_ABORT_NOTE =
+  '요청한 위치의 실제 경로를 확인하지 못해 작업을 중단했습니다. ' +
+  '폴더를 정확한 경로(예: E:\\03.프로젝트\\foo)로 다시 알려주시거나, 즐겨찾기·드라이브 이름으로 지정해 주세요.'
+
+/** 반복 환각 가드의 단계적 조치(순수·verify 대상). */
+export type PathGuardAction = 'none' | 'hint' | 'abort'
+
+/**
+ * 연속 경로 거부 횟수와 힌트 주입 여부로 다음 조치를 정한다(순수).
+ * - 임계(MAX_PATH_ERRORS_BEFORE_ABORT) 도달 → 'abort'(힌트 여부 무관·중단 우선).
+ * - 1차 임계(MAX_CONSECUTIVE_PATH_ERRORS) 도달·힌트 미주입 → 'hint'(1회 강한 안내).
+ * - 그 외 → 'none'.
+ */
+export function pathGuardAction(consecutivePathErrors: number, hintInjected: boolean): PathGuardAction {
+  if (consecutivePathErrors >= MAX_PATH_ERRORS_BEFORE_ABORT) return 'abort'
+  if (consecutivePathErrors >= MAX_CONSECUTIVE_PATH_ERRORS && !hintInjected) return 'hint'
+  return 'none'
+}
 
 /** content 가 경로 거부형 에러인지(반복 가드 판정·순수). */
 export function isPathError(content: string): boolean {

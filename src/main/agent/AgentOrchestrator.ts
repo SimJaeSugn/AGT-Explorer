@@ -24,6 +24,7 @@ import type { LLMProvider, NormalizedMessage, NormalizedToolResult } from './pro
 import type { LimitKind } from './limits'
 import {
   DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_LLM_RETRIES,
   MAX_REPLANS,
   MAX_STEP_TOOL_ERRORS,
   MAX_STEP_TURNS,
@@ -31,6 +32,7 @@ import {
   exceededLimit,
   nearBudget
 } from './limits'
+import { callWithRetry, isTransientError } from './provider/retry'
 import { route } from './modelRouter'
 import type { ReadToolBackend, GuardPathFn, DispatchAction, ToolProgress } from './toolRegistry'
 import { createDefaultToolCatalog, type ToolCatalog } from './ToolCatalog'
@@ -45,8 +47,9 @@ import type { AgentScope } from './scope'
 import {
   withGrounding,
   isPathError,
-  MAX_CONSECUTIVE_PATH_ERRORS,
-  REPEATED_PATH_ERROR_HINT
+  pathGuardAction,
+  REPEATED_PATH_ERROR_HINT,
+  PATH_ERROR_ABORT_NOTE
 } from './grounding'
 import type { AgentLocations } from '@shared/ipc/contracts'
 
@@ -226,15 +229,28 @@ async function runReactLoop(
 
     let resp
     try {
-      resp = await provider.createCompletion(
+      // §Z 견고성: 일시 오류(429/5xx/네트워크 단절·타임아웃)는 지수 백오프로 재시도(영구 오류·취소는 즉시 종료).
+      resp = await callWithRetry(
+        () =>
+          provider.createCompletion(
+            {
+              messages,
+              tools: catalog.toToolDefs(),
+              tier,
+              maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+              ...(opts.signal ? { signal: opts.signal } : {})
+            },
+            (d) => emit({ type: 'thinking', text: d.text, ...(step ? { stepId: step.stepId } : {}) })
+          ),
         {
-          messages,
-          tools: catalog.toToolDefs(),
-          tier,
-          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
-          ...(opts.signal ? { signal: opts.signal } : {})
-        },
-        (d) => emit({ type: 'thinking', text: d.text, ...(step ? { stepId: step.stepId } : {}) })
+          maxRetries: MAX_LLM_RETRIES,
+          isTransient: isTransientError,
+          ...(opts.signal ? { signal: opts.signal } : {}),
+          onRetry: ({ attempt, delayMs, error }) => {
+            // eslint-disable-next-line no-console
+            console.warn(`[agent] LLM 호출 일시 오류 — 재시도 ${attempt}/${MAX_LLM_RETRIES} (${delayMs}ms 후):`, error)
+          }
+        }
       )
     } catch (e) {
       if (opts.signal?.aborted) {
@@ -309,15 +325,24 @@ async function runReactLoop(
 
     messages.push({ role: 'tool', toolResults: results })
 
-    // §Z 반복 환각 가드: 연속 경로 거부가 임계 도달 시 1회 강한 list_locations 힌트 주입(재계획·창작 방지).
-    if (consecutivePathErrors >= MAX_CONSECUTIVE_PATH_ERRORS && !pathHintInjected) {
-      pathHintInjected = true
-      messages.push({ role: 'user', content: REPEATED_PATH_ERROR_HINT })
-    }
-
     if (finished) {
       emit({ type: 'finish', summary: state.summary, truncated: state.truncatedAny, stopReason: 'finish' })
       return { kind: 'finished', outcome: outcomeOf('finish', state) }
+    }
+
+    // §Z 반복 환각 가드(단계적): 1차 임계 → 강한 list_locations 힌트 1회, 지속되면 → 중단(턴 낭비 방지).
+    const guard = pathGuardAction(consecutivePathErrors, pathHintInjected)
+    if (guard === 'hint') {
+      pathHintInjected = true
+      messages.push({ role: 'user', content: REPEATED_PATH_ERROR_HINT })
+    } else if (guard === 'abort') {
+      // 힌트 후에도 경로 그라운딩 반복 실패 — 스텝은 재계획 트리거, 단일 ReAct 는 정직하게 요약 종료.
+      if (step) {
+        return { kind: 'step-failed', observation: lastObservation || PATH_ERROR_ABORT_NOTE }
+      }
+      if (!state.summary) state.summary = PATH_ERROR_ABORT_NOTE
+      emit({ type: 'finish', summary: state.summary, truncated: state.truncatedAny, stopReason: 'end_turn' })
+      return { kind: 'finished', outcome: outcomeOf('end_turn', state) }
     }
 
     // 스텝 내 연속 도구 오류 임계 → 재계획 트리거.

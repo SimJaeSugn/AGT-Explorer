@@ -51,6 +51,13 @@ export const MAX_STEP_TOOL_ERRORS = 3
 /** 재계획 횟수 상한(루프 가드·plan 해시 반복 감지도 종료). */
 export const MAX_REPLANS = 2
 
+/**
+ * LLM 호출(createCompletion) 일시 오류 시 추가 재시도 최대 횟수(§Z 견고성).
+ * 첫 시도 포함 총 (1 + MAX_LLM_RETRIES)회 시도한다. 일시 오류(429/5xx/네트워크 단절·타임아웃)만
+ * 지수 백오프로 재시도하고, 영구 오류(인증 4xx·도구 파싱형·취소)는 재시도 없이 즉시 종료한다.
+ */
+export const MAX_LLM_RETRIES = 2
+
 /** 전역 토큰/시간 임계 도달 비율 — 초과 시 재계획 금지·요약 종료(부분 답 보존). */
 export const REPLAN_BUDGET_RATIO = 0.8
 

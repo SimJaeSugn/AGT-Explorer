@@ -77,8 +77,18 @@ import {
   GROUNDING_MAX_PER_CATEGORY,
   isPathError,
   MAX_CONSECUTIVE_PATH_ERRORS,
-  REPEATED_PATH_ERROR_HINT
+  MAX_PATH_ERRORS_BEFORE_ABORT,
+  pathGuardAction,
+  REPEATED_PATH_ERROR_HINT,
+  PATH_ERROR_ABORT_NOTE
 } from '../src/main/agent/grounding'
+import {
+  isTransientError,
+  backoffDelayMs,
+  callWithRetry,
+  RETRY_BASE_MS,
+  RETRY_CAP_MS
+} from '../src/main/agent/provider/retry'
 import { buildScope, isUnder, assertInScope, scopeRootsFromLocations } from '../src/main/agent/scope'
 import { runAgentLoop, runHybrid, clampToolResult, type OrchestratorEvent } from '../src/main/agent/AgentOrchestrator'
 import { createDefaultToolCatalog } from '../src/main/agent/ToolCatalog'
@@ -93,6 +103,7 @@ import {
 import {
   MAX_PLAN_STEPS,
   MAX_REPLANS,
+  MAX_LLM_RETRIES,
   nearBudget,
   MAX_TOOL_CALLS,
   exceededLimit,
@@ -2137,23 +2148,126 @@ async function main(): Promise<void> {
     check('[tab-exist] deps.statPath 없으면 backend.statPath 미노출', noStatBackend.statPath === undefined)
   }
 
-  // ── 26h) 반복 환각 가드: 연속 경로 에러 임계 → list_locations 강한 힌트 1회 주입 ──
+  // ── 26h) 반복 환각 가드(단계적): 1차 임계 → list_locations 힌트 1회, 지속 → 중단 ──
   {
     check('[guard] isPathError 판정(list_locations 마커)', isPathError('경로 거부... list_locations 호출') && !isPathError('일반 에러'))
-    check('[guard] 임계 상수 양수', MAX_CONSECUTIVE_PATH_ERRORS >= 1)
+    check('[guard] 임계 상수 양수·순서(hint < abort)', MAX_CONSECUTIVE_PATH_ERRORS >= 1 && MAX_PATH_ERRORS_BEFORE_ABORT > MAX_CONSECUTIVE_PATH_ERRORS)
     check('[guard] 힌트 텍스트 list_locations·Windows', REPEATED_PATH_ERROR_HINT.includes('list_locations') && REPEATED_PATH_ERROR_HINT.includes('Windows'))
+    check('[guard] 중단 안내 텍스트 비어있지 않음', PATH_ERROR_ABORT_NOTE.length > 0)
 
-    // 시나리오: 항상 스코프 밖 경로 호출 → 연속 경로 에러 → 임계 후 user 힌트 메시지 주입.
+    // pathGuardAction 순수 판정.
+    check('[guard] pathGuardAction(2,false)=none', pathGuardAction(2, false) === 'none')
+    check('[guard] pathGuardAction(MAX_CONSEC,false)=hint', pathGuardAction(MAX_CONSECUTIVE_PATH_ERRORS, false) === 'hint')
+    check('[guard] pathGuardAction(MAX_CONSEC,true)=none(힌트 중복 안 함)', pathGuardAction(MAX_CONSECUTIVE_PATH_ERRORS, true) === 'none')
+    check('[guard] pathGuardAction(ABORT,true)=abort', pathGuardAction(MAX_PATH_ERRORS_BEFORE_ABORT, true) === 'abort')
+    check('[guard] pathGuardAction(ABORT,false)=abort(중단 우선)', pathGuardAction(MAX_PATH_ERRORS_BEFORE_ABORT, false) === 'abort')
+
+    // 시나리오: 항상 스코프 밖 경로 호출 → 연속 경로 에러 → 임계 후 user 힌트 1회, 지속되면 중단.
     const sc = buildScope('E:\\work', [])
     const repProvider = scriptedProvider([
       { text: '시도', toolCalls: [{ id: 'a', name: 'list_directory', input: { path: 'C:\\nope' } }], stopReason: 'tool_use' }
     ])
-    await runAgentLoop(repProvider, { prompt: 'p', scope: sc, contentConsent: false, backend: recordBackend, guardPath: guardOk }, () => {})
+    const repEvents: OrchestratorEvent[] = []
+    const repOut = await runAgentLoop(repProvider, { prompt: 'p', scope: sc, contentConsent: false, backend: recordBackend, guardPath: guardOk }, (e) => repEvents.push(e))
     const seen = (repProvider as unknown as { seen: NormalizedCompletionReq[] }).seen
     // runReactLoop 은 단일 messages 배열을 누적 변형하므로 seen[*] 은 동일 참조 → 최종 배열을 한 번만 검사.
     const finalMessages = seen[seen.length - 1]?.messages ?? []
     const hintCount = finalMessages.filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content === REPEATED_PATH_ERROR_HINT).length
     check('[guard] 연속 경로 에러 임계 도달→힌트 1회 주입', hintCount === 1)
+    // 단계적 강화: 힌트 후에도 지속되면 MAX_TURNS(24)까지 안 돌고 abort 임계 부근에서 종료.
+    check('[guard] 지속 환각→MAX_TURNS 전 중단(턴 낭비 방지)', repOut.turns < MAX_TURNS && repOut.turns <= MAX_PATH_ERRORS_BEFORE_ABORT + 1)
+    check('[guard] 중단도 finish 이벤트로 정직 종료(프리징 0)', repEvents.some((e) => e.type === 'finish'))
+  }
+
+  // ── 26i) LLM 호출 일시 오류 재시도(§Z 견고성·지수 백오프·영구 오류 빠른 실패) ──
+  {
+    // isTransientError: 일시(429/5xx/네트워크) → true, 영구(4xx 인증·404·도구파싱 400) → false.
+    check('[retry] 429 일시', isTransientError(Object.assign(new Error('rate'), { status: 429 })))
+    check('[retry] 503 일시', isTransientError(Object.assign(new Error('unavailable'), { status: 503 })))
+    check('[retry] 500 일시', isTransientError(Object.assign(new Error('ise'), { status: 500 })))
+    check('[retry] 401 영구(재시도 안 함)', !isTransientError(Object.assign(new Error('auth'), { status: 401 })))
+    check('[retry] 404 영구(재시도 안 함)', !isTransientError(Object.assign(new Error('nf'), { status: 404 })))
+    check('[retry] 400 도구파싱 영구(재시도 안 함)', !isTransientError(Object.assign(new Error('Failed to parse'), { status: 400 })))
+    check('[retry] ECONNRESET 코드 일시', isTransientError(Object.assign(new Error('reset'), { code: 'ECONNRESET' })))
+    check('[retry] ETIMEDOUT 코드 일시', isTransientError(Object.assign(new Error('to'), { code: 'ETIMEDOUT' })))
+    check('[retry] ECONNREFUSED 영구(서버 미가동·재시도 안 함)', !isTransientError(Object.assign(new Error('refused'), { code: 'ECONNREFUSED' })))
+    check('[retry] "fetch failed" 메시지 일시', isTransientError(new Error('fetch failed')))
+    check('[retry] cause.code 일시 판정', isTransientError(Object.assign(new Error('x'), { cause: { code: 'ETIMEDOUT' } })))
+
+    // backoffDelayMs: 단조 증가·상한.
+    check('[retry] backoff(0)=base', backoffDelayMs(0, RETRY_BASE_MS, RETRY_CAP_MS) === RETRY_BASE_MS)
+    check('[retry] backoff(1)=2*base', backoffDelayMs(1, RETRY_BASE_MS, RETRY_CAP_MS) === RETRY_BASE_MS * 2)
+    check('[retry] backoff 상한 cap', backoffDelayMs(20, RETRY_BASE_MS, RETRY_CAP_MS) === RETRY_CAP_MS)
+
+    // callWithRetry: 일시 오류 N회 후 성공(즉시 sleep 주입·결정적).
+    const slept: number[] = []
+    const instantSleep = async (ms: number): Promise<void> => { slept.push(ms) }
+    let calls = 0
+    const ok = await callWithRetry(
+      async () => {
+        calls++
+        if (calls <= 2) throw Object.assign(new Error('temp'), { status: 503 })
+        return 'done'
+      },
+      { maxRetries: 3, sleep: instantSleep, baseMs: 10, capMs: 100 }
+    )
+    check('[retry] 일시 2회 실패→3번째 성공', ok === 'done' && calls === 3)
+    check('[retry] 백오프 2회·증가', slept.length === 2 && slept[0]! < slept[1]!)
+
+    // 영구 오류 → 재시도 없이 즉시 throw(sleep 0회).
+    const slept2: number[] = []
+    let calls2 = 0
+    let threw = false
+    try {
+      await callWithRetry(
+        async () => { calls2++; throw Object.assign(new Error('auth'), { status: 401 }) },
+        { maxRetries: 3, sleep: async (ms: number) => { slept2.push(ms) }, baseMs: 10 }
+      )
+    } catch { threw = true }
+    check('[retry] 영구 오류 즉시 throw(재시도 0)', threw && calls2 === 1 && slept2.length === 0)
+
+    // 재시도 소진 → 마지막 오류 throw.
+    let calls3 = 0
+    let threw3 = false
+    try {
+      await callWithRetry(
+        async () => { calls3++; throw Object.assign(new Error('temp'), { status: 500 }) },
+        { maxRetries: 2, sleep: async () => {}, baseMs: 1 }
+      )
+    } catch { threw3 = true }
+    check('[retry] 일시 오류 소진→throw(총 1+maxRetries 시도)', threw3 && calls3 === 3)
+
+    // 취소: aborted 면 재시도 안 함.
+    const ac = new AbortController()
+    ac.abort()
+    let calls4 = 0
+    let threw4 = false
+    try {
+      await callWithRetry(
+        async () => { calls4++; throw Object.assign(new Error('temp'), { status: 503 }) },
+        { maxRetries: 3, signal: ac.signal, sleep: async () => {}, baseMs: 1 }
+      )
+    } catch { threw4 = true }
+    check('[retry] 취소 시 재시도 안 함(1회 시도 후 throw)', threw4 && calls4 === 1)
+
+    // 오케스트레이터 배선: 일시 오류 1회 후 정상 응답 → 루프가 죽지 않고 완료(실 백오프 1회).
+    {
+      const sc = buildScope('E:\\work', [])
+      let attempts = 0
+      const flakyProvider: LLMProvider = {
+        id: 'internal',
+        capabilities: { toolUse: true, streaming: true },
+        async createCompletion(): Promise<LLMTurnResult> {
+          attempts++
+          if (attempts === 1) throw Object.assign(new Error('temporary 503'), { status: 503 })
+          return { text: '복구됨', toolCalls: [], stopReason: 'end_turn' }
+        }
+      }
+      const fEvents: OrchestratorEvent[] = []
+      const fOut = await runAgentLoop(flakyProvider, { prompt: 'p', scope: sc, contentConsent: false, backend: recordBackend, guardPath: guardOk }, (e) => fEvents.push(e))
+      check('[retry] 오케스트레이터: 일시 오류 1회→재시도 후 완료(루프 안 죽음)', fOut.stopReason === 'end_turn' && attempts === 2)
+      check('[retry] 오케스트레이터: 재시도 후 error 이벤트 0', !fEvents.some((e) => e.type === 'error') && MAX_LLM_RETRIES >= 1)
+    }
   }
 
   // ── 결과 ──
