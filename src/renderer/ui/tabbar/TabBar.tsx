@@ -7,16 +7,23 @@
  *
  * Feature A(사용자 지정 이름)·US-20.3(탭 색상/잠금):
  *  - 더블클릭 또는 컨텍스트 메뉴 "이름 바꾸기" → 인라인 입력(RenameInput 패턴 미러).
- *  - 우클릭 → 이름 바꾸기 / 색상(TAG_PALETTE 재사용) / 잠금·잠금 해제.
- *  - 색상 설정 시 좌측 색상 막대, 잠긴 탭은 자물쇠 글리프 + 닫기 가드(× 숨김).
+ *  - 우클릭 → 이름 바꾸기 / 색상(TAB_COLOR_PALETTE 웜·쿨·중립 파스텔) / 잠금·잠금 해제.
+ *  - 색상 설정 시 탭 영역 "전체"를 파스텔로 물들이고(tabTint), 활성 탭은 좀 더 진한
+ *    틴트 + 상단 강조선. 잠긴 탭은 자물쇠 글리프 + 닫기 가드(× 숨김).
  */
 import { useEffect, useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { requestNewTab } from '@renderer/app/usecases/newTab'
-import { splitTabToNewWindow } from '@renderer/app/usecases/windowSplit'
-import { TAG_PALETTE, tagColorOf } from '@renderer/domain/rules/tags'
+import { splitTabToNewWindow, detachTabToCompactWindow } from '@renderer/app/usecases/windowSplit'
+import {
+  TAB_COLOR_PALETTE,
+  TAB_COLOR_GROUP_LABEL,
+  tabColorOf,
+  tabTint,
+  type TabColorGroup
+} from '@renderer/domain/rules/tabColors'
 import { tokens } from '@renderer/ui/theme/tokens'
 
 /** 탭 컨텍스트 메뉴 위치(없으면 닫힘). */
@@ -148,9 +155,18 @@ function TabItem({
   const moveTab = useRootStore((s) => s.moveTab)
 
   const label = customName && customName.trim() !== '' ? customName : derivedTitle
-  const swatch = colorKey ? tagColorOf(colorKey as never)?.color : undefined
-  // 색상은 단독 정보가 아니므로 접근성 라벨은 이름 + 잠금 상태만 고지(색상 막대는 aria-hidden).
+  const swatch = tabColorOf(colorKey)?.color
+  // 색상은 단독 정보가 아니므로 접근성 라벨은 이름 + 잠금 상태만 고지(색상 틴트는 aria-hidden).
   const ariaLabel = locked ? `${label} (잠긴 탭)` : label
+  // 탭 영역 전체 배경: 색상 미지정이면 기존 동작(활성=bg/비활성=투명), 지정 시 파스텔 틴트
+  // (활성은 좀 더 진하게). 본문 텍스트 대비를 유지하도록 낮은 알파로 테마 배경 위에 합성.
+  const tabBg = swatch
+    ? tabTint(swatch, active ? 0.34 : 0.18)
+    : active
+      ? tokens.color.bg
+      : 'transparent'
+  // 상단 강조선: 활성 탭은 색상 지정 시 그 색, 아니면 accent.
+  const topBorderColor = active ? (swatch ?? tokens.color.accent) : 'transparent'
 
   return (
     <div
@@ -163,6 +179,20 @@ function TabItem({
       onDrop={() => {
         if (dragId && dragId !== tabId) moveTab(dragId, index)
         setDragId(null)
+      }}
+      onDragEnd={(e) => {
+        // 드래그 종료 — 커서가 이 창 영역 밖이면 "탐색기 전용" 경량 창으로 분리한다.
+        // 창 안에서 끝난 경우(탭 재정렬·파일영역 등)는 무시(기존 동작 유지).
+        setDragId(null)
+        const { screenX, screenY } = e
+        // 일부 환경에서 dragend 좌표가 (0,0)로 비는 경우는 판정 불가 → 무시(오분리 방지).
+        if (screenX === 0 && screenY === 0) return
+        const outside =
+          screenX < window.screenX ||
+          screenX > window.screenX + window.outerWidth ||
+          screenY < window.screenY ||
+          screenY > window.screenY + window.outerHeight
+        if (outside) void detachTabToCompactWindow(tabId)
       }}
       onClick={() => {
         if (!editing) activateTab(tabId)
@@ -196,28 +226,14 @@ function TabItem({
         minWidth: 90,
         maxWidth: 200,
         cursor: 'pointer',
-        background: active ? tokens.color.bg : 'transparent',
+        background: tabBg,
         borderRight: `1px solid ${tokens.color.border}`,
-        borderTop: active ? `2px solid ${tokens.color.accent}` : '2px solid transparent',
+        borderTop: `2px solid ${topBorderColor}`,
         fontSize: 13,
-        color: active ? tokens.color.text : tokens.color.textMuted
+        // 색상 지정 탭은 텍스트를 항상 본문색으로(파스텔 위 가독성), 미지정은 기존 활성/비활성 대비.
+        color: swatch ? tokens.color.text : active ? tokens.color.text : tokens.color.textMuted
       }}
     >
-      {/* 색상 라벨 막대(좌측). 단독 정보 아님 → aria-hidden(이름이 접근 가능 라벨). */}
-      {swatch && (
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 4,
-            bottom: 4,
-            width: 3,
-            borderRadius: 2,
-            background: swatch
-          }}
-        />
-      )}
       {/* 잠금 글리프(잠긴 탭). 상태는 aria-label 로 고지하므로 글리프는 aria-hidden. */}
       {locked && (
         <span aria-hidden style={{ flex: '0 0 auto', fontSize: 11, color: tokens.color.textMuted }}>
@@ -339,8 +355,8 @@ function TabRenameInput({
 
 /**
  * TabContextMenu — 탭 우클릭 메뉴(이름 바꾸기 / 색상 / 잠금). 파일 컨텍스트 메뉴 infra 는
- * 패널/파일 컨텍스트에 결합되어 있어 탭 전용 경량 메뉴를 둔다(색상 팔레트는 TAG_PALETTE 재사용).
- * Esc·바깥 클릭·스크롤·항목 실행 시 닫힌다(파일 메뉴 동작 미러).
+ * 패널/파일 컨텍스트에 결합되어 있어 탭 전용 경량 메뉴를 둔다(색상은 TAB_COLOR_PALETTE
+ * 웜·쿨·중립 파스텔을 그룹 헤더로 묶어 표시). Esc·바깥 클릭·스크롤·항목 실행 시 닫힌다.
  */
 function TabContextMenu({
   state,
@@ -384,9 +400,9 @@ function TabContextMenu({
     }
   }, [onClose])
 
-  // 화면 우측/하단 넘침 보정(간단 클램프).
+  // 화면 우측/하단 넘침 보정(간단 클램프). 파스텔 12색 + 그룹 헤더로 메뉴가 길어 높이 여유 확대.
   const left = Math.min(state.x, window.innerWidth - 200)
-  const top = Math.min(state.y, window.innerHeight - 260)
+  const top = Math.min(state.y, window.innerHeight - 460)
 
   return (
     <div
@@ -422,22 +438,34 @@ function TabContextMenu({
         }}
       />
       <TabMenuSep />
-      {/* 색상 팔레트(TAG_PALETTE 재사용) — 현재 색상에 체크 표시. */}
+      {/* 색상 팔레트(파스텔·웜/쿨/중립 그룹) — 현재 색상에 체크 표시. */}
       <div role="presentation" style={{ padding: '4px 14px 2px', color: tokens.color.textMuted, fontSize: 11 }}>
         색상
       </div>
-      {TAG_PALETTE.map((c) => (
-        <TabMenuRow
-          key={c.key}
-          label={c.name}
-          dotColor={c.color}
-          checked={colorKey === c.key}
-          onClick={() => {
-            setTabColor(tabId, c.key)
-            onClose()
-          }}
-        />
-      ))}
+      {TAB_COLOR_PALETTE.map((c, i) => {
+        const prevGroup: TabColorGroup | undefined = i > 0 ? TAB_COLOR_PALETTE[i - 1].group : undefined
+        return (
+          <div key={c.key} role="presentation">
+            {c.group !== prevGroup && (
+              <div
+                role="presentation"
+                style={{ padding: '3px 14px 1px 14px', color: tokens.color.textMuted, fontSize: 10, opacity: 0.85 }}
+              >
+                {TAB_COLOR_GROUP_LABEL[c.group]}
+              </div>
+            )}
+            <TabMenuRow
+              label={c.name}
+              dotColor={c.color}
+              checked={colorKey === c.key}
+              onClick={() => {
+                setTabColor(tabId, c.key)
+                onClose()
+              }}
+            />
+          </div>
+        )
+      })}
       <TabMenuRow
         label="색상 없음"
         checked={!colorKey}

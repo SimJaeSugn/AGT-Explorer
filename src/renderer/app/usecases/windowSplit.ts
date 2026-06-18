@@ -43,6 +43,37 @@ export async function splitTabToNewWindow(tabId?: string): Promise<void> {
   store.getState().closeTab(id)
 }
 
+/**
+ * 탭을 "탐색기 전용" 경량 창(compact)으로 분리한다 — 탭을 창 밖으로 드롭했을 때.
+ * 기존 splitTabToNewWindow(풀 셸)와 별개로, 툴바·좌우 패널·사이드바 없이 단일
+ * 파일 목록만 가진 창을 띄운다(mode='compact'). 성공 시 소스 탭을 닫는다.
+ *
+ * 잠긴 탭은 분리하지 않는다(splitTabToNewWindow 와 동일 가드). 실패 시 소스 탭을
+ * 닫지 않는다(데이터 유실 방지). 분리 창은 세션 자동저장에 참여하지 않는다.
+ */
+export async function detachTabToCompactWindow(tabId?: string): Promise<void> {
+  const s = store.getState()
+  const id = tabId ?? s.activeTabId
+  const tab = s.tabs[id]
+  if (!tab) return
+
+  if (tab.locked) {
+    s.pushToast('info', '잠긴 탭입니다. 먼저 잠금을 해제하세요.')
+    return
+  }
+
+  const snapshot = buildTabSnapshot(id)
+  if (!snapshot) return
+
+  const res = await windowApi.splitTab(snapshot, 'compact')
+  if (!res.ok) {
+    store.getState().pushToast('error', '탐색기 창으로 분리하지 못했습니다.')
+    return
+  }
+  // 분리 성공 → 소스 창에서 탭 닫기(마지막 탭이면 closeTab 이 기본 탭 유지).
+  store.getState().closeTab(id)
+}
+
 /** 빈 새 창을 연다(현재 탭은 그대로 유지). 활성 탭 스냅샷으로 main 에 새 창을 요청한다. */
 export async function openEmptyWindow(): Promise<void> {
   // "새 빈 창"은 별도 채널 없이, 활성 탭과 동일 위치의 새 창을 띄우는 것으로 흡수한다

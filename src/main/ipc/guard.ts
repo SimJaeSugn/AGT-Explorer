@@ -185,7 +185,9 @@ export const zWindowSplitTabReq = z.object({
       id: z.string().min(1),
       panels: z.array(z.unknown()).min(1)
     })
-    .passthrough()
+    .passthrough(),
+  // 분리 창 종류(미지정=full). z.object 는 미지정 키를 떨구므로 명시 필요.
+  mode: z.enum(['full', 'compact']).optional()
 })
 
 // ── P6: preview:* / workspace:* ──────────────────────────────────────────

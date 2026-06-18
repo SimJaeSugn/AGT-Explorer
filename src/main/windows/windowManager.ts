@@ -22,6 +22,7 @@ import { join } from 'node:path'
 import { BrowserWindow, shell } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import type { TabSnapshot } from '@shared/dto'
+import type { WindowMode } from '@shared/ipc/contracts'
 
 /** 한 창의 부팅 초기 상태(렌더러가 window:get-init 로 끌어간다). */
 export interface WindowInit {
@@ -29,6 +30,8 @@ export interface WindowInit {
   readonly primary: boolean
   /** 분리로 넘겨받은 초기 탭(split 창만). primary 창은 null(세션 복원 경로). */
   readonly initialTab: TabSnapshot | null
+  /** 분리 창 종류('compact'=탐색기 전용 경량 창). primary 창은 'full'. */
+  readonly mode: WindowMode
 }
 
 /** webContents.id → 해당 창의 부팅 초기 상태. */
@@ -41,12 +44,17 @@ let primaryWebContentsId: number | null = null
  * 보안 옵션(ADR-005 4종)·show-fallback·dev/prod 로드·외부링크 차단을 강제한 창을
  * 만든다. createMainWindow() 와 동일 로직의 단일 출처 — primary/split 공용.
  */
-function createWindow(): BrowserWindow {
+function createWindow(opts?: {
+  width: number
+  height: number
+  minWidth: number
+  minHeight: number
+}): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 720,
-    minHeight: 480,
+    width: opts?.width ?? 1200,
+    height: opts?.height ?? 800,
+    minWidth: opts?.minWidth ?? 720,
+    minHeight: opts?.minHeight ?? 480,
     show: false,
     autoHideMenuBar: true,
     title: 'AGT-Finder',
@@ -123,18 +131,27 @@ function createWindow(): BrowserWindow {
 export function createPrimaryWindow(): BrowserWindow {
   const win = createWindow()
   primaryWebContentsId = win.webContents.id
-  initByWebContents.set(win.webContents.id, { primary: true, initialTab: null })
+  initByWebContents.set(win.webContents.id, { primary: true, initialTab: null, mode: 'full' })
   return win
 }
 
 /**
- * 분리 창을 만든다(U3 "새 창으로 분리"). 넘겨받은 탭 스냅샷 1개로 부팅하며
- * 세션 자동저장에는 참여하지 않는다(primary=false). 렌더러가 window:get-init 로
- * initialTab 을 끌어가 기본 부트 탭 대신 해당 탭을 띄운다.
+ * 분리 창을 만든다(U3). 넘겨받은 탭 스냅샷 1개로 부팅하며 세션 자동저장에는
+ * 참여하지 않는다(primary=false). 렌더러가 window:get-init 로 initialTab·mode 를
+ * 끌어가 기본 부트 탭 대신 해당 탭을 띄운다.
+ *  - mode='full'    : 기존 "새 창으로 분리" — 풀 셸(기본 크기 1200×800).
+ *  - mode='compact' : 탭을 창 밖으로 드롭한 "탐색기 전용" 경량 창 — 작은 기본 크기로
+ *                     띄운다(단일 파일 목록만 렌더하므로 좁아도 충분).
  */
-export function createSplitWindow(initialTab: TabSnapshot): BrowserWindow {
-  const win = createWindow()
-  initByWebContents.set(win.webContents.id, { primary: false, initialTab })
+export function createSplitWindow(
+  initialTab: TabSnapshot,
+  mode: WindowMode = 'full'
+): BrowserWindow {
+  const win =
+    mode === 'compact'
+      ? createWindow({ width: 640, height: 560, minWidth: 360, minHeight: 320 })
+      : createWindow()
+  initByWebContents.set(win.webContents.id, { primary: false, initialTab, mode })
   return win
 }
 
@@ -143,7 +160,7 @@ export function createSplitWindow(initialTab: TabSnapshot): BrowserWindow {
  * 모든 창이 create* 경로를 거침)이면 안전 폴백으로 primary 취급(기본 부트).
  */
 export function getWindowInit(webContentsId: number): WindowInit {
-  return initByWebContents.get(webContentsId) ?? { primary: true, initialTab: null }
+  return initByWebContents.get(webContentsId) ?? { primary: true, initialTab: null, mode: 'full' }
 }
 
 /**

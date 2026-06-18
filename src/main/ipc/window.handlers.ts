@@ -34,7 +34,8 @@ export function registerWindowHandlers(): void {
       if (!parsed.ok) return parsed as Result<void>
       // 형태만 통과한 tab 을 TabSnapshot 으로 취급 — 새 창 렌더러의 coerceTab +
       // restoreWindows 가 본문/경로를 다시 정규화·검증한다(세션 복원과 동일 경로).
-      createSplitWindow(parsed.value.tab as unknown as TabSnapshot)
+      // mode 미지정=full(기존 동작). 'compact'=탐색기 전용 경량 창.
+      createSplitWindow(parsed.value.tab as unknown as TabSnapshot, parsed.value.mode ?? 'full')
       return ok(undefined)
     }
   )
@@ -45,7 +46,7 @@ export function registerWindowHandlers(): void {
     async (event: IpcMainInvokeEvent): Promise<Result<WindowInitRes>> => {
       if (!isTrustedSender(event)) return err(untrustedSenderError())
       const init = getWindowInit(event.sender.id)
-      return ok({ primary: init.primary, initialTab: init.initialTab })
+      return ok({ primary: init.primary, initialTab: init.initialTab, mode: init.mode })
     }
   )
 }

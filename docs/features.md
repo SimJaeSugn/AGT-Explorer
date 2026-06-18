@@ -1443,6 +1443,8 @@
 - [x] (범위 밖) 다단계 트리 펼침·파일 표시·즐겨찾기/최근 혼합은 1차 제외
 
 ### U3. 탭 색상 / 잠금(닫기 방지 · 루트 잠금) · 탭을 새 창으로 (C) — 구현 완료(코드)·실 GUI/멀티윈도우 런타임 스모크 🟡
+
+> **[2026-06-18 동작 확장 2건·doc-sync 상태표기/추적성만·수용기준 본문 무수정]** ① **탭 색상 전체 배경 + 파스텔 웜/쿨/중립 팔레트**: 좌측 막대→탭 전체 파스텔 틴트·파일 태그(`TAG_PALETTE`)와 의도가 달라 탭 전용 팔레트 분리(`domain/rules/tabColors.ts` 12색·신규 키 coral/amber/teal/sky/lavender + 기존 7키 하위호환). ② **⚠️ 탭 드래그 아웃 → "탐색기 전용" 경량 compact 창 분리**(드리프트·결정 대기): 아래 "새 창으로" 수용기준은 "탭을 창 밖으로 드래그 → 새 창으로 이동"으로 기술돼 있으나, 구현은 **드래그 아웃 시 풀 셸이 아니라 앱 탭바/명령바/좌우패널/사이드바/미리보기/상태바 없는 단일 패널 경량 창(mode='compact'·`ui/layout/CompactExplorer.tsx`·`Panel` 통째 렌더)** 으로 분리한다(단 패널 자체 헤더 `PanelToolbar`[주소·뒤로/앞으로/위로·보기]·검색바는 유지 — 2026-06-18 후속 정정 / 우클릭 "새 창으로 분리"는 풀 셸 유지). 이 "경량 창 종류"는 수용기준에 미명시 — 기획 본문 무수정·정식 편입 여부 PM/사용자 결정 대기(roadmap §0.5 2026-06-18 단락·traceability §1-U3). 신규 IPC 채널 0(`window:split-tab`/`window:get-init` 비파괴 확장 `WindowMode`)·신규 의존성 0·SCHEMA 무변·등급 무변(실 GUI 🟡).
 **목적**: 탭에 색상·잠금(닫기 방지 **및 작업 루트 고정**)을 주고, 탭을 분리해 새 창으로 연다. (US-20.3)
 
 | 항목 | 동작 규칙 |
@@ -1460,7 +1462,7 @@
 - 루트 잠금은 **렌더러 계층(`panelsSlice` navigate 가드·`domain/rules/tabLock.ts` 순수 판정)** 에서 동작하며 신규 IPC 채널 0·`SESSION_SCHEMA_VERSION` 무변경.
 
 **수용 기준** (M9 구현 완료(코드)·실 GUI·멀티윈도우 🟡 · 2026-06-14 루트 잠금 동작 확장 정식 편입·상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md))
-- [x] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다 — `Tab.color?`·`TabSnapshot.color?`·`TabBar` 우클릭 색상(TAG_PALETTE 재사용). ※ 실 GUI 🟡
+- [x] 탭 우클릭으로 탭 색상을 지정할 수 있고 색이 세션에 영속된다 — `Tab.color?`·`TabSnapshot.color?`·`TabBar` 우클릭 색상(**[2026-06-18] 전용 팔레트 `domain/rules/tabColors.ts` `TAB_COLOR_PALETTE` 12색·웜/쿨/중립·`tabColorOf`/`tabTint`/`isTabColorKey`·신규 키 coral·amber·teal·sky·lavender + 기존 7키 하위호환·탭 전체 배경 파스텔 틴트·`TAG_PALETTE` 재사용 → 탭 전용 분리·`defaults.ts` 검증 `TAB_COLOR_KEYS`**). ※ 실 GUI 🟡
 - [x] 탭을 잠그면(닫기 방지) `Ctrl+W`·가운데클릭·X로 닫히지 않고 잠금 표식이 표시되며 해제로 토글된다 — `Tab.locked?`·닫기 가드·commandBus 가드. ※ 실 GUI 🟡
 - [x] **(2026-06-14 동작 확장·2026-06-15 패널별 결함 수정) 탭을 잠그면 그 시점 각 분할 패널이 자기 경로를 "잠긴 루트"로 고정한다** — `Tab.lockedRoots`(패널별 맵)·`tabsSlice.toggleTabLock`(모든 패널 순회 캡처). ※ 실 GUI 🟡
 - [x] **(2026-06-14 동작 확장) 잠긴 동안 그 탭의 모든 패널은 잠긴 루트 자신/하위로만 이동 가능하고, 상위(위로/뒤로/앞으로/주소 직접 입력)로의 이동은 차단되며 안내 토스트가 표시된다** — `panelsSlice` navigate/navBack/navForward 가드·`domain/rules/tabLock.ts#isWithinLockedRoot`(parentOf 조상사슬·로컬 대소문자무시/원격/압축 분기)·`LOCKED_ROOT_MSG`. ※ 실 GUI 🟡

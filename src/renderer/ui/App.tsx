@@ -25,6 +25,7 @@ import { TabBar } from '@renderer/ui/tabbar/TabBar'
 import { IconBar } from '@renderer/ui/toolbar/IconBar'
 import { Sidebar } from '@renderer/ui/sidebar/Sidebar'
 import { LayoutHost } from '@renderer/ui/layout/LayoutHost'
+import { CompactExplorer } from '@renderer/ui/layout/CompactExplorer'
 import { PreviewPanel } from '@renderer/ui/preview/PreviewPanel'
 import { StatusBar } from '@renderer/ui/statusbar/StatusBar'
 import { KeyboardDispatcher } from '@renderer/ui/keyboard/KeyboardDispatcher'
@@ -55,6 +56,8 @@ import { tokens } from '@renderer/ui/theme/tokens'
 
 export function App(): JSX.Element {
   const toggleShortcutHelp = useRootStore((s) => s.toggleShortcutHelp)
+  // U3: 이 창의 렌더 모드(compact=탐색기 전용 경량 창). 부팅 시 window:get-init 로 설정.
+  const windowMode = useRootStore((s) => s.windowMode)
   const bootedRef = useRef(false)
   // J7: 미리보기 폭 SplitDivider 의 비율→px 환산 기준(본문 row 컨테이너).
   const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -117,6 +120,10 @@ export function App(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleShortcutHelp])
+
+  // U3: 탐색기 전용 경량 창 — 풀 셸 대신 단일 파일 목록만 그린다. 위의 모든 브리지/부팅
+  // effect 는 모드와 무관하게 실행되므로(훅은 분기 전에 전부 호출됨) 파일 작업·푸시는 정상.
+  if (windowMode === 'compact') return <CompactExplorer />
 
   return (
     <div

@@ -93,6 +93,7 @@ import type {
   ArchiveListRes,
   ArchiveTransferRes,
   WindowInitRes,
+  WindowMode,
   Result,
   ShellContextVerbsRes,
   ShellIconReq,
@@ -303,9 +304,13 @@ export function subscribeOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscrib
 
 // ── window:* 어댑터 (U3: 멀티 윈도우 — 탭 분리(새 창), US-20.3) ──────────
 export const windowApi = {
-  /** window:split-tab — 탭 1개(TabSnapshot)를 새 창으로 분리한다. */
-  splitTab: (tab: TabSnapshot): Promise<Result<void>> => bridge().window.splitTab({ tab }),
-  /** window:get-init — 부팅 시 이 창의 초기 상태({primary, initialTab})를 끌어온다. */
+  /**
+   * window:split-tab — 탭 1개(TabSnapshot)를 새 창으로 분리한다.
+   * mode='compact' 면 탐색기 전용 경량 창(툴바·좌우 패널·사이드바 없음).
+   */
+  splitTab: (tab: TabSnapshot, mode?: WindowMode): Promise<Result<void>> =>
+    bridge().window.splitTab(mode ? { tab, mode } : { tab }),
+  /** window:get-init — 부팅 시 이 창의 초기 상태({primary, initialTab, mode})를 끌어온다. */
   getInit: (): Promise<Result<WindowInitRes>> => bridge().window.getInit()
 }
 

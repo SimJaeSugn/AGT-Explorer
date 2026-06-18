@@ -80,6 +80,29 @@ const TAG_KEYS: ReadonlySet<string> = new Set([
   'gray'
 ])
 
+/**
+ * 탭 색상 팔레트 키 집합(US-20.3) — renderer domain/rules/tabColors(TAB_COLOR_PALETTE)의
+ * **미러**. 탭 색상은 파일 태그(TAG_KEYS)와 분리된 파스텔 웜/쿨/중립 팔레트이므로
+ * 별도 화이트리스트로 둔다. 기존 7색 키를 포함해 구버전 탭 색상도 그대로 통과한다.
+ */
+const TAB_COLOR_KEYS: ReadonlySet<string> = new Set([
+  // 웜톤
+  'red',
+  'coral',
+  'orange',
+  'amber',
+  'yellow',
+  // 쿨톤
+  'green',
+  'teal',
+  'sky',
+  'blue',
+  'purple',
+  'lavender',
+  // 중립
+  'gray'
+])
+
 // ────────────────────────────────────────────────────────────────────────
 // 설정 기본값 (features E6 / F장: 숨김 off, 확장자 on, 테마 system)
 // ────────────────────────────────────────────────────────────────────────
@@ -225,12 +248,12 @@ function coerceTab(raw: unknown): TabSnapshot | undefined {
   const splitRatios = coerceSplitRatios(o['splitRatios'])
   // 탭 메타(Feature A 이름 · US-20.3 색상/잠금) 정규화 — 비파괴·구버전 호환(스키마 미상향).
   //  - customName: 비-빈 문자열만(trim 후 빈값/비문자열 생략 → 자동 제목 복귀).
-  //  - color: 유효 팔레트 키(TAG_KEYS)만 보존(미러), 외 값 생략.
+  //  - color: 유효 탭 색상 키(TAB_COLOR_KEYS)만 보존(미러), 외 값 생략.
   //  - locked: true 일 때만 보존(false/비불리언 생략 = 미잠금).
   const rawName = o['customName']
   const customName = typeof rawName === 'string' && rawName.trim() !== '' ? rawName.trim() : undefined
   const rawColor = o['color']
-  const color = typeof rawColor === 'string' && TAG_KEYS.has(rawColor) ? rawColor : undefined
+  const color = typeof rawColor === 'string' && TAB_COLOR_KEYS.has(rawColor) ? rawColor : undefined
   const locked = o['locked'] === true
   // lockedRoots: 잠긴 탭의 패널별 루트 맵(백로그 ①). 알려진 패널 id·비-빈 문자열 항목만 보존.
   //  구버전 호환: 단일 문자열 lockedRoot 는 활성 패널 id 에 매핑(잠금 동반시).

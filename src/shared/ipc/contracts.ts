@@ -1039,17 +1039,29 @@ export interface AppOpenPathEvt {
  * 그대로 넘기면(세션 TabSnapshot 과 동형) main 이 새 창을 만들어 그 탭으로 부팅한다.
  * 비밀·휘발 상태는 애초에 TabSnapshot 에 없다(세션 직렬화와 동일 규약).
  */
+/**
+ * 분리 창의 종류(U3).
+ *  - 'full'    : 기존 "새 창으로 분리" — 탭바·툴바·좌우 패널·사이드바를 모두 갖춘 풀 셸.
+ *  - 'compact' : 탭을 창 밖으로 드롭해 분리한 "탐색기 전용" 경량 창 — 툴바·좌우 패널·
+ *                사이드바 없이 단일 파일 목록만 렌더(딱 탐색기만).
+ */
+export type WindowMode = 'full' | 'compact'
+
 export interface WindowSplitTabReq {
   readonly tab: TabSnapshot
+  /** 분리 창 종류(미지정=full — 기존 동작과 바이트 동일). */
+  readonly mode?: WindowMode
 }
 /**
  * 부팅 초기 상태(window:get-init). 각 창의 렌더러가 부팅 시 invoke 로 끌어간다.
  * primary=true 면 세션 복원·자동저장 담당(기본 부트), false 면 분리 창
  * (initialTab 으로 부팅·자동저장 미참여). initialTab 은 split 창만 채워진다.
+ * mode 는 분리 창의 종류(primary 창은 항상 'full').
  */
 export interface WindowInitRes {
   readonly primary: boolean
   readonly initialTab: TabSnapshot | null
+  readonly mode: WindowMode
 }
 
 // ── search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 — 소비측 필터) ──

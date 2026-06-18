@@ -7,6 +7,7 @@
  */
 import type { KeyContext } from '@renderer/domain/keybindings'
 import type { SettingsSnapshot, ShellVerbDTO, ThemeMode } from '@shared/dto'
+import type { WindowMode } from '@shared/ipc/contracts'
 import type { SliceCreator } from './types'
 
 /** 설정 화면 카테고리(좌측 네비게이션·딥링크 대상). */
@@ -193,8 +194,17 @@ export interface UiSlice {
    */
   readonly clipboardHasFiles: boolean
 
+  /**
+   * 이 창의 렌더 모드(U3). 'full'=풀 셸(기본), 'compact'=탐색기 전용 경량 창
+   * (탭을 창 밖으로 드롭해 분리한 창 — 툴바·좌우 패널·사이드바 없이 파일 목록만).
+   * 부팅 시 window:get-init 결과로 한 번 설정되며 이후 불변.
+   */
+  readonly windowMode: WindowMode
+
   /** 입력 컨텍스트 설정. */
   setInputContext(ctx: KeyContext): void
+  /** 창 렌더 모드 설정(부팅 시 window:get-init 결과 반영, U3). */
+  setWindowMode(mode: WindowMode): void
   /** 주소 편집 모드 토글. */
   setAddressEditing(editing: boolean): void
   /** 토스트 추가/제거. */
@@ -366,6 +376,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   paletteOpen: false,
   quickLookPath: null,
   clipboardHasFiles: false,
+  windowMode: 'full',
 
   applySettings(snapshot, telemetryOptIn) {
     set((s) => {
@@ -834,6 +845,12 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setClipboardHasFiles(v) {
     set((s) => {
       s.clipboardHasFiles = v
+    })
+  },
+
+  setWindowMode(mode) {
+    set((s) => {
+      s.windowMode = mode
     })
   },
 

@@ -17,17 +17,25 @@ import { store } from '@renderer/app/stores/rootStore'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
 
 export async function bootWindow(): Promise<() => void> {
-  let init: { primary: boolean; initialTab: import('@shared/dto').TabSnapshot | null } = {
+  let init: {
+    primary: boolean
+    initialTab: import('@shared/dto').TabSnapshot | null
+    mode: import('@shared/ipc/contracts').WindowMode
+  } = {
     primary: true,
-    initialTab: null
+    initialTab: null,
+    mode: 'full'
   }
   try {
     const res = await windowApi.getInit()
     if (res.ok) init = res.value
   } catch {
     // 폴백: primary 취급(기본 부트 — 단일 창 경험 무손상).
-    init = { primary: true, initialTab: null }
+    init = { primary: true, initialTab: null, mode: 'full' }
   }
+
+  // 창 렌더 모드 반영(compact=탐색기 전용 경량 창). App 이 이 값으로 셸을 분기한다.
+  store.getState().setWindowMode(init.mode)
 
   if (init.primary || !init.initialTab) {
     // primary(또는 폴백): 기존 부팅 경로 — 세션 복원 + 자동저장.
