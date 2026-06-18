@@ -148,6 +148,20 @@ const zShellPaths = z.array(zPath).min(1).max(1024)
 export const zShellContextVerbsReq = z.object({ paths: zShellPaths })
 export const zShellInvokeVerbReq = z.object({ paths: zShellPaths, verbId: z.string().min(1).max(512) })
 
+// ── §Y2: shell:new:list / shell:new:create ("새로 만들기" ShellNew) ────────
+// list 는 인자 없음(레지스트리 전역). create 의 id 는 확장자 키(".txt") — 레지스트리
+// 경로 합성에 쓰이므로 확장자 형식만 허용(임의 키 주입 차단). dir 은 핸들러가 guardPath.
+export const zShellNewListReq = z.object({})
+export const zShellNewCreateReq = z.object({
+  dir: zPath,
+  id: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^\.[A-Za-z0-9_.+-]+$/),
+  label: z.string().min(1).max(256)
+})
+
 // ── P5: session:* / settings:* / telemetry:set-opt-in ────────────────────
 // SessionSnapshot 은 구조가 깊고 Renderer 가 생성한 직렬화 객체이므로,
 // 형태 1차만 통과시키고(중첩 무효 필드는 Store 의 coerceSession 이 정규화),

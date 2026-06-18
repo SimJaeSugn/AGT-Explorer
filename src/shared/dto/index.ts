@@ -701,6 +701,20 @@ export interface ShellVerbDTO {
   readonly display: string
 }
 
+/**
+ * "새로 만들기" 하위 메뉴 항목 1개 — Windows 레지스트리 ShellNew 핸들러 1종.
+ * Main 이 `HKEY_CLASSES_ROOT\.확장자\ShellNew` 를 열거(안전 3종: NullFile·FileName·Data)해
+ * 렌더러로 전달한다. id(확장자 키)는 생성 시 레지스트리 재조회용 안정 식별자.
+ */
+export interface ShellNewItemDTO {
+  /** 확장자 키(예: ".txt") — 생성 시 레지스트리 재조회 식별자(React key). */
+  readonly id: string
+  /** 확장자(예: ".txt"). */
+  readonly ext: string
+  /** 친숙한 형식명(예: "텍스트 문서") — 메뉴 표시 라벨. */
+  readonly label: string
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // agent:* 자연어 파일 에이전트 DTO (신규 §Z — ADR-014·ADR-015)
 // 비밀(API 키) 필드는 어떤 DTO 에도 구조적으로 부재(평문 0·렌더러 미노출·G5).

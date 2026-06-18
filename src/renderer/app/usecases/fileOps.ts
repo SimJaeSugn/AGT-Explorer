@@ -9,6 +9,7 @@
  * 완료 후 패널 새로고침은 op:onDone(operationsSlice 브리지)에서 트리거한다(commandBus 아님).
  */
 import type { ConflictResolution, OpKind } from '@shared/dto'
+import type { FsCreateFileReq } from '@shared/ipc/contracts'
 import { clipboardApi, fsApi, opApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import type { OperationUndoMeta } from '@renderer/app/stores/operationsSlice'
@@ -352,20 +353,57 @@ export async function createNewFolder(): Promise<void> {
   })
 }
 
-/** 컨텍스트 메뉴 "새 파일": 빈 텍스트 파일 생성 후 이름편집. */
-export async function createNewFile(): Promise<void> {
+/**
+ * "새로 만들기" 하위 메뉴(컨텍스트 메뉴 빈 영역)의 파일 형식 1종.
+ * baseName 은 확장자 포함 기본 파일명, template 은 초기 내용(없으면 빈 파일).
+ */
+export interface NewFileType {
+  /** 안정 식별자(메뉴 React key). */
+  readonly id: string
+  /** 메뉴 표시 라벨(예: '텍스트 문서'). */
+  readonly label: string
+  /** 기본 파일명(확장자 포함, 예: '새 텍스트 문서.txt'). */
+  readonly baseName: string
+  /** 초기 내용(없으면 빈 파일). */
+  readonly template?: string
+}
+
+/**
+ * "새로 만들기" 하위 메뉴에 노출할 파일 형식 목록(Windows 탐색기 "새로 만들기" 그룹 모방).
+ * 앱이 설치돼야 열리는 형식은 제외하고, 빈/단순 텍스트로 만들 수 있는 형식만 둔다.
+ */
+export const NEW_FILE_TYPES: readonly NewFileType[] = [
+  { id: 'txt', label: '텍스트 문서', baseName: '새 텍스트 문서.txt' },
+  { id: 'md', label: 'Markdown 문서', baseName: '새 문서.md' },
+  { id: 'json', label: 'JSON 파일', baseName: '새 파일.json', template: '{\n}\n' }
+]
+
+/**
+ * 컨텍스트 메뉴 "새로 만들기 ▸ <형식>": 지정 형식의 파일 생성 후 이름편집.
+ * spec 미지정 시 기본 텍스트 문서. 중복명이면 "<이름> (n).<확장자>" 로 자동 증가.
+ */
+export async function createNewFile(spec?: NewFileType): Promise<void> {
+  const type = spec ?? NEW_FILE_TYPES[0]!
   const { activePanelId, activePath } = panelPaths()
   const s = store.getState()
   if (!activePanelId || activePath === undefined || isMyPc(activePath)) {
     s.pushToast('info', '이 위치에는 새 파일을 만들 수 없습니다.')
     return
   }
-  const baseName = '새 파일.txt'
-  let name = baseName
-  let res = await fsApi.createFile({ parentDir: activePath, name })
+  // baseName 을 줄기(stem)+확장자(ext)로 분리해 중복 시 "stem (n)ext" 로 증가.
+  const dot = type.baseName.lastIndexOf('.')
+  const stem = dot > 0 ? type.baseName.slice(0, dot) : type.baseName
+  const ext = dot > 0 ? type.baseName.slice(dot) : ''
+  // exactOptionalPropertyTypes: template 은 값이 있을 때만 포함(undefined 명시 금지).
+  const makeReq = (n: string): FsCreateFileReq =>
+    type.template !== undefined
+      ? { parentDir: activePath, name: n, template: type.template }
+      : { parentDir: activePath, name: n }
+  let name = type.baseName
+  let res = await fsApi.createFile(makeReq(name))
   for (let n = 2; !res.ok && res.error.code === 'EEXIST' && n <= 50; n++) {
-    name = `새 파일 (${n}).txt`
-    res = await fsApi.createFile({ parentDir: activePath, name })
+    name = `${stem} (${n})${ext}`
+    res = await fsApi.createFile(makeReq(name))
   }
   if (!res.ok) {
     s.pushToast('error', nameOpErrorMessage(res.error.code))

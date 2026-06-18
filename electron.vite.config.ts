@@ -4,21 +4,21 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 /**
- * §Y1: shellVerbsWorker.ps1 을 out/main/ 으로 복사한다(rollup 은 .ps1 비-JS 를 번들하지
- * 않음). 신규 의존성 0(node:fs) · 빌드/패키지 모두 커버. 패키징 시 asarUnpack 으로
- * app.asar.unpacked 에 풀린다(electron-builder.yml). HashManager workerPath 와 동일하게
- * shellVerbs.ts 는 join(__dirname,'shellVerbsWorker.ps1') 로 참조한다.
+ * §Y1·§Y2: PowerShell 워커 .ps1 들을 out/main/ 으로 복사한다(rollup 은 .ps1 비-JS 를
+ * 번들하지 않음). 신규 의존성 0(node:fs) · 빌드/패키지 모두 커버. 패키징 시 asarUnpack 으로
+ * app.asar.unpacked 에 풀린다(electron-builder.yml). 각 서비스는 join(__dirname,'*.ps1') 로
+ * 참조한다(shellVerbs §Y1·shellNew §Y2 — HashManager workerPath 선례).
  */
-function copyShellVerbsWorker(): { name: string; closeBundle(): void } {
+function copyShellWorkers(): { name: string; closeBundle(): void } {
+  const workers = ['shellVerbsWorker.ps1', 'shellNewWorker.ps1']
   return {
-    name: 'copy-shellverbs-ps1',
+    name: 'copy-shell-ps1',
     closeBundle(): void {
       const outDir = resolve('out/main')
       mkdirSync(outDir, { recursive: true })
-      copyFileSync(
-        resolve('src/main/os/shellVerbsWorker.ps1'),
-        resolve('out/main/shellVerbsWorker.ps1')
-      )
+      for (const w of workers) {
+        copyFileSync(resolve(`src/main/os/${w}`), resolve(`out/main/${w}`))
+      }
     }
   }
 }
@@ -26,7 +26,7 @@ function copyShellVerbsWorker(): { name: string; closeBundle(): void } {
 // main/preload/renderer 3-엔트리 빌드 설정 (ADR-001, directory-structure §3)
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), copyShellVerbsWorker()],
+    plugins: [externalizeDepsPlugin(), copyShellWorkers()],
     build: {
       // P7: 별도 sourcemap(.map) 생성 — 디버깅용. NSIS 패키지에는 미포함
       // (electron-builder.yml files 의 `!out/**/*.map` 제외 규칙으로 배포 제외).

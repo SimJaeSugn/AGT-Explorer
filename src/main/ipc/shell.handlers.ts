@@ -16,12 +16,19 @@ import { constants as fsConstants } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import { z } from 'zod'
 import { CHANNELS } from '@shared/ipc/channels'
-import type { Result, ShellContextVerbsRes, ShellIconRes } from '@shared/ipc/contracts'
+import type {
+  Result,
+  ShellContextVerbsRes,
+  ShellIconRes,
+  ShellNewCreateRes,
+  ShellNewListRes
+} from '@shared/ipc/contracts'
 import { err, ok } from '@shared/ipc/contracts'
 import { fileOpError, toFileOpError } from '../fs/errors'
 import { getFileIconDataUrl } from '../os/icon'
 import { openExternalUrl, openPath, openTerminal, openWith, showProperties } from '../os/shell'
 import { shellVerbsService } from '../os/shellVerbs'
+import { createShellNewFile, listShellNewTypes } from '../os/shellNew'
 import {
   guardPath,
   isTrustedSender,
@@ -31,6 +38,8 @@ import {
   zShellContextVerbsReq,
   zShellIconReq,
   zShellInvokeVerbReq,
+  zShellNewCreateReq,
+  zShellNewListReq,
   zShellOpenExternalReq,
   zShellOpenTerminalReq,
   zShellOpenWithReq,
@@ -310,4 +319,42 @@ export function registerShellHandlers(): void {
 
     return shellVerbsService.invokeVerb(paths, parsed.value.verbId)
   })
+
+  // ── shell:new:list ("새로 만들기" ShellNew 형식 열거, §Y2) ───────────
+  // sender → zod(인자 없음) → 레지스트리 워커 위임. 비-win32·실패·타임아웃은 모두
+  // ok({items:[]}) 로 수렴(빈 목록=고정 항목만 노출). 핸들러 throw 0.
+  ipcMain.handle(CHANNELS.SHELL_NEW_LIST, async (event, raw): Promise<Result<ShellNewListRes>> => {
+    if (!isTrustedSender(event)) return err(untrustedSenderError())
+    const parsed = parseArgs(zShellNewListReq, raw)
+    if (!parsed.ok) return parsed as Result<ShellNewListRes>
+    const items = await listShellNewTypes()
+    return ok({ items })
+  })
+
+  // ── shell:new:create (ShellNew 형식 파일 생성, §Y2) ─────────────────
+  // sender → zod → 로컬 한정 → guardPath → 디렉토리 존재 확인 → 워커 위임.
+  // 워커가 레지스트리 재조회(id=확장자)로 생성 방식(NullFile/FileName/Data)을 판정한다.
+  ipcMain.handle(
+    CHANNELS.SHELL_NEW_CREATE,
+    async (event, raw): Promise<Result<ShellNewCreateRes>> => {
+      if (!isTrustedSender(event)) return err(untrustedSenderError())
+      const parsed = parseArgs(zShellNewCreateReq, raw)
+      if (!parsed.ok) return parsed as Result<ShellNewCreateRes>
+
+      if (isNonLocalPath(parsed.value.dir)) {
+        return err(fileOpError('EINVAL', '로컬 경로만 지원합니다.', parsed.value.dir))
+      }
+      const g = guardPath(parsed.value.dir)
+      if (!g.ok) return g as Result<ShellNewCreateRes>
+
+      // 대상 폴더 존재 확인(스테일 경로).
+      try {
+        await fsp.access(g.value, fsConstants.F_OK)
+      } catch {
+        return err(fileOpError('ENOENT', '대상 폴더를 찾을 수 없습니다.', g.value))
+      }
+
+      return createShellNewFile(g.value, parsed.value.id, parsed.value.label)
+    }
+  )
 }

@@ -17,7 +17,8 @@ import { TAG_PALETTE, type TagKey } from '@renderer/domain/rules/tags'
 import { execCommand } from './commandBus'
 import { openTerminalAt, openWithEntry, showPropertiesFor } from './open'
 import { openArchiveAsFolder, extractToLocal } from './archive'
-import { panelPaths } from './fileOps'
+import { panelPaths, createNewFile, NEW_FILE_TYPES } from './fileOps'
+import { getShellNewTypes, createFromShellNew } from './shellNew'
 import { comparePanelsOf } from './compare'
 import { visibleEntries } from './selectors'
 import { loadWinVerbs, invokeWinVerb } from './shellVerbs'
@@ -125,6 +126,38 @@ function buildTagSubmenu(paths: string[]): MenuItem {
 }
 
 /**
+ * "새로 만들기" 하위 메뉴(빈 영역 전용) — Windows 탐색기 "새로 만들기" 그룹 모방.
+ * 구성: 폴더 + 고정 파일 형식(텍스트/Markdown/JSON) + (구분선) + 레지스트리 ShellNew
+ * 형식(설치된 프로그램에 따라 동적·이름순). 폴더는 commandId(file.newFolder)로 수렴,
+ * 고정 형식은 createNewFile(형식), 레지스트리 형식은 createFromShellNew(item) 직접 호출.
+ */
+function buildNewSubmenu(): MenuItem {
+  const children: MenuItem[] = [
+    { id: 'new-folder', label: '폴더', run: cmd('file.newFolder') },
+    { id: 'new-sep-fixed', separator: true },
+    ...NEW_FILE_TYPES.map((t) => ({
+      id: `new-file-${t.id}`,
+      label: t.label,
+      run: () => void createNewFile(t)
+    }))
+  ]
+  // 레지스트리 ShellNew 형식(프리페치 캐시·이름순). 있으면 구분선 후 병합.
+  const shellNew = getShellNewTypes()
+  if (shellNew.length > 0) {
+    const sorted = [...shellNew].sort((a, b) => a.label.localeCompare(b.label, 'ko'))
+    children.push({ id: 'new-sep-reg', separator: true })
+    for (const item of sorted) {
+      children.push({
+        id: `new-reg-${item.id}`,
+        label: item.label,
+        run: () => void createFromShellNew(item)
+      })
+    }
+  }
+  return { id: 'new', label: '새로 만들기', children }
+}
+
+/**
  * 컨텍스트별 메뉴 항목 산출(표시·활성 규칙).
  *  - 단일 파일: 열기 / 연결 프로그램으로 열기 / 복사·잘라내기·이름변경 / 삭제·영구삭제 / 속성
  *  - 단일 폴더: 열기 / 복사·잘라내기·이름변경 / 삭제·영구삭제 / 속성 (연결 프로그램 제외)
@@ -144,7 +177,7 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     const empty: MenuItem[] = [
       { id: 'paste', label: '붙여넣기', run: cmd('file.paste') },
       { id: 'sep-empty', separator: true },
-      { id: 'newFolder', label: '새 폴더', run: cmd('file.newFolder') }
+      buildNewSubmenu()
     ]
     // 터미널 열기: 비-MyPc 실존 디렉토리 경로일 때만(붙여넣기·새폴더 다음/새로고침 앞).
     // 노출 시에만 separator 추가(§1.7 배치). panelPath 는 navigate 가 보장하는 실존 디렉토리.

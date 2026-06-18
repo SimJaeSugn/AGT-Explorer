@@ -98,6 +98,8 @@ import type {
   ShellContextVerbsRes,
   ShellIconReq,
   ShellIconRes,
+  ShellNewCreateRes,
+  ShellNewListRes,
   ThumbnailRes,
   TelemetryGetOptInRes,
   AgentRunReq,
@@ -205,7 +207,12 @@ export const shellApi = {
     bridge().shell.contextVerbs({ paths }),
   /** shell:invoke-verb — 셸 verb 실행(fire-and-forget·DoIt/InvokeCommand). 실패만 err(EVERB/ENOENT/EUNKNOWN, §Y1). */
   invokeVerb: (paths: string[], verbId: string): Promise<Result<void>> =>
-    bridge().shell.invokeVerb({ paths, verbId })
+    bridge().shell.invokeVerb({ paths, verbId }),
+  /** shell:new:list — "새로 만들기" ShellNew 형식 목록 조회(레지스트리, §Y2). 빈 배열=없음·실패·비-Windows. */
+  newList: (): Promise<Result<ShellNewListRes>> => bridge().shell.newList({}),
+  /** shell:new:create — ShellNew 형식 파일 생성(§Y2). 성공 시 최종 파일명 반환. */
+  newCreate: (dir: string, id: string, label: string): Promise<Result<ShellNewCreateRes>> =>
+    bridge().shell.newCreate({ dir, id, label })
 }
 
 // ── op:* 어댑터 (P4: 파일 작업 시작/취소/충돌해소) ──────────────────────

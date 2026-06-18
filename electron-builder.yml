@@ -20,6 +20,7 @@ asar: true
 # __dirname → app.asar.unpacked 보정으로 경로를 해석한다(HashManager workerPath 선례).
 asarUnpack:
   - '**/shellVerbsWorker.ps1'
+  - '**/shellNewWorker.ps1'
 
 win:
   target:

@@ -15,6 +15,7 @@
 import { windowApi } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import { restoreSession, startSessionAutosave } from '@renderer/app/usecases/session'
+import { prefetchShellNewTypes } from '@renderer/app/usecases/shellNew'
 
 export async function bootWindow(): Promise<() => void> {
   let init: {
@@ -36,6 +37,10 @@ export async function bootWindow(): Promise<() => void> {
 
   // 창 렌더 모드 반영(compact=탐색기 전용 경량 창). App 이 이 값으로 셸을 분기한다.
   store.getState().setWindowMode(init.mode)
+
+  // §Y2: "새로 만들기" 레지스트리 ShellNew 형식 프리페치(fire-and-forget·1회 캐시).
+  // 실패/비-Windows 면 빈 목록 → 컨텍스트 메뉴는 고정 항목만 노출(무손상).
+  void prefetchShellNewTypes()
 
   if (init.primary || !init.initialTab) {
     // primary(또는 폴백): 기존 부팅 경로 — 세션 복원 + 자동저장.

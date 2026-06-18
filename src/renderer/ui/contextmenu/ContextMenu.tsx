@@ -378,6 +378,9 @@ function Flyout({
         left: '100%',
         minWidth: 160,
         maxWidth: 260,
+        // 긴 목록(레지스트리 ShellNew 형식 수십 개)은 화면 밖으로 넘치지 않도록 스크롤(§Y2).
+        maxHeight: '70vh',
+        overflowY: 'auto',
         padding: `${PAD_Y}px 0`,
         background: tokens.color.bg,
         border: `1px solid ${tokens.color.borderStrong}`,

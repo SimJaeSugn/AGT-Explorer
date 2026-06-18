@@ -119,6 +119,10 @@ import type {
   ShellIconReq,
   ShellIconRes,
   ShellInvokeVerbReq,
+  ShellNewCreateReq,
+  ShellNewCreateRes,
+  ShellNewListReq,
+  ShellNewListRes,
   ShellOpenExternalReq,
   ShellOpenReq,
   ShellOpenTerminalReq,
@@ -239,6 +243,9 @@ export interface ExplorerApi {
     // §Y1: 셸 컨텍스트 verb 조회/실행(상주 PowerShell·COM Verbs)
     contextVerbs(req: ShellContextVerbsReq): Promise<Result<ShellContextVerbsRes>>
     invokeVerb(req: ShellInvokeVerbReq): Promise<Result<void>>
+    // §Y2: "새로 만들기" ShellNew 형식 열거/생성(레지스트리)
+    newList(req: ShellNewListReq): Promise<Result<ShellNewListRes>>
+    newCreate(req: ShellNewCreateReq): Promise<Result<ShellNewCreateRes>>
   }
 
   // ── op:* (타입만 노출, impl: P4) ───────────────────────────────
@@ -458,7 +465,9 @@ export const api: ExplorerApi = {
     openTerminal: (req) => invoke(CHANNELS.SHELL_OPEN_TERMINAL, req),
     openExternal: (req) => invoke(CHANNELS.SHELL_OPEN_EXTERNAL, req),
     contextVerbs: (req) => invoke(CHANNELS.SHELL_CONTEXT_VERBS, req),
-    invokeVerb: (req) => invoke(CHANNELS.SHELL_INVOKE_VERB, req)
+    invokeVerb: (req) => invoke(CHANNELS.SHELL_INVOKE_VERB, req),
+    newList: (req) => invoke(CHANNELS.SHELL_NEW_LIST, req),
+    newCreate: (req) => invoke(CHANNELS.SHELL_NEW_CREATE, req)
   },
 
   op: {

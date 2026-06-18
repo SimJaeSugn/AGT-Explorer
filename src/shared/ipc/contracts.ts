@@ -44,6 +44,7 @@ import type {
   ScanResult,
   SessionSnapshot,
   SettingsSnapshot,
+  ShellNewItemDTO,
   ShellVerbDTO,
   TabSnapshot,
   TrashItemDTO,
@@ -210,6 +211,26 @@ export interface ShellInvokeVerbReq {
   readonly paths: string[]
   /** `"<index>:<정규화표시명>"` 합성키(조회 응답의 verbId 그대로). */
   readonly verbId: string
+}
+
+// ── §Y2: shell:new:list / shell:new:create ("새로 만들기" 레지스트리 ShellNew) ──
+/** ShellNew 핸들러 목록 조회 — 인자 없음(레지스트리는 전역). */
+export type ShellNewListReq = Record<string, never>
+export interface ShellNewListRes {
+  /** 안전 3종(NullFile·FileName·Data) ShellNew 형식 목록(빈 배열=없음·실패·비-Windows 포괄). */
+  readonly items: ShellNewItemDTO[]
+}
+export interface ShellNewCreateReq {
+  /** 생성 대상 디렉토리(활성 패널 경로). 핸들러가 guardPath·로컬 한정·존재 검증. */
+  readonly dir: string
+  /** ShellNewItemDTO.id(확장자 키 — 예: ".txt"). Main 이 레지스트리 재조회해 생성 방식 결정. */
+  readonly id: string
+  /** 기본 파일명 합성용 형식명(메뉴 라벨 — "새 {label}{ext}"). */
+  readonly label: string
+}
+export interface ShellNewCreateRes {
+  /** 실제 생성된 파일명(중복 시 "(n)" 부여 후 최종명 — 렌더러가 즉시 이름편집 진입). */
+  readonly name: string
 }
 
 // ── op:* (계약만 동결, impl: P4) ──────────────────────────────────────
@@ -790,6 +811,8 @@ export interface IpcRequestMap {
   // §Y1: 셸 컨텍스트 verb 조회/실행(상주 PowerShell·COM Verbs)
   [CHANNELS.SHELL_CONTEXT_VERBS]: { req: ShellContextVerbsReq; res: Result<ShellContextVerbsRes> }
   [CHANNELS.SHELL_INVOKE_VERB]: { req: ShellInvokeVerbReq; res: Result<void> }
+  [CHANNELS.SHELL_NEW_LIST]: { req: ShellNewListReq; res: Result<ShellNewListRes> }
+  [CHANNELS.SHELL_NEW_CREATE]: { req: ShellNewCreateReq; res: Result<ShellNewCreateRes> }
 
   // op:* (P4)
   [CHANNELS.OP_START]: { req: OpStartReq; res: Result<OpStartRes> }
