@@ -55,3 +55,6 @@ publish:
   - provider: github
     owner: SimJaeSugn
     repo: AGT-Explorer
+    # 게시 즉시 published 상태로 공개(draft 단계 생략) → 자동 업데이트가 바로 인식.
+    # 게시 전 검토가 필요하면 draft 로 되돌린다.
+    releaseType: release
