@@ -20,7 +20,12 @@
  * 코드 서명(CSC_*)이 적용되면 인스톨러 서명도 함께 검증된다(미서명이면 SmartScreen 경고만).
  */
 import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
+// electron-updater 는 CommonJS 모듈이라, ESM 으로 번들되는 메인 프로세스에서 named import
+// (`import { autoUpdater }`)는 런타임에 "Named export not found"로 실패한다(cjs-module-lexer 가
+// 이 모듈의 export 패턴을 감지 못 함). default import 후 구조분해로 우회한다.
+import electronUpdater from 'electron-updater'
+
+const { autoUpdater } = electronUpdater
 
 let initialized = false
 
