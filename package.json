@@ -1,6 +1,6 @@
 {
   "name": "agt-finder",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
@@ -12,6 +12,7 @@
     "prebuild": "npm run clean",
     "build": "npm run typecheck && electron-vite build",
     "package": "npm run build && electron-builder --win --config electron-builder.yml",
+    "release": "npm run build && electron-builder --win --config electron-builder.yml --publish always",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
@@ -62,6 +63,7 @@
     "@electron-toolkit/utils": "^3.0.0",
     "basic-ftp": "^5.3.1",
     "dompurify": "^3.4.8",
+    "electron-updater": "^6.8.9",
     "highlight.js": "^11.11.1",
     "immer": "^10.1.1",
     "marked": "^18.0.5",

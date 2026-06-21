@@ -18,6 +18,7 @@ import { watchService } from './fs/WatchService'
 import { driveTypeService } from './os/driveType'
 import { shellVerbsService } from './os/shellVerbs'
 import { diskTypeService } from './os/diskType'
+import { initAutoUpdate } from './os/autoUpdate'
 
 // ── 단일 인스턴스 락 (PRD §7, ADR-005) ──────────────────────────────
 // 두 번째 실행 시도는 즉시 종료하고, 첫 인스턴스의 창을 포커스한다.
@@ -146,6 +147,10 @@ if (!gotTheLock) {
     // 부팅을 차단하지 않는다(trigger-and-forget). 실패해도 서비스 내부 격리(throw 0) → 미상은 비-SSD
     // 취급(보수적)이라 기존 동시성 숫자 유지(무회귀). 파일 작업 동시성 산출에 사용된다.
     void diskTypeService.refresh()
+
+    // P7: GitHub Releases 자동 업데이트 1회 확인(패키징 빌드 한정·trigger-and-forget).
+    // 미패키징/오프라인/오류는 모듈 내부에서 격리(throw 0) → 부팅 영향 0.
+    initAutoUpdate()
 
     app.on('activate', () => {
       // 모든 창이 닫힌 뒤 재활성(darwin) 시 primary 창을 다시 띄운다(세션 복원 경로).

@@ -48,5 +48,10 @@ nsis:
   # HKCU\Software\Classes 에 폴더·배경·드라이브·파일 메뉴를 설치/제거한다(UTF-8 BOM).
   include: resources/installer.nsh
 
-# 로컬 전용 앱 — 자동 업데이트 게시 비활성(향후 도입)
-publish: null
+# 자동 업데이트 게시(P7) — GitHub Releases. electron-builder 가 릴리스에 인스톨러와
+# 함께 latest.yml/*.blockmap 을 업로드하고, app-update.yml 을 패키지에 번들한다.
+# 비공개 리포면 실행 환경에 GH_TOKEN(또는 GITHUB_TOKEN) 필요. 게시는 `npm run release`.
+publish:
+  - provider: github
+    owner: SimJaeSugn
+    repo: AGT-Explorer

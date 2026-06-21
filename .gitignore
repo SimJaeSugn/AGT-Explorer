@@ -13,6 +13,8 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+# electron-builder 가 게시 시 읽는 env 파일(GH_TOKEN 등) — 토큰 평문이므로 커밋 금지
+electron-builder.env
 
 # editor / OS
 .DS_Store
