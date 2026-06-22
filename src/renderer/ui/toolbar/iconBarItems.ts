@@ -294,12 +294,12 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     group: 'tool'
   },
   {
-    // 단축키 도움말(F1 과 동일). 설정에서 분리해 별도 ? 아이콘으로 노출(I7).
+    // 단축키: 클릭 시 설정의 "단축키" 페이지로 딥링크(openSettings('shortcuts')).
     id: 'help.shortcuts',
-    label: '단축키 도움말',
-    icon: '❓',
+    label: '단축키',
+    icon: '⌨',
     group: 'tool',
-    active: (s) => s.shortcutHelpOpen
+    active: (s) => s.settingsOpen && s.settingsCategory === 'shortcuts'
   },
   {
     id: 'workspace.manage',

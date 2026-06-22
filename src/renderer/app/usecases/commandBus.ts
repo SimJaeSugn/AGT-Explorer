@@ -182,9 +182,9 @@ export function execCommand(commandId: string): boolean {
       s.openSettings()
       return true
 
-    // ── 단축키 도움말(I7 — F1 과 동일, ? 아이콘에서도 호출) ─────────────
+    // ── 단축키(상단 아이콘바 ⌨ — 설정의 단축키 페이지로 딥링크) ─────────
     case 'help.shortcuts':
-      s.toggleShortcutHelp()
+      s.openSettings('shortcuts')
       return true
 
     // ── 사용량 대시보드(I장) ──────────────────────────────────────────

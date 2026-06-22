@@ -201,6 +201,19 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   // §Q1: 현재 패널이 압축 내부인지(추출 메뉴 노출 판정). targetPath 가 archive:// URI 면 압축 항목.
   const inArchive = targetPath !== null && locationKindOf(targetPath) === 'archive'
 
+  // "터미널 열기" 대상 폴더 결정(H4). 단일 로컬 폴더면 그 폴더, 그 외(파일·다중 선택)는
+  // 현재 패널 폴더에서 연다. 목록이 꽉 차 빈 영역 우클릭이 어려운 경우에도 파일/선택을
+  // 우클릭해 항상 터미널을 열 수 있게 한다. 원격·압축·내 PC 경로는 제외(로컬 폴더만).
+  const panelPath = store.getState().panels[panelId]?.path ?? ''
+  const panelIsLocalDir =
+    panelPath !== '' && !isMyPc(panelPath) && locationKindOf(panelPath) === 'local'
+  let terminalDir: string | null = null
+  if (!multi && single && single.isDir && locationKindOf(single.path) === 'local') {
+    terminalDir = single.path
+  } else if (panelIsLocalDir) {
+    terminalDir = panelPath
+  }
+
   // ── 압축: "추출"(압축 내부 항목 — 단일/다중 모두). 도착지=다른 패널의 로컬 폴더. ──────
   // 도착지가 준비 안 됐어도 메뉴는 노출(클릭 시 안내) — 발견성 우선. 도착지 해석은 클릭 시점
   // (최신 패널 상태)에 한다(메뉴를 띄운 뒤 반대편을 옮길 수 있으므로).
@@ -233,14 +246,6 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
         run: () => void openArchiveAsFolder(panelId, single.path)
       })
     }
-    // 단일 디렉토리 선택만 "터미널 열기"(열기 그룹 내, 열기 바로 다음). 파일은 cwd 개념 부적합.
-    if (single.isDir) {
-      items.push({
-        id: 'terminal',
-        label: '터미널 열기',
-        run: () => void openTerminalAt(single.path)
-      })
-    }
     // §R2: 단일 폴더 선택 시 "중복 찾기"(활성 패널 폴더 범위로 hash:dup 탐지).
     // 현재 usecase 는 활성 패널 폴더를 범위로 쓰므로, 선택 폴더로 진입 후 찾는 흐름은
     // 1차로 활성 패널 폴더 기준(메뉴는 진입점만 제공·계획서 §4.1 "현재 패널 폴더").
@@ -261,6 +266,13 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
       })
     }
     items.push({ id: 'sep-open', separator: true })
+  }
+
+  // ── 터미널 열기(단일/다중·파일/폴더 — 로컬 폴더 대상일 때만) ─────────────
+  if (terminalDir !== null) {
+    const dir = terminalDir
+    items.push({ id: 'terminal', label: '터미널 열기', run: () => void openTerminalAt(dir) })
+    items.push({ id: 'sep-terminal', separator: true })
   }
 
   // ── 편집 그룹 ─────────────────────────────────────────────────────────
