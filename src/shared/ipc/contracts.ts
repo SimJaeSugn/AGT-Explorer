@@ -857,6 +857,11 @@ export interface IpcRequestMap {
   // app:* 앱 기본 정보 (설정 "소프트웨어 정보")
   [CHANNELS.APP_GET_INFO]: { req: void; res: Result<AppInfoDTO> }
 
+  // update:* 자동 업데이트 (사용자 주도 — 설정 "소프트웨어 정보")
+  [CHANNELS.UPDATE_CHECK]: { req: void; res: Result<UpdateCheckRes> }
+  [CHANNELS.UPDATE_DOWNLOAD]: { req: void; res: Result<void> }
+  [CHANNELS.UPDATE_INSTALL]: { req: void; res: Result<void> }
+
   // preview:* (P6 — 신규 Should)
   [CHANNELS.PREVIEW_READ]: { req: PreviewReadReq; res: Result<PreviewData> }
   [CHANNELS.PREVIEW_THUMBNAIL]: { req: ThumbnailReq; res: Result<ThumbnailRes> }
@@ -1077,6 +1082,32 @@ export interface AppInfoDTO {
   readonly packaged: boolean
 }
 
+// ── update:* 자동 업데이트 (사용자 주도 — 설정 "소프트웨어 정보") ─────────────
+/** update:check 응답. available 이면 version 에 최신 버전(아니면 null). */
+export interface UpdateCheckRes {
+  readonly currentVersion: string
+  readonly available: boolean
+  readonly version: string | null
+}
+
+/**
+ * update:status 푸시 — 확인/다운로드 진행 상황. 사용자가 버튼으로 트리거한 흐름의
+ * 단계를 렌더러(설정 "소프트웨어 정보")에 알린다. phase 로 판별한다.
+ */
+export type UpdateStatusEvt =
+  | { readonly phase: 'checking' }
+  | { readonly phase: 'available'; readonly version: string }
+  | { readonly phase: 'not-available'; readonly version: string }
+  | {
+      readonly phase: 'downloading'
+      readonly percent: number
+      readonly transferred: number
+      readonly total: number
+      readonly bytesPerSecond: number
+    }
+  | { readonly phase: 'downloaded'; readonly version: string }
+  | { readonly phase: 'error'; readonly message: string }
+
 // ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3) ────────────────
 /**
  * 탭 분리 요청(window:split-tab). 소스 렌더러가 분리할 탭의 직렬화 스냅샷을
@@ -1177,6 +1208,9 @@ export interface IpcEventMap {
 
   // agent:* 푸시 evt (신규 §Z — ADR-014·ADR-015)
   [CHANNELS.AGENT_EVENT]: AgentEvent
+
+  // update:* 푸시 evt (자동 업데이트 — 확인/다운로드 진행/완료/오류)
+  [CHANNELS.UPDATE_STATUS]: UpdateStatusEvt
 }
 
 export type EventChannel = keyof IpcEventMap

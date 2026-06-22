@@ -105,6 +105,8 @@ import type {
   SearchContentProgressEvt,
   SearchContentMatchEvt,
   SearchContentDoneEvt,
+  UpdateCheckRes,
+  UpdateStatusEvt,
   WindowSplitTabReq,
   WindowInitRes,
   TrashRestoreReq,
@@ -197,6 +199,14 @@ export interface ExplorerApi {
   readonly app: {
     onOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe
     getInfo(): Promise<Result<AppInfoDTO>>
+  }
+
+  // ── update:* (사용자 주도 자동 업데이트 — 설정 "소프트웨어 정보") ──────
+  readonly update: {
+    check(): Promise<Result<UpdateCheckRes>>
+    download(): Promise<Result<void>>
+    install(): Promise<Result<void>>
+    onStatus(cb: (evt: UpdateStatusEvt) => void): Unsubscribe
   }
 
   // ── window:* (U3 — 멀티 윈도우: 탭 분리(새 창), US-20.3) ────────
@@ -428,6 +438,13 @@ export const api: ExplorerApi = {
   app: {
     onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb),
     getInfo: () => invoke(CHANNELS.APP_GET_INFO)
+  },
+
+  update: {
+    check: () => invoke(CHANNELS.UPDATE_CHECK),
+    download: () => invoke(CHANNELS.UPDATE_DOWNLOAD),
+    install: () => invoke(CHANNELS.UPDATE_INSTALL),
+    onStatus: (cb) => subscribe(CHANNELS.UPDATE_STATUS, cb)
   },
 
   window: {

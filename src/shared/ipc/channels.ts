@@ -184,6 +184,14 @@ export const CHANNELS = {
   APP_OPEN_PATH: 'app:open-path', // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
   APP_GET_INFO: 'app:get-info', // invoke → Result<AppInfoDTO> (버전·런타임 기본 정보 — 설정 "소프트웨어 정보")
 
+  // ── update:* 자동 업데이트 (사용자 주도 — 설정 "소프트웨어 정보") ──────────
+  // 자동 다운로드는 끄고(autoDownload=false), 사용자가 버튼으로 확인→다운로드→설치한다.
+  // 진행 상황(checking/available/downloading%/downloaded/error)은 update:status 푸시.
+  UPDATE_CHECK: 'update:check', // invoke → Result<UpdateCheckRes> (새 버전 확인 — 다운로드 안 함)
+  UPDATE_DOWNLOAD: 'update:download', // invoke → Result<void> (다운로드 시작 — 진행률은 update:status)
+  UPDATE_INSTALL: 'update:install', // invoke → Result<void> (지금 재시작하여 설치 — quitAndInstall)
+  UPDATE_STATUS: 'update:status', // 푸시 evt (확인/다운로드 진행/완료/오류)
+
   // ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3 Could) ──────────
   // 둘 다 invoke(요청-응답) → EVENT_CHANNELS 무변(신규 푸시 evt 0).
   //  - split-tab: 소스 렌더러가 탭 1개를 분리(TabSnapshot 전달) → main 이 새 창 생성.
@@ -272,7 +280,9 @@ export const EVENT_CHANNELS = [
   CHANNELS.SEARCH_CONTENT_MATCH,
   CHANNELS.SEARCH_CONTENT_DONE,
   // agent:* 푸시 evt (신규 §Z — ADR-014·ADR-015, runId 상관 thinking/tool-call/plan/error)
-  CHANNELS.AGENT_EVENT
+  CHANNELS.AGENT_EVENT,
+  // update:* 푸시 evt (자동 업데이트 — 확인/다운로드 진행/완료/오류)
+  CHANNELS.UPDATE_STATUS
 ] as const
 
 export type EventChannelName = (typeof EVENT_CHANNELS)[number]

@@ -13,8 +13,14 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ThemeMode } from '@shared/dto'
-import type { AppInfoDTO } from '@shared/ipc/contracts'
+import type { AppInfoDTO, UpdateStatusEvt } from '@shared/ipc/contracts'
 import { getAppInfo } from '@renderer/app/usecases/appInfo'
+import {
+  checkForUpdate,
+  downloadUpdate,
+  installUpdate,
+  subscribeUpdateStatus
+} from '@renderer/app/usecases/update'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import type { SettingsCategory } from '@renderer/app/stores/uiSlice'
 import { WorkspacePanel } from '@renderer/ui/workspace/WorkspacePanel'
@@ -510,11 +516,164 @@ function AboutCategory(): JSX.Element {
             정보 복사
           </button>
 
-          <p style={{ color: tokens.color.textMuted, fontSize: 12, marginTop: 14, lineHeight: 1.6 }}>
-            업데이트는 설치본에서 자동으로 확인됩니다. 새 버전이 있으면 백그라운드로 내려받은 뒤
-            다음 실행 때 적용됩니다.
-          </p>
+          <UpdateSection packaged={info.packaged} />
         </>
+      )}
+    </div>
+  )
+}
+
+/** 사용자 주도 업데이트: 확인 → 다운로드 → 재시작 설치. 진행률 표시. */
+function UpdateSection({ packaged }: { packaged: boolean }): JSX.Element {
+  const [status, setStatus] = useState<UpdateStatusEvt | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [actionMsg, setActionMsg] = useState('')
+
+  // update:status 푸시 구독(확인/다운로드 진행/완료/오류). 패키징 빌드만 의미 있음.
+  useEffect(() => {
+    const off = subscribeUpdateStatus((evt) => {
+      setStatus(evt)
+      // 진행/결과 이벤트가 오면 in-flight 표시 해제(다운로드 중은 유지).
+      if (evt.phase !== 'downloading') setBusy(false)
+    })
+    return off
+  }, [])
+
+  if (!packaged) {
+    return (
+      <p style={{ color: tokens.color.textMuted, fontSize: 12, marginTop: 16, lineHeight: 1.6 }}>
+        개발 빌드에서는 업데이트를 확인할 수 없습니다. 설치본에서 사용하세요.
+      </p>
+    )
+  }
+
+  const phase = status?.phase
+  const btnStyle: React.CSSProperties = {
+    border: `1px solid ${tokens.color.accentBorder}`,
+    borderRadius: 6,
+    background: tokens.color.bgSelected,
+    color: tokens.color.text,
+    cursor: busy ? 'default' : 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+    padding: '6px 14px',
+    opacity: busy ? 0.6 : 1
+  }
+
+  async function onCheck(): Promise<void> {
+    setActionMsg('')
+    setBusy(true)
+    setStatus({ phase: 'checking' })
+    const r = await checkForUpdate()
+    if (!r.ok) {
+      setBusy(false)
+      setActionMsg(r.message)
+      setStatus({ phase: 'error', message: r.message })
+    }
+    // 성공 시 available/not-available 이벤트가 status 를 채운다.
+  }
+
+  async function onDownload(): Promise<void> {
+    setActionMsg('')
+    setBusy(true)
+    const r = await downloadUpdate()
+    if (!r.ok) {
+      setBusy(false)
+      setActionMsg(r.message)
+    }
+  }
+
+  async function onInstall(): Promise<void> {
+    setActionMsg('')
+    const r = await installUpdate()
+    if (!r.ok) setActionMsg(r.message)
+    // 성공 시 앱이 곧 종료·재시작된다.
+  }
+
+  return (
+    <div style={{ marginTop: 18, borderTop: `1px solid ${tokens.color.border}`, paddingTop: 14 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>업데이트</h3>
+
+      {/* 상태 텍스트 */}
+      <div style={{ fontSize: 13, minHeight: 20, marginBottom: 10 }}>
+        {!phase && <span style={{ color: tokens.color.textMuted }}>업데이트를 확인할 수 있습니다.</span>}
+        {phase === 'checking' && <span>새 버전을 확인하는 중…</span>}
+        {phase === 'not-available' && (
+          <span>현재 최신 버전입니다 ({status?.phase === 'not-available' ? status.version : ''}).</span>
+        )}
+        {phase === 'available' && (
+          <span>
+            새 버전 <strong>{status?.phase === 'available' ? status.version : ''}</strong> 이(가) 있습니다.
+          </span>
+        )}
+        {phase === 'downloading' && status?.phase === 'downloading' && (
+          <span>내려받는 중… {Math.round(status.percent)}%</span>
+        )}
+        {phase === 'downloaded' && (
+          <span>
+            새 버전 <strong>{status?.phase === 'downloaded' ? status.version : ''}</strong> 다운로드 완료.
+            재시작하면 적용됩니다.
+          </span>
+        )}
+        {phase === 'error' && (
+          <span style={{ color: tokens.color.danger }}>
+            오류: {status?.phase === 'error' ? status.message : ''}
+          </span>
+        )}
+      </div>
+
+      {/* 진행률 바 */}
+      {phase === 'downloading' && status?.phase === 'downloading' && (
+        <div
+          style={{
+            height: 8,
+            borderRadius: 4,
+            background: tokens.color.bgAlt,
+            overflow: 'hidden',
+            marginBottom: 10
+          }}
+          role="progressbar"
+          aria-valuenow={Math.round(status.percent)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            style={{
+              width: `${Math.max(2, Math.min(100, status.percent))}%`,
+              height: '100%',
+              background: tokens.color.accentBorder,
+              transition: 'width 0.2s'
+            }}
+          />
+        </div>
+      )}
+
+      {/* 액션 버튼 */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {(!phase || phase === 'not-available' || phase === 'error') && (
+          <button onClick={() => void onCheck()} disabled={busy} style={btnStyle}>
+            업데이트 확인
+          </button>
+        )}
+        {phase === 'available' && (
+          <button onClick={() => void onDownload()} disabled={busy} style={btnStyle}>
+            다운로드
+          </button>
+        )}
+        {phase === 'downloading' && (
+          <button disabled style={btnStyle}>
+            내려받는 중…
+          </button>
+        )}
+        {phase === 'downloaded' && (
+          <button onClick={() => void onInstall()} style={btnStyle}>
+            재시작하여 설치
+          </button>
+        )}
+      </div>
+
+      {actionMsg && (
+        <div style={{ color: tokens.color.danger, fontSize: 12, marginTop: 8 }}>{actionMsg}</div>
       )}
     </div>
   )

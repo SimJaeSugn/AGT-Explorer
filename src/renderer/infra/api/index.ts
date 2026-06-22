@@ -29,6 +29,8 @@ import type {
 import type {
   AppInfoDTO,
   AppOpenPathEvt,
+  UpdateCheckRes,
+  UpdateStatusEvt,
   ClipboardFilesReadRes,
   ClipboardHasFilesRes,
   ClipboardReadRes,
@@ -313,6 +315,18 @@ export function subscribeOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscrib
 /** app:get-info — 앱·런타임 기본 정보(버전 등) 조회. 설정 "소프트웨어 정보"에서 사용. */
 export const appApi = {
   getInfo: (): Promise<Result<AppInfoDTO>> => bridge().app.getInfo()
+}
+
+// ── update:* 어댑터 (사용자 주도 자동 업데이트 — 설정 "소프트웨어 정보") ──────
+export const updateApi = {
+  /** update:check — 새 버전 확인(다운로드 안 함). */
+  check: (): Promise<Result<UpdateCheckRes>> => bridge().update.check(),
+  /** update:download — 다운로드 시작(진행률은 onStatus). */
+  download: (): Promise<Result<void>> => bridge().update.download(),
+  /** update:install — 지금 재시작하여 설치. */
+  install: (): Promise<Result<void>> => bridge().update.install(),
+  /** update:status — 확인/다운로드 진행/완료/오류 구독. 반환값으로 구독 해제. */
+  onStatus: (cb: (evt: UpdateStatusEvt) => void): Unsubscribe => bridge().update.onStatus(cb)
 }
 
 // ── window:* 어댑터 (U3: 멀티 윈도우 — 탭 분리(새 창), US-20.3) ──────────
