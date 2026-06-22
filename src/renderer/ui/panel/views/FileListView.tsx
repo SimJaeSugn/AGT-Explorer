@@ -18,7 +18,7 @@ import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
 import { getCachedIcon, iconKeyFor, isDriveFolder, isLinkFolder, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
 import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
-import { FolderLineIcon } from '@renderer/ui/icons/lucide'
+import { Icon, FolderLineIcon } from '@renderer/ui/icons/lucide'
 import {
   getCachedThumbnail,
   requestThumbnail,
@@ -112,59 +112,101 @@ const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'])
 const CODE_EXTS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'rb', 'php', 'sh', 'html', 'css', 'scss', 'vue', 'sql'])
 const DOC_EXTS = new Set(['md', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'rtf', 'hwp'])
 
-/** 항목 유형 색(자세히 보기 타일·유형 라벨 공용). 폴더=테마 accent, 파일=카테고리 색. */
+/**
+ * 확장자 → {내부 글리프 이름, 유형색}. 아이콘 팩 "파일 유형/개발 언어" 표와 동일.
+ * (색은 팩 팔레트: blue#6aa6f5·amber#e0a85b·slate#8a93a0·emerald#3ecf8e·teal#4fc7c7·
+ *  rose#e08aa6·violet#b98ce0·lime#b5d65f)
+ */
+const EXT_ICON: Record<string, { glyph: string; color: string }> = {
+  exe: { glyph: 'app', color: '#6aa6f5' }, msi: { glyph: 'app', color: '#6aa6f5' }, dll: { glyph: 'plug', color: '#6aa6f5' },
+  yaml: { glyph: 'gear', color: '#e0a85b' }, yml: { glyph: 'gear', color: '#e0a85b' }, json: { glyph: 'braces', color: '#e0a85b' },
+  svg: { glyph: 'vector', color: '#3ecf8e' }, png: { glyph: 'image', color: '#3ecf8e' }, jpg: { glyph: 'image', color: '#3ecf8e' }, jpeg: { glyph: 'image', color: '#3ecf8e' },
+  mp4: { glyph: 'video', color: '#e08aa6' }, mp3: { glyph: 'audio', color: '#b98ce0' },
+  pdf: { glyph: 'book', color: '#e08aa6' }, txt: { glyph: 'text', color: '#8a93a0' }, md: { glyph: 'md', color: '#4fc7c7' },
+  zip: { glyph: 'archive', color: '#b5d65f' }, iso: { glyph: 'disc', color: '#b98ce0' },
+  map: { glyph: 'map', color: '#8a93a0' }, blockmap: { glyph: 'map', color: '#8a93a0' }, log: { glyph: 'log', color: '#8a93a0' }, db: { glyph: 'db', color: '#b98ce0' },
+  // 개발 언어
+  js: { glyph: 'code', color: '#e0a85b' }, mjs: { glyph: 'code', color: '#e0a85b' }, cjs: { glyph: 'code', color: '#e0a85b' },
+  ts: { glyph: 'code', color: '#6aa6f5' }, jsx: { glyph: 'atom', color: '#4fc7c7' }, tsx: { glyph: 'atom', color: '#4fc7c7' },
+  html: { glyph: 'markup', color: '#e08aa6' }, css: { glyph: 'style', color: '#b98ce0' }, scss: { glyph: 'style', color: '#b98ce0' }, vue: { glyph: 'atom', color: '#3ecf8e' },
+  py: { glyph: 'code', color: '#e0a85b' }, java: { glyph: 'code', color: '#e08aa6' }, kt: { glyph: 'code', color: '#b98ce0' }, c: { glyph: 'code', color: '#6aa6f5' },
+  cpp: { glyph: 'code', color: '#6aa6f5' }, h: { glyph: 'code', color: '#6aa6f5' }, cs: { glyph: 'code', color: '#b98ce0' }, go: { glyph: 'code', color: '#4fc7c7' }, rs: { glyph: 'code', color: '#e08aa6' },
+  rb: { glyph: 'code', color: '#e08aa6' }, php: { glyph: 'code', color: '#b98ce0' }, swift: { glyph: 'code', color: '#e08aa6' }, dart: { glyph: 'code', color: '#4fc7c7' },
+  sql: { glyph: 'db', color: '#e0a85b' }, sh: { glyph: 'shell', color: '#8a93a0' }, bash: { glyph: 'shell', color: '#8a93a0' }
+}
+
+/** 확장자 → 글리프+색. EXT_ICON 우선, 없으면 카테고리 폴백. */
+function fileIconFor(extRaw: string): { glyph: string; color: string } {
+  const ext = extRaw.toLowerCase()
+  const hit = EXT_ICON[ext]
+  if (hit) return hit
+  if (EXEC_EXTS.has(ext)) return { glyph: 'app', color: '#6aa6f5' }
+  if (CODE_EXTS.has(ext)) return { glyph: 'code', color: '#6aa6f5' }
+  if (ARCHIVE_EXTS.has(ext)) return { glyph: 'archive', color: '#b5d65f' }
+  if (CONFIG_EXTS.has(ext)) return { glyph: 'gear', color: '#e0a85b' }
+  if (IMAGE_EXTS.has(ext)) return { glyph: 'image', color: '#3ecf8e' }
+  if (VIDEO_EXTS.has(ext)) return { glyph: 'video', color: '#e08aa6' }
+  if (AUDIO_EXTS.has(ext)) return { glyph: 'audio', color: '#b98ce0' }
+  if (DOC_EXTS.has(ext)) return { glyph: 'book', color: '#8aa0b4' }
+  return { glyph: 'text', color: '#8a93a0' }
+}
+
+/** 항목 유형 색(타일 틴트·유형 라벨 공용). 폴더=테마 accent, 파일=유형색. */
 function fileTypeColor(entry: FileEntryDTO): string {
-  if (entry.isDir) return tokens.color.accent
-  const ext = entry.ext.toLowerCase()
-  if (EXEC_EXTS.has(ext) || CODE_EXTS.has(ext)) return '#6aa6f5' // 파랑
-  if (ARCHIVE_EXTS.has(ext) || CONFIG_EXTS.has(ext)) return '#e0a85b' // 호박
-  if (IMAGE_EXTS.has(ext)) return '#b98ce0' // 보라
-  if (VIDEO_EXTS.has(ext)) return '#e0709a' // 분홍
-  if (AUDIO_EXTS.has(ext)) return '#54c7c7' // 청록
-  if (DOC_EXTS.has(ext)) return '#8aa0b4' // 회청
-  return '#8a93a0' // 기타(목업 default 회색)
+  return entry.isDir ? tokens.color.accent : fileIconFor(entry.ext).color
 }
 
 /**
- * 파일 유형 아이콘(아이콘 팩 "파일 유형") — 파일 글리프 + 유형색 확장자 태그.
- * 색(외곽선·태그)은 부모의 color(typeColor)를 currentColor 로 상속하고, 태그 위
- * 확장자 텍스트는 어두운 대비색으로 얹는다. 확장자가 없으면 태그 없이 파일 글리프만.
+ * 파일 유형 아이콘(아이콘 팩 "파일 유형/개발 언어") — 파일 글리프(중립 외곽선) 위에
+ * 유형별 내부 글리프(유형색)를 겹치고, 큰 크기에서는 하단에 확장자 라벨을 얹는다.
+ * 목록/자세히 타일과 그리드(큰·보통·작은 아이콘) 보기에서 공용으로 쓴다.
  */
-function FileTypeIcon({ ext, size }: { ext: string; size: number }): JSX.Element {
+function FileTypeIcon({ ext, size, showLabel }: { ext: string; size: number; showLabel?: boolean }): JSX.Element {
+  const { glyph, color } = fileIconFor(ext)
   const label = ext ? ext.toUpperCase().slice(0, 4) : ''
-  const fs = label.length <= 2 ? 7 : label.length === 3 ? 6 : 5
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinejoin="round"
+    <span
       aria-hidden
-      style={{ display: 'block' }}
+      style={{ position: 'relative', display: 'inline-flex', width: size, height: size, flex: 'none' }}
     >
-      <path d="M6 2.6 H14 L19.4 8 V19.4 A1.6 1.6 0 0 1 17.8 21 H6.2 A1.6 1.6 0 0 1 4.6 19.4 V4.2 A1.6 1.6 0 0 1 6.2 2.6 Z" />
-      <path d="M13.9 2.6 V8.1 H19.4" />
-      {label && (
-        <>
-          <rect x="6.4" y="12.8" width="11.2" height="6.4" rx="1.5" fill="currentColor" stroke="none" />
-          <text
-            x="12"
-            y="17.55"
-            textAnchor="middle"
-            fontSize={fs}
-            fontWeight={800}
-            fill="#0c1410"
-            stroke="none"
-            style={{ fontFamily: tokens.font, letterSpacing: '-0.3px' }}
-          >
-            {label}
-          </text>
-        </>
+      {/* 파일 외곽선(중립색) */}
+      <Icon name="file" size={size} stroke={1.3} style={{ color: tokens.color.textMuted }} />
+      {/* 내부 유형 글리프(유형색) — 파일 본문 영역에 겹쳐 그린다. */}
+      <span
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: size * 0.2,
+          height: size * 0.56,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color
+        }}
+      >
+        <Icon name={glyph} size={Math.round(size * 0.46)} stroke={1.7} />
+      </span>
+      {/* 확장자 라벨(큰/보통 아이콘 등 충분히 클 때만) */}
+      {showLabel && label && (
+        <span
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: Math.round(size * 0.07),
+            textAlign: 'center',
+            fontSize: Math.max(7, Math.round(size * 0.155)),
+            fontWeight: 800,
+            letterSpacing: '-0.2px',
+            lineHeight: 1,
+            color
+          }}
+        >
+          {label}
+        </span>
       )}
-    </svg>
+    </span>
   )
 }
 
@@ -1038,11 +1080,14 @@ function FileRow({
             justifyContent: 'center'
           }}
         >
-          {/* 그리드 셀이고 이미지면 실제 내용 썸네일 시도, 아니면(또는 폴백) OSIcon. */}
-          {!entry.isDir && isThumbnailableExt(entry.ext.toLowerCase()) ? (
+          {/* 폴더=팩 폴더/드라이브 글리프(OSIcon), 이미지=실제 썸네일, 그 외 파일=팩 유형 아이콘
+              (큰/보통 아이콘은 확장자 라벨 표시·작은 아이콘은 글리프만). */}
+          {entry.isDir ? (
+            <OSIcon entry={entry} size={grid.icon} />
+          ) : isThumbnailableExt(entry.ext.toLowerCase()) ? (
             <ThumbnailIcon entry={entry} size={grid.icon} />
           ) : (
-            <OSIcon entry={entry} size={grid.icon} />
+            <FileTypeIcon ext={entry.ext} size={grid.icon} showLabel={grid.icon >= 44} />
           )}
         </span>
         {renaming ? (
