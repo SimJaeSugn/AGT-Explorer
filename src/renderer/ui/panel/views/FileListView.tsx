@@ -18,7 +18,7 @@ import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
 import { getCachedIcon, iconKeyFor, isDriveFolder, isLinkFolder, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
 import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
-import { FolderLineIcon, FileLineIcon } from '@renderer/ui/icons/lucide'
+import { FolderLineIcon } from '@renderer/ui/icons/lucide'
 import {
   getCachedThumbnail,
   requestThumbnail,
@@ -123,6 +123,49 @@ function fileTypeColor(entry: FileEntryDTO): string {
   if (AUDIO_EXTS.has(ext)) return '#54c7c7' // 청록
   if (DOC_EXTS.has(ext)) return '#8aa0b4' // 회청
   return '#8a93a0' // 기타(목업 default 회색)
+}
+
+/**
+ * 파일 유형 아이콘(아이콘 팩 "파일 유형") — 파일 글리프 + 유형색 확장자 태그.
+ * 색(외곽선·태그)은 부모의 color(typeColor)를 currentColor 로 상속하고, 태그 위
+ * 확장자 텍스트는 어두운 대비색으로 얹는다. 확장자가 없으면 태그 없이 파일 글리프만.
+ */
+function FileTypeIcon({ ext, size }: { ext: string; size: number }): JSX.Element {
+  const label = ext ? ext.toUpperCase().slice(0, 4) : ''
+  const fs = label.length <= 2 ? 7 : label.length === 3 ? 6 : 5
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ display: 'block' }}
+    >
+      <path d="M6 2.6 H14 L19.4 8 V19.4 A1.6 1.6 0 0 1 17.8 21 H6.2 A1.6 1.6 0 0 1 4.6 19.4 V4.2 A1.6 1.6 0 0 1 6.2 2.6 Z" />
+      <path d="M13.9 2.6 V8.1 H19.4" />
+      {label && (
+        <>
+          <rect x="6.4" y="12.8" width="11.2" height="6.4" rx="1.5" fill="currentColor" stroke="none" />
+          <text
+            x="12"
+            y="17.55"
+            textAnchor="middle"
+            fontSize={fs}
+            fontWeight={800}
+            fill="#0c1410"
+            stroke="none"
+            style={{ fontFamily: tokens.font, letterSpacing: '-0.3px' }}
+          >
+            {label}
+          </text>
+        </>
+      )}
+    </svg>
+  )
 }
 
 /** 확장자 표시 토글에 따른 이름 표기. */
@@ -1082,7 +1125,7 @@ function FileRow({
           background: `color-mix(in srgb, ${typeColor} 16%, transparent)`
         }}
       >
-        {entry.isDir ? <FolderLineIcon size={15} /> : <FileLineIcon size={15} />}
+        {entry.isDir ? <FolderLineIcon size={17} /> : <FileTypeIcon ext={entry.ext} size={24} />}
       </span>
       {pinned && (
         <span
