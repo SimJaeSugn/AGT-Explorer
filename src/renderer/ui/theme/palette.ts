@@ -31,7 +31,12 @@ export const LIGHT_PALETTE: Palette = {
   // N1 즐겨찾기 워터마크 반투명도(본문 위 비중첩 장식·저대비). 라이트는 약간 더 진하게.
   '--c-watermark-opacity': '0.06',
   // 워터마크 글자색(텍스트 토큰 재사용·opacity 로 저대비 조절).
-  '--c-watermark-color': '#1f2328'
+  '--c-watermark-color': '#1f2328',
+  // 신규(reskin): accent 채움 위 대비 글자색 + 3단 표면(크롬/떠있는/카드).
+  '--c-accent-contrast': '#ffffff',
+  '--c-chrome': '#f6f7f9',
+  '--c-elevated': '#ffffff',
+  '--c-surface': '#ffffff'
 }
 
 /**
@@ -57,7 +62,12 @@ export const BLUELIGHT_PALETTE: Palette = {
   '--c-highlight': '#F2D98A',
   // N1 워터마크: 따뜻한 크림 배경에 갈색 톤 저대비 장식.
   '--c-watermark-opacity': '0.07',
-  '--c-watermark-color': '#3A3326'
+  '--c-watermark-color': '#3A3326',
+  // 신규(reskin): accent 채움 위 대비 글자색 + 3단 표면(크롬/떠있는/카드).
+  '--c-accent-contrast': '#ffffff',
+  '--c-chrome': '#F3E6C9',
+  '--c-elevated': '#FBF0D9',
+  '--c-surface': '#FBF0D9'
 }
 
 export const DARK_PALETTE: Palette = {
@@ -79,15 +89,54 @@ export const DARK_PALETTE: Palette = {
   '--c-highlight': '#6b5d1f',
   // N1 워터마크: 어두운 배경에 밝은 글자·약간 더 높은 불투명도로 가시성 균형.
   '--c-watermark-opacity': '0.08',
-  '--c-watermark-color': '#e6e8eb'
+  '--c-watermark-color': '#e6e8eb',
+  // 신규(reskin): accent 채움 위 대비 글자색 + 3단 표면(크롬/떠있는/카드).
+  '--c-accent-contrast': '#ffffff',
+  '--c-chrome': '#26282c',
+  '--c-elevated': '#303237',
+  '--c-surface': '#1e1f22'
+}
+
+/**
+ * AGT 다크(그린) 팔레트 — claude.ai/design "파일 탐색기" 목업 기반 리스킨.
+ * 근접-블랙(#0e1115) 표면 + 그린 accent(#40dd97). 3단 표면(크롬/떠있는/카드)으로
+ * 타이틀바·툴바·사이드바·패널 카드의 미세 명도차를 표현한다. 기존 dark 와 독립.
+ */
+export const AGT_PALETTE: Palette = {
+  '--c-bg': '#0e1115',
+  '--c-bg-alt': '#12151a',
+  '--c-bg-hover': '#1b212a',
+  // 선택: 반투명 그린 채움(근접-블랙 위 합성). 좌측 강조바는 컴포넌트가 accent 로 그린다.
+  '--c-bg-selected': 'rgba(64,221,151,0.15)',
+  '--c-bg-selected-inactive': '#222932',
+  '--c-border': '#1d232b',
+  '--c-border-strong': '#2a313b',
+  '--c-text': '#e7eaee',
+  '--c-text-muted': '#8a93a0',
+  '--c-accent': '#40dd97',
+  '--c-accent-border': '#40dd97',
+  // danger: 근접-블랙 위 가독 + 흰 글자 대비 확보.
+  '--c-danger': '#e85d5d',
+  // 폴더/즐겨찾기 별은 따뜻한 골드 유지(그린 accent 와 시각 구분).
+  '--c-folder': '#e0a85b',
+  '--c-file': '#7e858f',
+  '--c-highlight': '#3a5d2f',
+  '--c-watermark-opacity': '0.03',
+  '--c-watermark-color': '#ffffff',
+  // accent(밝은 그린) 채움 위에는 근접-블랙 글자로 대비를 준다(흰 글자 대비 부족).
+  '--c-accent-contrast': '#0e1115',
+  '--c-chrome': '#101317',
+  '--c-elevated': '#191d23',
+  '--c-surface': '#181c22'
 }
 
 /**
  * resolved 테마(light/dark/bluelight)의 팔레트 반환(I장 §6.3).
  * ResolvedTheme 은 applyTheme.ts 에서 정의(순환참조 회피 위해 여기선 리터럴 유니온).
  */
-export function paletteFor(resolved: 'light' | 'dark' | 'bluelight'): Palette {
+export function paletteFor(resolved: 'light' | 'dark' | 'bluelight' | 'agt-dark'): Palette {
   if (resolved === 'dark') return DARK_PALETTE
   if (resolved === 'bluelight') return BLUELIGHT_PALETTE
+  if (resolved === 'agt-dark') return AGT_PALETTE
   return LIGHT_PALETTE
 }

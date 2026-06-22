@@ -52,7 +52,13 @@ export function btn(variant: 'primary' | 'danger' | 'default'): CSSProperties {
     color: tokens.color.text
   }
   if (variant === 'primary') {
-    return { ...base, background: tokens.color.accent, borderColor: tokens.color.accent, color: '#fff' }
+    // accent 채움 위 글자는 테마별 대비색(밝은 accent=어두운 글자) — agt-dark 그린 accent 대응.
+    return {
+      ...base,
+      background: tokens.color.accent,
+      borderColor: tokens.color.accent,
+      color: tokens.color.accentContrast
+    }
   }
   if (variant === 'danger') {
     return { ...base, background: tokens.color.danger, borderColor: tokens.color.danger, color: '#fff' }

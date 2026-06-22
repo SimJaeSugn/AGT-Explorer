@@ -1,6 +1,6 @@
 {
   "name": "agt-finder",
-  "version": "1.10.4",
+  "version": "1.11.0",
   "description": "AGT-Finder — 멀티 디렉토리 파일탐색기 (Electron + React)",
   "private": true,
   "author": "AGT-Finder Team",
@@ -68,6 +68,7 @@
     "immer": "^10.1.1",
     "marked": "^18.0.5",
     "openai": "^6.42.0",
+    "pretendard": "^1.3.9",
     "recharts": "^3.8.1",
     "ssh2-sftp-client": "^11.0.0",
     "yauzl": "^2.10.0",

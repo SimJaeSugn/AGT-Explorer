@@ -166,7 +166,7 @@ export const zShellNewCreateReq = z.object({
 // SessionSnapshot 은 구조가 깊고 Renderer 가 생성한 직렬화 객체이므로,
 // 형태 1차만 통과시키고(중첩 무효 필드는 Store 의 coerceSession 이 정규화),
 // 본문 정규화는 persistence 계층에 위임한다(단일 책임).
-const zThemeMode = z.enum(['light', 'dark', 'system', 'bluelight'])
+const zThemeMode = z.enum(['light', 'dark', 'system', 'bluelight', 'agt-dark'])
 export const zSessionSaveReq = z.object({
   snapshot: z.object({ version: z.number() }).passthrough()
 })

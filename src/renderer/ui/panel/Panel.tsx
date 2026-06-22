@@ -37,9 +37,14 @@ export function Panel({ panelId, tabId, active, panelNumber, totalPanels }: Prop
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        border: `2px solid ${active ? tokens.color.accentBorder : 'transparent'}`,
+        // 리스킨(분할 카드): 활성=accent 테두리, 비활성=subtle 테두리(목업 #262b33 톤).
+        // 둥근 카드 + overflow:hidden 으로 내부(툴바·목록)가 모서리에 맞춰 잘린다.
+        border: `2px solid ${active ? tokens.color.accentBorder : tokens.color.border}`,
+        borderRadius: 12,
+        overflow: 'hidden',
         boxSizing: 'border-box',
-        background: tokens.color.bg
+        // 리스킨: 패널 본문은 살짝 떠 있는 카드 표면(루트 bg·사이드바 bgAlt 보다 밝게).
+        background: tokens.color.surface
       }}
     >
       <PanelToolbar

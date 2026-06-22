@@ -25,6 +25,7 @@ import {
   type TabColorGroup
 } from '@renderer/domain/rules/tabColors'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { PlusIcon, SettingsIcon, CloseIcon } from '@renderer/ui/icons/lucide'
 
 /** 탭 컨텍스트 메뉴 위치(없으면 닫힘). */
 interface TabMenuState {
@@ -49,9 +50,11 @@ export function TabBar(): JSX.Element {
       aria-label="탭"
       style={{
         display: 'flex',
-        alignItems: 'stretch',
-        height: 32,
-        background: tokens.color.bgAlt,
+        alignItems: 'center',
+        gap: 4,
+        height: 40,
+        padding: '0 8px',
+        background: tokens.color.chrome,
         borderBottom: `1px solid ${tokens.color.border}`,
         overflowX: 'auto'
       }}
@@ -78,13 +81,17 @@ export function TabBar(): JSX.Element {
           border: 'none',
           background: 'transparent',
           cursor: 'pointer',
-          fontSize: 18,
           color: tokens.color.textMuted,
-          width: 34,
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           flex: '0 0 auto'
         }}
       >
-        +
+        <PlusIcon size={15} />
       </button>
       <button
         onClick={() => openSettings()}
@@ -95,13 +102,17 @@ export function TabBar(): JSX.Element {
           border: 'none',
           background: 'transparent',
           cursor: 'pointer',
-          fontSize: 16,
           color: tokens.color.textMuted,
-          width: 36,
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           flex: '0 0 auto'
         }}
       >
-        ⚙
+        <SettingsIcon size={16} />
       </button>
       {menu && (
         <TabContextMenu
@@ -163,10 +174,10 @@ function TabItem({
   const tabBg = swatch
     ? tabTint(swatch, active ? 0.34 : 0.18)
     : active
-      ? tokens.color.bg
+      ? tokens.color.elevated
       : 'transparent'
-  // 상단 강조선: 활성 탭은 색상 지정 시 그 색, 아니면 accent.
-  const topBorderColor = active ? (swatch ?? tokens.color.accent) : 'transparent'
+  // 활성 탭 강조 점 색: 색상 지정 시 그 색, 아니면 accent(미지정 비활성은 숨김).
+  const dotColor = swatch ?? tokens.color.accent
 
   return (
     <div
@@ -221,19 +232,35 @@ function TabItem({
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '0 8px 0 12px',
+        gap: 8,
+        height: 30,
+        margin: '0 1px',
+        padding: '0 10px 0 12px',
         minWidth: 90,
         maxWidth: 200,
+        borderRadius: 9,
         cursor: 'pointer',
         background: tabBg,
-        borderRight: `1px solid ${tokens.color.border}`,
-        borderTop: `2px solid ${topBorderColor}`,
+        border: `1px solid ${active ? tokens.color.border : 'transparent'}`,
         fontSize: 13,
+        fontWeight: active ? 500 : 400,
         // 색상 지정 탭은 텍스트를 항상 본문색으로(파스텔 위 가독성), 미지정은 기존 활성/비활성 대비.
         color: swatch ? tokens.color.text : active ? tokens.color.text : tokens.color.textMuted
       }}
     >
+      {/* 활성 탭 강조 점(색상 지정 시 그 색·아니면 accent). 비활성은 자리만 비워 정렬 유지. */}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            flex: '0 0 auto',
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: dotColor
+          }}
+        />
+      )}
       {/* 잠금 글리프(잠긴 탭). 상태는 aria-label 로 고지하므로 글리프는 aria-hidden. */}
       {locked && (
         <span aria-hidden style={{ flex: '0 0 auto', fontSize: 11, color: tokens.color.textMuted }}>
@@ -263,13 +290,16 @@ function TabItem({
             background: 'transparent',
             cursor: 'pointer',
             color: tokens.color.textMuted,
-            fontSize: 13,
-            borderRadius: 3,
+            borderRadius: 5,
             width: 18,
-            height: 18
+            height: 18,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: '0 0 auto'
           }}
         >
-          ✕
+          <CloseIcon size={13} />
         </button>
       )}
     </div>

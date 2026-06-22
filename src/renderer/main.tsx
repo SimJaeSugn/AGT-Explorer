@@ -1,5 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Pretendard 가변 폰트(로컬 번들 — CSP font-src 'self' 충족, CDN 미사용).
+// tokens.font 의 'Pretendard Variable' 패밀리를 이 @font-face 가 제공한다.
+import 'pretendard/dist/web/variable/pretendardvariable.css'
 import { App } from '@renderer/ui/App'
 import { applyTheme } from '@renderer/ui/theme/applyTheme'
 

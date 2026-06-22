@@ -12,13 +12,17 @@
  *
  * 활성 탭만 마운트(탭 전환 시 다른 탭 패널은 언마운트되지만 스토어 상태는 유지).
  */
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import { Panel } from '@renderer/ui/panel/Panel'
 import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
+import { ratioFromPoint } from '@renderer/ui/layout/splitMath'
 import { CompareView } from '@renderer/ui/compare/CompareView'
 import { SPLIT_DEFAULT } from '@renderer/domain/entities'
 import { tokens } from '@renderer/ui/theme/tokens'
+
+/** 분할 카드 사이/창 가장자리 여백(px) — 패널이 분리된 둥근 카드로 떠 보이게 한다(목업 톤). */
+const SPLIT_GAP = 12
 
 export function LayoutHost(): JSX.Element {
   const tab = useRootStore((s) => s.tabs[s.activeTabId])
@@ -55,37 +59,25 @@ export function LayoutHost(): JSX.Element {
     const gCol = isQuad ? col : 0.5
     const gRow = isQuad ? row : 0.5
     return (
-      <div
-        ref={gridContainerRef}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          position: 'relative',
-          display: 'grid',
-          gridTemplateColumns: `${gCol}fr ${1 - gCol}fr`,
-          gridTemplateRows: `${gRow}fr ${1 - gRow}fr`,
-          background: tokens.color.bgAlt
-        }}
-      >
-        {tab.panelIds.map((pid, i) => {
-          const c = i % 2
-          const r = Math.floor(i / 2)
-          return (
-            <div
-              key={pid}
-              style={{
-                // fr 비율(gCol/gRow·0.15~0.85 클램프)이 셀 크기를 온전히 제어하도록
-                // 최소 크기를 0 으로 둔다. minWidth/minHeight 를 220/160 으로 두면 비율을
-                // 끝으로 내려도 셀이 그 값에 붙들려, 비율 %로 배치된 분할선과 실제 경계가
-                // 어긋나 "데드존"(끌어도 안 변함)이 생기고 핸들이 멈춘 듯 보였다.
-                minWidth: 0,
-                minHeight: 0,
-                display: 'flex',
-                overflow: 'hidden',
-                borderLeft: c > 0 ? `1px solid ${tokens.color.borderStrong}` : undefined,
-                borderTop: r > 0 ? `1px solid ${tokens.color.borderStrong}` : undefined
-              }}
-            >
+      // 바깥 여백(창 가장자리 인셋) → 안쪽 grid(gap 으로 카드 분리). 측정 기준 ref 는
+      // gap 만 있고 padding 0 인 안쪽 grid 라 비율(ratioFromPoint)이 정확하다.
+      <div style={{ flex: 1, minWidth: 0, padding: SPLIT_GAP, background: tokens.color.bg }}>
+        <div
+          ref={gridContainerRef}
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: `${gCol}fr ${1 - gCol}fr`,
+            gridTemplateRows: `${gRow}fr ${1 - gRow}fr`,
+            gap: SPLIT_GAP
+          }}
+        >
+          {tab.panelIds.map((pid, i) => (
+            // fr 비율(0.15~0.85 클램프)이 셀 크기를 온전히 제어하도록 최소 크기 0.
+            // 카드 테두리/라운드/클립은 Panel 자신이 그린다(셀 경계선 제거 — gap 이 분리).
+            <div key={pid} style={{ minWidth: 0, minHeight: 0, display: 'flex' }}>
               <Panel
                 panelId={pid}
                 tabId={tab.id}
@@ -94,48 +86,62 @@ export function LayoutHost(): JSX.Element {
                 totalPanels={tab.panelIds.length}
               />
             </div>
-          )
-        })}
-        {isQuad && (
-          <>
-            {/* 세로 divider(col 조절) — 가운데 열 경계, 전체 높이. */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: `${gCol * 100}%`,
-                width: 6,
-                transform: 'translateX(-50%)'
-              }}
-            >
-              <SplitDivider
-                orientation="vertical"
-                containerRef={gridContainerRef}
-                onDrag={(ratio) => setSplitRatio(tab.id, 'col', ratio)}
-                onReset={() => setSplitRatio(tab.id, 'col', 0.5)}
+          ))}
+          {isQuad && (
+            <>
+              {/* 세로 divider(col 조절) — 가운데 열 gap, 전체 높이. */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: `${gCol * 100}%`,
+                  width: SPLIT_GAP,
+                  transform: 'translateX(-50%)'
+                }}
+              >
+                <SplitDivider
+                  orientation="vertical"
+                  containerRef={gridContainerRef}
+                  onDrag={(ratio) => setSplitRatio(tab.id, 'col', ratio)}
+                  onReset={() => setSplitRatio(tab.id, 'col', 0.5)}
+                />
+              </div>
+              {/* 가로 divider(row 조절) — 가운데 행 gap, 전체 너비. */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: `${gRow * 100}%`,
+                  height: SPLIT_GAP,
+                  transform: 'translateY(-50%)'
+                }}
+              >
+                <SplitDivider
+                  orientation="horizontal"
+                  containerRef={gridContainerRef}
+                  onDrag={(ratio) => setSplitRatio(tab.id, 'row', ratio)}
+                  onReset={() => setSplitRatio(tab.id, 'row', 0.5)}
+                />
+              </div>
+              {/* 가운데 교차점 핸들(목업 그린 원) — 가로·세로 동시 조절. */}
+              <CenterHandle
+                gridRef={gridContainerRef}
+                left={gCol}
+                top={gRow}
+                onDrag={(c, r) => {
+                  setSplitRatio(tab.id, 'col', c)
+                  setSplitRatio(tab.id, 'row', r)
+                }}
+                onReset={() => {
+                  setSplitRatio(tab.id, 'col', 0.5)
+                  setSplitRatio(tab.id, 'row', 0.5)
+                }}
               />
-            </div>
-            {/* 가로 divider(row 조절) — 가운데 행 경계, 전체 너비. */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: `${gRow * 100}%`,
-                height: 6,
-                transform: 'translateY(-50%)'
-              }}
-            >
-              <SplitDivider
-                orientation="horizontal"
-                containerRef={gridContainerRef}
-                onDrag={(ratio) => setSplitRatio(tab.id, 'row', ratio)}
-                onReset={() => setSplitRatio(tab.id, 'row', 0.5)}
-              />
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -188,29 +194,33 @@ export function LayoutHost(): JSX.Element {
       )
     })
     return (
-      <div
-        ref={splitContainerRef}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: horizontal ? 'row' : 'column',
-          background: tokens.color.bgAlt
-        }}
-      >
-        {nodes}
+      // 바깥 여백(창 인셋) → 안쪽 flex(ref·padding 0)에서 비율 측정 → 정확.
+      // 두 카드 사이 간격은 SplitDivider(7px) 가 담당(카드 라운드/테두리는 Panel).
+      <div style={{ flex: 1, minWidth: 0, padding: SPLIT_GAP, background: tokens.color.bg, display: 'flex' }}>
+        <div
+          ref={splitContainerRef}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: horizontal ? 'row' : 'column'
+          }}
+        >
+          {nodes}
+        </div>
       </div>
     )
   }
 
-  // ── 단일(single): 기존 유지 ──────────────────────────────────────────
+  // ── 단일(single): 둥근 카드 1개를 창 인셋 여백 안에 둔다 ───────────────
   return (
     <div
       style={{
         flex: 1,
         minWidth: 0,
         display: 'flex',
-        background: tokens.color.bgAlt
+        padding: SPLIT_GAP,
+        background: tokens.color.bg
       }}
     >
       {tab.panelIds.map((pid, i) => (
@@ -225,5 +235,80 @@ export function LayoutHost(): JSX.Element {
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * CenterHandle — 4분할 가운데 교차점의 둥근 그린 핸들(목업). 드래그하면 포인터 위치로
+ * col(가로 비율)·row(세로 비율)를 동시에 조절한다. 더블클릭=균등(0.5/0.5).
+ * 측정 기준은 안쪽 grid rect(padding 0)라 ratioFromPoint 가 정확하다.
+ */
+function CenterHandle({
+  gridRef,
+  left,
+  top,
+  onDrag,
+  onReset
+}: {
+  gridRef: React.RefObject<HTMLElement>
+  left: number
+  top: number
+  onDrag: (col: number, row: number) => void
+  onReset: () => void
+}): JSX.Element {
+  const draggingRef = useRef(false)
+  const [active, setActive] = useState(false)
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    if (!draggingRef.current) return
+    const el = gridRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const c = ratioFromPoint(rect, e.clientX, e.clientY, 'vertical')
+    const r = ratioFromPoint(rect, e.clientX, e.clientY, 'horizontal')
+    if (c !== null && r !== null) onDrag(c, r)
+  }
+
+  function endDrag(e: React.PointerEvent<HTMLDivElement>): void {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    setActive(false)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-label="가운데 핸들 — 가로·세로 동시 크기 조절"
+      tabIndex={-1}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        draggingRef.current = true
+        setActive(true)
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onDoubleClick={onReset}
+      title="드래그하여 가로·세로 동시 조절 · 더블클릭으로 균등"
+      style={{
+        position: 'absolute',
+        left: `${left * 100}%`,
+        top: `${top * 100}%`,
+        transform: 'translate(-50%, -50%)',
+        width: 18,
+        height: 18,
+        borderRadius: '50%',
+        zIndex: 2,
+        cursor: 'move',
+        background: tokens.color.accent,
+        border: `2px solid ${tokens.color.bg}`,
+        boxShadow: active
+          ? `0 0 0 4px color-mix(in srgb, ${tokens.color.accent} 30%, transparent)`
+          : '0 1px 4px rgba(0,0,0,0.4)',
+        touchAction: 'none'
+      }}
+    />
   )
 }

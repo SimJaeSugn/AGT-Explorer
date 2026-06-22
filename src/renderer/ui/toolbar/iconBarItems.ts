@@ -19,7 +19,7 @@ export interface IconBarItem {
   readonly id: string
   /** title·aria-label 표시명. */
   readonly label: string
-  /** 임시 텍스트 글리프(P7 아이콘셋 전). */
+  /** 아이콘 팩 아이콘 이름(lucide.tsx ICON_PATHS 키). IconBar 가 <Icon name> 으로 렌더. */
   readonly icon: string
   /** 구분선 그룹. */
   readonly group: 'layout' | 'file' | 'nav' | 'tool'
@@ -115,14 +115,14 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'sidebar.toggle',
     label: '사이드바 토글',
-    icon: '☰',
+    icon: 'panelLeft',
     group: 'layout',
     active: (s) => !s.sidebarCollapsed
   },
   {
     id: 'layout.toggleSplit2',
     label: '2분할',
-    icon: '◫',
+    icon: 'splitView',
     group: 'layout',
     enabled: hasActiveTab,
     active: (s) => {
@@ -133,7 +133,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'layout.toggleGrid4',
     label: '4분할',
-    icon: '田',
+    icon: 'quadSplit',
     group: 'layout',
     enabled: hasActiveTab,
     active: (s) => s.activeTab()?.layout === 'grid-4'
@@ -141,7 +141,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'preview.toggle',
     label: '미리보기',
-    icon: '◰',
+    icon: 'preview',
     group: 'layout',
     active: (s) => s.previewOpen
   },
@@ -149,7 +149,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     // §P1: 폴더 비교 토글(좌우 2분할일 때만 활성). 두 패널 폴더를 메타 4상태로 diff.
     id: 'compare.toggle',
     label: '폴더 비교',
-    icon: '⇄',
+    icon: 'compare',
     group: 'layout',
     enabled: (s) => {
       const t = s.activeTab()
@@ -160,7 +160,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'view.setMode.details',
     label: '상세 보기',
-    icon: '☰',
+    icon: 'detailView',
     group: 'layout',
     enabled: (s) => activePanel(s) !== undefined,
     active: (s) => activePanel(s)?.view.viewMode === 'details'
@@ -168,7 +168,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'view.setMode.list',
     label: '리스트 보기',
-    icon: '≣',
+    icon: 'listView',
     group: 'layout',
     enabled: (s) => activePanel(s) !== undefined,
     active: (s) => activePanel(s)?.view.viewMode === 'list'
@@ -178,42 +178,42 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'file.newFolder',
     label: '새 폴더',
-    icon: '🗀',
+    icon: 'newFolder',
     group: 'file',
     enabled: activeIsRealFolder
   },
   {
     id: 'file.copy',
     label: '복사',
-    icon: '⧉',
+    icon: 'copy',
     group: 'file',
     enabled: (s) => selectionCount(s) >= 1
   },
   {
     id: 'file.cut',
     label: '잘라내기',
-    icon: '✂',
+    icon: 'cut',
     group: 'file',
     enabled: (s) => selectionCount(s) >= 1
   },
   {
     id: 'file.paste',
     label: '붙여넣기',
-    icon: '📋',
+    icon: 'paste',
     group: 'file',
     enabled: (s) => s.clipboardHasFiles
   },
   {
     id: 'file.rename',
     label: '이름바꾸기',
-    icon: '✎',
+    icon: 'rename',
     group: 'file',
     enabled: (s) => selectionCount(s) === 1
   },
   {
     id: 'file.trash',
     label: '삭제',
-    icon: '🗑',
+    icon: 'delete',
     group: 'file',
     enabled: (s) => selectionCount(s) >= 1
   },
@@ -222,35 +222,35 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'nav.back',
     label: '뒤로',
-    icon: '←',
+    icon: 'back',
     group: 'nav',
     enabled: (s) => (activePanel(s)?.nav.back.length ?? 0) > 0
   },
   {
     id: 'nav.forward',
     label: '앞으로',
-    icon: '→',
+    icon: 'forward',
     group: 'nav',
     enabled: (s) => (activePanel(s)?.nav.forward.length ?? 0) > 0
   },
   {
     id: 'nav.up',
     label: '위로',
-    icon: '↑',
+    icon: 'up',
     group: 'nav',
     enabled: activeIsRealFolder
   },
   {
     id: 'panel.refresh',
     label: '새로고침',
-    icon: '⟳',
+    icon: 'refresh',
     group: 'nav',
     enabled: (s) => activePanel(s) !== undefined
   },
   {
     id: 'search.open',
     label: '검색',
-    icon: '🔍',
+    icon: 'search',
     group: 'nav',
     enabled: activeIsRealFolder
   },
@@ -259,14 +259,14 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
   {
     id: 'dashboard.open',
     label: '사용량 대시보드',
-    icon: '📊',
+    icon: 'dashboard',
     group: 'tool',
     active: (s) => s.dashboardOpen
   },
   {
     id: 'trash.open',
     label: '휴지통',
-    icon: '🗑',
+    icon: 'trash',
     group: 'tool',
     active: (s) => s.trashOpen
   },
@@ -274,7 +274,7 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     // §R2: 중복 파일 찾기(활성 패널 실폴더에서만). 크기→해시 2단계 탐지.
     id: 'dedup.open',
     label: '중복 파일 찾기',
-    icon: '⧉',
+    icon: 'copy',
     group: 'tool',
     enabled: activeIsRealFolder,
     active: (s) => s.dedupOpen
@@ -283,34 +283,34 @@ export const ICON_BAR_ITEMS: readonly IconBarItem[] = [
     // §R3: 전송 큐 매니저(진행/대기 작업 목록·일시정지/재개·동시성).
     id: 'queue.open',
     label: '전송 큐',
-    icon: '⇅',
+    icon: 'transfer',
     group: 'tool',
     active: (s) => s.queuePanelOpen
   },
   {
     id: 'app.settings',
     label: '설정',
-    icon: '⚙',
+    icon: 'settings',
     group: 'tool'
   },
   {
     // 단축키: 클릭 시 설정의 "단축키" 페이지로 딥링크(openSettings('shortcuts')).
     id: 'help.shortcuts',
     label: '단축키',
-    icon: '⌨',
+    icon: 'shortcuts',
     group: 'tool',
     active: (s) => s.settingsOpen && s.settingsCategory === 'shortcuts'
   },
   {
     id: 'workspace.manage',
     label: '워크스페이스',
-    icon: '🗂',
+    icon: 'workspace',
     group: 'tool'
   },
   {
     id: 'theme.toggle',
     label: '테마 토글',
-    icon: '◐',
+    icon: 'theme',
     group: 'tool'
   }
 ]

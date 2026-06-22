@@ -18,6 +18,7 @@ import { computeVisible } from '@renderer/app/usecases/selectors'
 import { activateEntry } from '@renderer/app/usecases/open'
 import { getCachedIcon, iconKeyFor, isDriveFolder, isLinkFolder, requestIcon, subscribeIcon } from '@renderer/app/usecases/icons'
 import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
+import { FolderLineIcon, FileLineIcon } from '@renderer/ui/icons/lucide'
 import {
   getCachedThumbnail,
   requestThumbnail,
@@ -49,16 +50,25 @@ import { computeWindow } from './windowing'
 
 const OVERSCAN = 6
 /**
+ * 비-그리드(목록/자세히) 보기 행 높이(px) — 디자인 템플릿(목업) 톤의 여유 있는 행.
+ * 유형-색 아이콘 타일(26px)이 위아래 여백과 함께 들어가도록 키웠다. 목록·자세히 둘 다
+ * 같은 행 UI(타일 + 유형색)를 쓴다. 그리드(아이콘) 보기는 gridCell 높이를 따로 쓴다.
+ */
+const LIST_ROW_H = 44
+/**
  * 자세히 보기 열 헤더 밴드 높이(px). 스크롤 컨테이너 최상단에 sticky 로 고정되며,
  * 핀(고정) sticky 밴드는 이 높이만큼 아래로 밀려 헤더 아래에 쌓인다(헤더가 위).
  * 키보드 스크롤 보정도 이 상수를 더해 행이 헤더 뒤로 숨지 않게 한다.
  */
 const HEADER_H = 24
-/** 행/헤더 공통 좌측 패딩(px) — 헤더 라벨이 행 내용과 같은 x 에서 시작하도록 일치. */
-const ROW_PAD_X = 8
-/** 행/헤더 공통 아이콘 폭(px) + 아이콘~이름 gap(px). 헤더 이름 라벨 정렬용 선행 spacer. */
-const ROW_ICON_W = 16
-const ROW_ICON_GAP = 6
+/**
+ * 자세히(details) 헤더 정렬 상수 — 헤더 "이름" 라벨이 행의 파일명과 같은 x 에서
+ * 시작하도록 details 행 메트릭(좌측 패딩 11 · 유형-색 타일 26 · 타일~이름 gap 11)에 맞춘다.
+ */
+const ROW_PAD_X = 11
+/** 헤더 선행 spacer 폭(= details 행의 아이콘 타일 폭) + 타일~이름 gap. */
+const ROW_ICON_W = 26
+const ROW_ICON_GAP = 11
 /** 박스 선택 시작 임계(클릭과 구분). DnD threshold 와 동일. */
 const BOX_THRESHOLD = 5
 /** 자동 스크롤 임계 영역(뷰포트 상/하단 px). */
@@ -90,6 +100,29 @@ function formatMtime(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
     d.getMinutes()
   )}`
+}
+
+// 유형별 색(디자인 템플릿 "유형-색" 톤). 폴더는 테마 accent, 나머지는 카테고리 고정색.
+const EXEC_EXTS = new Set(['exe', 'msi', 'bat', 'cmd', 'com', 'app', 'appimage', 'deb', 'rpm'])
+const ARCHIVE_EXTS = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz', 'zst', 'cab', 'iso'])
+const CONFIG_EXTS = new Set(['yml', 'yaml', 'json', 'toml', 'ini', 'cfg', 'conf', 'env', 'lock', 'blockmap'])
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 'heic'])
+const VIDEO_EXTS = new Set(['mp4', 'mkv', 'mov', 'avi', 'webm', 'wmv', 'flv', 'm4v'])
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'])
+const CODE_EXTS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'rb', 'php', 'sh', 'html', 'css', 'scss', 'vue', 'sql'])
+const DOC_EXTS = new Set(['md', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'rtf', 'hwp'])
+
+/** 항목 유형 색(자세히 보기 타일·유형 라벨 공용). 폴더=테마 accent, 파일=카테고리 색. */
+function fileTypeColor(entry: FileEntryDTO): string {
+  if (entry.isDir) return tokens.color.accent
+  const ext = entry.ext.toLowerCase()
+  if (EXEC_EXTS.has(ext) || CODE_EXTS.has(ext)) return '#6aa6f5' // 파랑
+  if (ARCHIVE_EXTS.has(ext) || CONFIG_EXTS.has(ext)) return '#e0a85b' // 호박
+  if (IMAGE_EXTS.has(ext)) return '#b98ce0' // 보라
+  if (VIDEO_EXTS.has(ext)) return '#e0709a' // 분홍
+  if (AUDIO_EXTS.has(ext)) return '#54c7c7' // 청록
+  if (DOC_EXTS.has(ext)) return '#8aa0b4' // 회청
+  return '#8a93a0' // 기타(목업 default 회색)
 }
 
 /** 확장자 표시 토글에 따른 이름 표기. */
@@ -214,7 +247,8 @@ export function FileListView({ panelId, active }: Props): JSX.Element {
   // 자세히 보기에서만 열 헤더 밴드를 그린다. 헤더 높이만큼 콘텐츠가 아래로 밀린다.
   const isDetails = viewMode === 'details'
   const headerH = isDetails ? HEADER_H : 0
-  const rowH = tokens.rowHeight
+  // 목록·자세히 모두 템플릿 톤의 여유 행(타일+여백). 그리드는 gridCell 높이를 따로 쓴다.
+  const rowH = isGrid ? tokens.rowHeight : LIST_ROW_H
   const gridCell = isGrid ? gridCellFor(viewMode) : null
 
   // 윈도잉 계산. 그리드는 보기별 셀 폭/높이, 비그리드는 1열·rowHeight.
@@ -860,8 +894,12 @@ function FileRow({
         ? tokens.color.bgSelected
         : tokens.color.bgSelectedInactive
       : 'transparent'
+  // 리스킨: 활성 패널에서 선택된 행에 좌측 accent 강조바(목업 "채움 + 바").
+  const selBar = selected && active ? `inset 3px 0 0 ${tokens.color.accent}` : undefined
   const name = displayName(entry, showExt)
   const dim = entry.attrs.hidden || entry.attrs.system ? 0.55 : 1
+  // 자세히 보기 유형-색(아이콘 타일 + 유형 라벨 공용).
+  const typeColor = fileTypeColor(entry)
 
   // 드래그 소스(이 행에서 시작) + 폴더면 드롭 타겟(그 폴더 안).
   const dragSrc = useDragSource(panelId, panelPath, () => dragSourcesFor(entry))
@@ -920,7 +958,8 @@ function FileRow({
           color: tokens.color.text,
           opacity: dim,
           background: bg,
-          borderRadius: 4,
+          borderRadius: 8,
+          boxShadow: selBar,
           outline: dropHighlight ? `2px solid ${tokens.color.accent}` : undefined,
           outlineOffset: -2,
           cursor: 'default',
@@ -1013,13 +1052,15 @@ function FileRow({
         height,
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '0 8px',
+        gap: 11,
+        padding: '0 11px',
         boxSizing: 'border-box',
-        fontSize: 13,
+        fontSize: 13.5,
         color: tokens.color.text,
         opacity: dim,
         background: bg,
+        borderRadius: 8,
+        boxShadow: selBar,
         outline: dropHighlight ? `2px solid ${tokens.color.accent}` : undefined,
         outlineOffset: -2,
         cursor: 'default',
@@ -1027,17 +1068,21 @@ function FileRow({
         whiteSpace: 'nowrap'
       }}
     >
+      {/* 비-그리드(목록/자세히) 공통(템플릿): 유형-색 둥근 타일 + 라인 폴더/파일 아이콘. */}
       <span
         style={{
           flex: '0 0 auto',
-          width: 16,
-          height: 16,
+          width: 26,
+          height: 26,
+          borderRadius: 8,
           display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          color: typeColor,
+          background: `color-mix(in srgb, ${typeColor} 16%, transparent)`
         }}
       >
-        <OSIcon entry={entry} />
+        {entry.isDir ? <FolderLineIcon size={15} /> : <FileLineIcon size={15} />}
       </span>
       {pinned && (
         <span
@@ -1076,6 +1121,7 @@ function FileRow({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               textAlign: 'right',
+              fontSize: 12,
               color: tokens.color.textMuted,
               fontVariantNumeric: 'tabular-nums'
             }}
@@ -1091,7 +1137,11 @@ function FileRow({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               textAlign: 'right',
-              color: tokens.color.textMuted
+              // 리스킨(템플릿): 유형 라벨을 유형-색으로 강조(폴더=accent·파일=카테고리색).
+              fontSize: 10.5,
+              fontWeight: 600,
+              letterSpacing: '.03em',
+              color: typeColor
             }}
           >
             {entry.isDir ? '폴더' : entry.ext ? entry.ext.toUpperCase() : '파일'}
@@ -1104,6 +1154,7 @@ function FileRow({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               textAlign: 'right',
+              fontSize: 11,
               color: tokens.color.textMuted,
               fontVariantNumeric: 'tabular-nums'
             }}
@@ -1175,8 +1226,8 @@ function ColumnHeader({
         fontSize: 12,
         userSelect: 'none',
         whiteSpace: 'nowrap',
-        // 본문을 가리도록 불투명(헤더/툴바 색) + 하단 강조 구분선.
-        background: tokens.color.bgAlt,
+        // 본문을 가리도록 불투명(살짝 떠 있는 헤더 표면) + 하단 강조 구분선.
+        background: tokens.color.elevated,
         boxShadow: `inset 0 -1px 0 ${tokens.color.borderStrong}`
       }}
     >
@@ -1249,7 +1300,11 @@ function SortLabel({
       }}
     >
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-      {active && <span aria-hidden style={{ flex: '0 0 auto', fontSize: 10 }}>{dir === 'asc' ? '▲' : '▼'}</span>}
+      {active && (
+        <span aria-hidden style={{ flex: '0 0 auto', fontSize: 10, color: tokens.color.accent }}>
+          {dir === 'asc' ? '▲' : '▼'}
+        </span>
+      )}
     </button>
   )
 }

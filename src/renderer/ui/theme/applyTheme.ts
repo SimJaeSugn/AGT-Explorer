@@ -16,7 +16,7 @@ import { paletteFor } from './palette'
  * 해석된 실제 테마(I장 §6.3). 'bluelight' 는 light 폴백이 아닌 **독립 resolved**다.
  * data-theme 속성·팔레트 분기 키로 쓰인다.
  */
-export type ResolvedTheme = 'light' | 'dark' | 'bluelight'
+export type ResolvedTheme = 'light' | 'dark' | 'bluelight' | 'agt-dark'
 
 /**
  * ThemeMode 를 실제 테마로 해석(순수). system 은 prefersDark 로 결정.
@@ -24,7 +24,7 @@ export type ResolvedTheme = 'light' | 'dark' | 'bluelight'
  */
 export function resolveTheme(mode: ThemeMode, prefersDark: boolean): ResolvedTheme {
   if (mode === 'system') return prefersDark ? 'dark' : 'light'
-  return mode // 'light' | 'dark' | 'bluelight'
+  return mode // 'light' | 'dark' | 'bluelight' | 'agt-dark'
 }
 
 /** 현재 OS 가 다크를 선호하는지(미디어쿼리). 헤드리스/미지원 시 false. */
@@ -42,8 +42,8 @@ function injectPalette(resolved: ResolvedTheme): void {
     root.style.setProperty(name, value)
   }
   root.setAttribute('data-theme', resolved)
-  // bluelight 는 밝은 크림 톤 → colorScheme 은 light 로 취급(폼 컨트롤·스크롤바 대비).
-  root.style.colorScheme = resolved === 'dark' ? 'dark' : 'light'
+  // bluelight 는 밝은 크림 톤 → colorScheme 은 light. dark/agt-dark 는 dark(폼 컨트롤·스크롤바 대비).
+  root.style.colorScheme = resolved === 'dark' || resolved === 'agt-dark' ? 'dark' : 'light'
 }
 
 let mql: MediaQueryList | null = null

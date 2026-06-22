@@ -206,6 +206,7 @@ function LayoutCategory(): JSX.Element {
           <option value="dark">다크</option>
           <option value="system">시스템</option>
           <option value="bluelight">블루라이트(청색광 차단)</option>
+          <option value="agt-dark">AGT 다크(그린)</option>
         </select>
       </div>
 

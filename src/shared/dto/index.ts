@@ -283,8 +283,11 @@ export type SortDir = 'asc' | 'desc'
  * 구버전/미지 값은 coerce 가 'details' 로 폴백한다(defaults.ts VIEW_MODES).
  */
 export type ViewMode = 'icons-large' | 'icons-medium' | 'icons-small' | 'list' | 'details'
-/** 테마 모드. 'bluelight' = 블루라이트 차단(저청색광 크림 톤, I장). */
-export type ThemeMode = 'light' | 'dark' | 'system' | 'bluelight'
+/**
+ * 테마 모드. 'bluelight' = 블루라이트 차단(저청색광 크림 톤, I장).
+ * 'agt-dark' = AGT 다크(그린) — 근접-블랙+그린 accent 리스킨.
+ */
+export type ThemeMode = 'light' | 'dark' | 'system' | 'bluelight' | 'agt-dark'
 
 /** 패널 1개의 직렬화 상태(SA §5.1). 선택·스트림 상태는 휘발 → 제외. */
 export interface PanelSnapshot {

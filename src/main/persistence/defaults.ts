@@ -33,7 +33,8 @@ const THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>([
   'light',
   'dark',
   'system',
-  'bluelight'
+  'bluelight',
+  'agt-dark'
 ])
 const SORT_KEYS: ReadonlySet<SortKey> = new Set<SortKey>(['name', 'size', 'ext', 'mtime'])
 const SORT_DIRS: ReadonlySet<SortDir> = new Set<SortDir>(['asc', 'desc'])

@@ -13,7 +13,19 @@ import { execCommand } from '@renderer/app/usecases/commandBus'
 import { baseName, MY_PC_LABEL } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { tokens } from '@renderer/ui/theme/tokens'
-import { DriveGlyph, FolderGlyph } from '@renderer/ui/icons/glyphs'
+import { FolderGlyph } from '@renderer/ui/icons/glyphs'
+import {
+  StarIcon,
+  MonitorIcon,
+  DownloadIcon,
+  ClockIcon,
+  HardDriveIcon,
+  GlobeIcon,
+  TrashIcon,
+  SparklesIcon,
+  ChevronRightIcon,
+  ChevronDownIcon
+} from '@renderer/ui/icons/lucide'
 import { SplitDivider } from '@renderer/ui/layout/SplitDivider'
 import {
   beginFavoriteReorder,
@@ -24,12 +36,29 @@ import {
 } from '@renderer/ui/sidebar/useFavoriteReorder'
 
 const sectionHeader: React.CSSProperties = {
-  padding: '6px 8px 2px',
+  padding: '12px 9px 7px',
   fontWeight: 600,
+  letterSpacing: '.09em',
   color: tokens.color.textMuted,
   fontSize: 11,
   display: 'flex',
   alignItems: 'center'
+}
+
+/** 사이드바 항목 행 공통 스타일(둥근 9px·SVG 아이콘·선택 시 좌측 accent 바). */
+function navRowStyle(selected: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 11,
+    height: 36,
+    padding: '0 11px',
+    borderRadius: 9,
+    cursor: 'pointer',
+    color: selected ? tokens.color.text : tokens.color.textMuted,
+    background: selected ? tokens.color.bgSelected : 'transparent',
+    boxShadow: selected ? `inset 2px 0 0 ${tokens.color.accent}` : undefined
+  }
 }
 
 interface SidebarProps {
@@ -172,10 +201,10 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
             <div aria-label="빠른 위치">
               <div style={sectionHeader}>빠른 위치</div>
               {knownFolders.desktop && (
-                <QuickFolderNode icon="🖳" label="바탕화면" path={knownFolders.desktop} />
+                <QuickFolderNode icon={<MonitorIcon size={15} />} label="바탕화면" path={knownFolders.desktop} />
               )}
               {knownFolders.downloads && (
-                <QuickFolderNode icon="⬇️" label="다운로드" path={knownFolders.downloads} />
+                <QuickFolderNode icon={<DownloadIcon size={15} />} label="다운로드" path={knownFolders.downloads} />
               )}
             </div>
           )}
@@ -243,41 +272,20 @@ function RemoteSection(): JSX.Element {
               if (pid) s.navigate(pid, rootUri, true)
             }}
             title={`${sess.profile.protocol}://${sess.profile.username}@${sess.profile.host}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '3px 8px',
-              cursor: 'pointer',
-              fontSize: 12,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
+            style={navRowStyle(false)}
           >
-            <span style={{ width: 14 }} />
-            <span>{sess.encrypted ? '🔒' : '⚠'}</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ flex: '0 0 auto', display: 'inline-flex' }}>{sess.encrypted ? '🔒' : '⚠'}</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
               {sess.profile.name || sess.profile.host}
             </span>
           </div>
         )
       })}
-      <div
-        onClick={() => execCommand('remote.open')}
-        title="원격 서버 연결(FTP/SFTP)"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '3px 8px',
-          cursor: 'pointer',
-          color: tokens.color.textMuted
-        }}
-      >
-        <span style={{ width: 14 }} />
-        <span>🌐</span>
-        <span>연결…</span>
+      <div onClick={() => execCommand('remote.open')} title="원격 서버 연결(FTP/SFTP)" style={navRowStyle(false)}>
+        <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GlobeIcon size={15} />
+        </span>
+        <span style={{ fontSize: 13 }}>연결…</span>
       </div>
     </div>
   )
@@ -290,18 +298,12 @@ function TrashNode(): JSX.Element {
     <div
       onClick={() => execCommand('trash.open')}
       title="휴지통 관리"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        background: open ? tokens.color.bgSelected : 'transparent'
-      }}
+      style={navRowStyle(open)}
     >
-      <span style={{ width: 14 }} />
-      <span>🗑</span>
-      <span>휴지통</span>
+      <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <TrashIcon size={15} />
+      </span>
+      <span style={{ fontSize: 13 }}>휴지통</span>
     </div>
   )
 }
@@ -313,18 +315,12 @@ function AgentNode(): JSX.Element {
     <div
       onClick={() => execCommand('agent.ask')}
       title="에이전트에게 묻기(읽기 전용·Ctrl+Shift+A)"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        background: open ? tokens.color.bgSelected : 'transparent'
-      }}
+      style={navRowStyle(open)}
     >
-      <span style={{ width: 14 }} />
-      <span>✨</span>
-      <span>에이전트에게 묻기</span>
+      <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: tokens.color.accent }}>
+        <SparklesIcon size={15} />
+      </span>
+      <span style={{ fontSize: 13 }}>에이전트에게 묻기</span>
     </div>
   )
 }
@@ -354,7 +350,7 @@ function FavoritesSection({ favorites }: { favorites: string[] }): JSX.Element {
   const reorder = useFavoriteReorder()
   return (
     <div aria-label="즐겨찾기">
-      <div style={sectionHeader}>★ 즐겨찾기</div>
+      <div style={sectionHeader}>즐겨찾기</div>
       <div role="listbox" aria-label="즐겨찾기 목록" aria-orientation="vertical">
         {favorites.map((p, i) => (
           <FavoriteRow
@@ -472,7 +468,11 @@ function FavoriteRow({
     >
       {showLineBefore && <DropLine />}
       <PinnedRow
-        icon="📂"
+        icon={
+          <span style={{ display: 'inline-flex', color: selected ? tokens.color.accent : tokens.color.textMuted }}>
+            <StarIcon filled={selected} size={14} />
+          </span>
+        }
         label={display}
         fullPath={path}
         selected={selected}
@@ -577,7 +577,7 @@ function RecentRow({ path }: { path: string }): JSX.Element {
   const label = useRootStore((s) => resolveDriveLabel(path, s.tree, baseName(path)))
   return (
     <PinnedRow
-      icon="🕘"
+      icon={<ClockIcon size={14} />}
       label={label}
       fullPath={path}
       selected={selected}
@@ -589,7 +589,7 @@ function RecentRow({ path }: { path: string }): JSX.Element {
 }
 
 interface PinnedRowProps {
-  icon: string
+  icon: React.ReactNode
   label: string
   fullPath: string
   selected: boolean
@@ -629,17 +629,12 @@ function PinnedRow({
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       title={fullPath}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        background: selected ? tokens.color.bgSelected : 'transparent'
-      }}
+      style={navRowStyle(selected)}
     >
-      <span style={{ width: 14, textAlign: 'center' }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
         {label}
       </span>
       {onRename && (
@@ -676,7 +671,7 @@ function QuickFolderNode({
   label,
   path
 }: {
-  icon: string
+  icon: React.ReactNode
   label: string
   path: string
 }): JSX.Element {
@@ -684,20 +679,11 @@ function QuickFolderNode({
   const activePath = useActivePanelPath()
   const selected = activePath === path
   return (
-    <div
-      onClick={() => navigateActive(path)}
-      title={path}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        background: selected ? tokens.color.bgSelected : 'transparent'
-      }}
-    >
-      <span style={{ width: 14, textAlign: 'center' }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+    <div onClick={() => navigateActive(path)} title={path} style={navRowStyle(selected)}>
+      <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
         {label}
       </span>
     </div>
@@ -709,20 +695,11 @@ function MyPcNode(): JSX.Element {
   const activePath = useActivePanelPath()
   const selected = activePath === ''
   return (
-    <div
-      onClick={() => navigateActive('')}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        background: selected ? tokens.color.bgSelected : 'transparent'
-      }}
-    >
-      <span style={{ width: 14 }} />
-      <span>🖥️</span>
-      <span>{MY_PC_LABEL}</span>
+    <div onClick={() => navigateActive('')} style={navRowStyle(selected)}>
+      <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <MonitorIcon size={15} />
+      </span>
+      <span style={{ fontSize: 13 }}>{MY_PC_LABEL}</span>
     </div>
   )
 }
@@ -743,11 +720,15 @@ function TreeNodeView({ path, depth }: { path: string; depth: number }): JSX.Ele
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 4,
-          padding: '3px 8px',
+          gap: 8,
+          height: 34,
+          paddingRight: 11,
           paddingLeft: 8 + depth * 12,
+          borderRadius: 9,
           cursor: 'pointer',
-          background: selected ? tokens.color.bgSelected : 'transparent'
+          color: selected ? tokens.color.text : tokens.color.textMuted,
+          background: selected ? tokens.color.bgSelected : 'transparent',
+          boxShadow: selected ? `inset 2px 0 0 ${tokens.color.accent}` : undefined
         }}
       >
         <span
@@ -755,13 +736,17 @@ function TreeNodeView({ path, depth }: { path: string; depth: number }): JSX.Ele
             e.stopPropagation()
             toggle(node.path)
           }}
-          style={{ width: 14, display: 'inline-flex', justifyContent: 'center', color: tokens.color.textMuted }}
+          style={{ width: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: tokens.color.textMuted }}
         >
-          {hasChevron ? (node.loading ? '…' : node.expanded ? '▾' : '▸') : ''}
+          {hasChevron ? (
+            node.loading ? '…' : node.expanded ? <ChevronDownIcon size={11} stroke={2.4} /> : <ChevronRightIcon size={11} stroke={2.4} />
+          ) : (
+            ''
+          )}
         </span>
         <span onClick={() => navigateActive(node.path)} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
           <span style={{ display: 'inline-flex', flex: '0 0 auto' }}>
-            {node.kind === 'drive' ? <DriveGlyph size={15} /> : <FolderGlyph size={15} />}
+            {node.kind === 'drive' ? <HardDriveIcon size={15} /> : <FolderGlyph size={15} />}
           </span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label}

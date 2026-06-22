@@ -64,6 +64,22 @@ function opLabel(kind: string): string {
   }
 }
 
+/** 항목 사이 작은 점 구분자(목업 상태바 톤). */
+function Dot(): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      style={{
+        flex: 'none',
+        width: 3,
+        height: 3,
+        borderRadius: '50%',
+        background: tokens.color.borderStrong
+      }}
+    />
+  )
+}
+
 export function StatusBar(): JSX.Element {
   const info = useRootStore((s) => {
     const tab = s.tabs[s.activeTabId]
@@ -134,13 +150,13 @@ export function StatusBar(): JSX.Element {
   return (
     <div
       style={{
-        height: 24,
+        height: 28,
         display: 'flex',
         alignItems: 'center',
-        gap: 16,
-        padding: '0 10px',
+        gap: 11,
+        padding: '0 14px',
         borderTop: `1px solid ${tokens.color.border}`,
-        background: tokens.color.bgAlt,
+        background: tokens.color.chrome,
         fontSize: 12,
         color: tokens.color.textMuted,
         whiteSpace: 'nowrap',
@@ -152,14 +168,15 @@ export function StatusBar(): JSX.Element {
       {info ? (
         <>
           {info.filterActive ? (
-            <span>
+            <span style={{ color: tokens.color.text }}>
               필터 결과 {info.filterMatched}/{info.filterTotal}개
             </span>
           ) : (
-            <span>
+            <span style={{ color: tokens.color.text }}>
               {info.total}개 항목{info.streaming ? ' (로딩 중)' : ''}
             </span>
           )}
+          {info.selCount > 0 && <Dot />}
           {info.selCount > 0 && (
             <span>
               {info.selCount}개 선택{info.selSize > 0 ? ` · ${formatBytes(info.selSize)}` : ''}
@@ -192,13 +209,23 @@ export function StatusBar(): JSX.Element {
               ⇅ {queueActiveCount}개 작업 진행 중
             </button>
           )}
-          <span style={{ marginLeft: 'auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span
+            style={{
+              marginLeft: 'auto',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+              fontSize: 11.5,
+              color: tokens.color.textMuted
+            }}
+          >
             {info.path}
           </span>
         </>
       ) : (
         <span>준비됨</span>
       )}
+      {currentWorkspace && <Dot />}
       {currentWorkspace && (
         <button
           type="button"
@@ -219,8 +246,18 @@ export function StatusBar(): JSX.Element {
             gap: 4
           }}
         >
+          <span
+            aria-hidden
+            style={{
+              flex: 'none',
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: wsView.color
+            }}
+          />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>
-            🗂 {currentWorkspace}
+            {currentWorkspace}
           </span>
           <span style={{ color: wsView.color }}>· {wsView.label}</span>
         </button>

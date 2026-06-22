@@ -22,7 +22,15 @@ export const tokens = {
     textMuted: 'var(--c-text-muted)',
     accent: 'var(--c-accent)',
     accentBorder: 'var(--c-accent-border)',
+    /** accent 채움(버튼·배지) 위에 얹는 글자/아이콘 대비색(accent 가 밝으면 어둡게). */
+    accentContrast: 'var(--c-accent-contrast)',
     danger: 'var(--c-danger)',
+    /** 상/하단 크롬 바(탭바·아이콘바·패널 툴바·상태바) 표면색. */
+    chrome: 'var(--c-chrome)',
+    /** 살짝 떠 있는 표면(입력칸·필 그룹·열 헤더·검색창). */
+    elevated: 'var(--c-elevated)',
+    /** 패널/카드 본문 표면색(파일 영역 카드 배경). */
+    surface: 'var(--c-surface)',
     folder: 'var(--c-folder)',
     file: 'var(--c-file)',
     /** 검색어 하이라이트 배경(P5). */
@@ -42,7 +50,11 @@ export const tokens = {
     medium: { w: 104, h: 96, icon: 48 },
     small: { w: 80, h: 72, icon: 32 }
   },
-  font: 'system-ui, "Segoe UI", sans-serif'
+  /**
+   * 본문 폰트 — Pretendard 가변 폰트(main.tsx 에서 @font-face 번들 로드) 우선,
+   * 미로드/폴백 시 system-ui 체인. 모든 테마 공통(폰트는 테마 불변).
+   */
+  font: '"Pretendard Variable", Pretendard, system-ui, "Segoe UI", sans-serif'
 } as const
 
 /** ViewMode(icons-*) → 그리드 셀 크기. 비그리드는 호출 안 함. */

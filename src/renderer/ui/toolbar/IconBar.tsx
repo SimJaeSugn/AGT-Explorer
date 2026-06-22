@@ -18,14 +18,15 @@ import { execCommand } from '@renderer/app/usecases/commandBus'
 import { reorderIconBar } from '@renderer/app/usecases/settings'
 import { syncSystemClipboardState } from '@renderer/app/usecases/clipboardExternal'
 import { tokens } from '@renderer/ui/theme/tokens'
+import { Icon } from '@renderer/ui/icons/lucide'
 import { iconBarItemTitle, resolveIconBarItems, type IconBarItem } from './iconBarItems'
 
 const btnStyle: React.CSSProperties = {
-  border: `1px solid ${tokens.color.border}`,
-  background: tokens.color.bg,
-  borderRadius: 4,
-  width: 28,
-  height: 26,
+  border: '1px solid transparent',
+  background: 'transparent',
+  borderRadius: 8,
+  width: 32,
+  height: 28,
   cursor: 'pointer',
   fontSize: 14,
   color: tokens.color.text,
@@ -62,13 +63,6 @@ function IconButton({
   // 각 버튼이 자신의 enabled/active 만 구독(셀렉터 격리).
   const enabled = useRootStore((s) => (item.enabled ? item.enabled(s) : true))
   const active = useRootStore((s) => (item.active ? item.active(s) : false))
-  // 테마 토글 버튼은 현재 resolved 테마 글리프(☀/🌙)를 표시.
-  const theme = useRootStore((s) => s.theme)
-
-  let icon = item.icon
-  if (item.id === 'theme.toggle') {
-    icon = resolvedThemeGlyph(theme)
-  }
 
   const isToggle = item.active !== undefined
   const title = iconBarItemTitle(item)
@@ -104,23 +98,18 @@ function IconButton({
         ...btnStyle,
         opacity: isDragging ? 0.4 : enabled ? 1 : 0.4,
         cursor: enabled ? 'grab' : 'default',
-        background: active ? tokens.color.bgSelected : tokens.color.bg,
-        borderColor: active ? tokens.color.accentBorder : tokens.color.border,
+        // 활성(토글 켜짐)= accent 채움 + 대비 글리프(목업 선택 타일). 비활성= 고스트(투명).
+        background: active ? tokens.color.accent : 'transparent',
+        color: active ? tokens.color.accentContrast : tokens.color.text,
+        borderColor: 'transparent',
         // 드롭 삽입 위치 표시: 대상 버튼 왼쪽에 강조 경계.
         boxShadow: showInsert ? `-2px 0 0 0 ${tokens.color.accent}` : undefined
       }}
     >
-      {icon}
+      {/* 아이콘 팩 SVG(item.icon = 팩 아이콘 이름). 테마 토글은 'theme' 글리프 고정. */}
+      <Icon name={item.id === 'theme.toggle' ? 'theme' : item.icon} size={16} />
     </button>
   )
-}
-
-/** 현재 테마 설정에서 토글 버튼에 보일 글리프(라이트=☀ → 다크로 전환, 다크=🌙). */
-function resolvedThemeGlyph(theme: string): string {
-  // light 면 "다크로 전환" 의미로 🌙, dark 면 ☀. system 은 ◐(중립).
-  if (theme === 'dark') return '☀'
-  if (theme === 'light') return '🌙'
-  return '◐'
 }
 
 const separatorStyle: React.CSSProperties = {
@@ -172,10 +161,10 @@ export function IconBar(): JSX.Element {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 4,
-        padding: '4px 8px',
+        gap: 3,
+        padding: '6px 10px',
         borderBottom: `1px solid ${tokens.color.border}`,
-        background: tokens.color.bgAlt,
+        background: tokens.color.chrome,
         flexWrap: 'wrap'
       }}
       // 목록 끝(빈 영역) 드롭: 맨 뒤로 이동.

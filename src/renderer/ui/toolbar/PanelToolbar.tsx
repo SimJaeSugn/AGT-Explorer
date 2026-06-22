@@ -16,6 +16,14 @@ import { isRemotePath, locationKindOf, makeRemotePath, parseRemotePath } from '@
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
 import { BreadcrumbDropdown } from '@renderer/ui/toolbar/BreadcrumbDropdown'
 import { tokens } from '@renderer/ui/theme/tokens'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
+  RefreshIcon,
+  HomeIcon,
+  StarIcon
+} from '@renderer/ui/icons/lucide'
 
 interface Props {
   readonly panelId: string
@@ -27,14 +35,15 @@ interface Props {
 }
 
 const btnStyle: React.CSSProperties = {
-  border: `1px solid ${tokens.color.border}`,
-  background: tokens.color.bg,
-  borderRadius: 4,
-  width: 26,
-  height: 24,
+  border: 'none',
+  background: 'transparent',
+  borderRadius: 7,
+  width: 27,
+  height: 27,
   cursor: 'pointer',
   fontSize: 13,
-  color: tokens.color.text,
+  color: tokens.color.textMuted,
+  flex: 'none',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center'
@@ -128,9 +137,9 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 6px',
+        padding: '6px 8px',
         borderBottom: `1px solid ${tokens.color.border}`,
-        background: tokens.color.bgAlt
+        background: tokens.color.chrome
       }}
     >
       {showNumber && (
@@ -140,19 +149,18 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
           aria-label={`패널 ${panelNumber}`}
           style={{
             flex: '0 0 auto',
-            minWidth: 18,
-            height: 18,
-            padding: '0 5px',
+            width: 22,
+            height: 22,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 9,
-            fontSize: 11,
-            fontWeight: 600,
+            borderRadius: 7,
+            fontSize: 12,
+            fontWeight: 700,
             userSelect: 'none',
-            color: active ? tokens.color.bg : tokens.color.textMuted,
-            background: active ? tokens.color.accentBorder : tokens.color.bg,
-            border: `1px solid ${active ? tokens.color.accentBorder : tokens.color.border}`
+            color: active ? tokens.color.accentContrast : tokens.color.textMuted,
+            background: active ? tokens.color.accent : tokens.color.elevated,
+            border: `1px solid ${active ? tokens.color.accent : tokens.color.border}`
           }}
         >
           {panelNumber}
@@ -165,7 +173,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         title="뒤로 (Alt+←)"
         aria-label="뒤로"
       >
-        ←
+        <ArrowLeftIcon size={15} />
       </button>
       <button
         style={{ ...btnStyle, opacity: nav && nav.forward.length ? 1 : 0.4 }}
@@ -174,7 +182,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         title="앞으로 (Alt+→)"
         aria-label="앞으로"
       >
-        →
+        <ArrowRightIcon size={15} />
       </button>
       <button
         style={btnStyle}
@@ -182,10 +190,10 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         title="위로 (Alt+↑ / Backspace)"
         aria-label="위로"
       >
-        ↑
+        <ArrowUpIcon size={15} />
       </button>
       <button style={btnStyle} onClick={() => refresh(panelId)} title="새로고침 (Ctrl+R)" aria-label="새로고침">
-        ⟳
+        <RefreshIcon size={14} />
       </button>
       {lockedRoot && (
         <button
@@ -197,18 +205,18 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
           title={`잠긴 루트로 이동 (${lockedRoot})`}
           aria-label="잠긴 루트로 이동"
         >
-          🏠
+          <HomeIcon size={15} />
         </button>
       )}
       <button
-        style={{ ...btnStyle, opacity: path === '' ? 0.4 : 1, color: isFav ? tokens.color.folder : tokens.color.text }}
+        style={{ ...btnStyle, opacity: path === '' ? 0.4 : 1, color: isFav ? tokens.color.folder : tokens.color.textMuted }}
         disabled={path === ''}
         onClick={() => toggleFavorite(path)}
         title={isFav ? '즐겨찾기 제거' : '즐겨찾기에 추가'}
         aria-label={isFav ? '즐겨찾기 제거' : '즐겨찾기에 추가'}
         aria-pressed={isFav}
       >
-        {isFav ? '★' : '☆'}
+        <StarIcon size={15} filled={isFav} />
       </button>
 
       {/* 주소 표시줄 */}
@@ -289,11 +297,11 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
               alignItems: 'center',
               flexWrap: 'nowrap',
               overflow: 'hidden',
-              height: 24,
+              height: 28,
               border: `1px solid ${tokens.color.border}`,
-              borderRadius: 4,
-              padding: '0 6px',
-              background: tokens.color.bg,
+              borderRadius: 8,
+              padding: '0 10px',
+              background: tokens.color.elevated,
               fontSize: 13
             }}
           >
@@ -356,11 +364,12 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         title="보기"
         aria-label="보기"
         style={{
-          height: 24,
+          height: 28,
           border: `1px solid ${tokens.color.border}`,
-          borderRadius: 4,
+          borderRadius: 8,
+          padding: '0 6px',
           fontSize: 12,
-          background: tokens.color.bg,
+          background: tokens.color.elevated,
           color: tokens.color.text
         }}
       >

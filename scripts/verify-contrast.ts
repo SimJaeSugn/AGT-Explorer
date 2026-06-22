@@ -15,6 +15,7 @@ import {
   LIGHT_PALETTE,
   DARK_PALETTE,
   BLUELIGHT_PALETTE,
+  AGT_PALETTE,
   type Palette
 } from '../src/renderer/ui/theme/palette'
 
@@ -72,11 +73,24 @@ interface Check {
   readonly info?: boolean
 }
 
-/** 토큰명(`--c-*`) 또는 리터럴 `#hex` 를 색값으로 해석. */
+/** "rgba(r,g,b,a)" 를 불투명 배경 hex 위에 합성해 hex 로 환산(대비 측정용). */
+function compositeRgbaOverHex(rgba: string, bgHex: string): string {
+  const m = rgba.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/)
+  if (!m) throw new Error(`rgba 파싱 실패: ${rgba}`)
+  const sr = Number(m[1]), sg = Number(m[2]), sb = Number(m[3])
+  const a = m[4] === undefined ? 1 : Number(m[4])
+  const [dr, dg, db] = hexToRgb(bgHex)
+  const mix = (s: number, d: number): number => Math.round(s * a + d * (1 - a))
+  const toHex = (n: number): string => n.toString(16).padStart(2, '0')
+  return `#${toHex(mix(sr, dr))}${toHex(mix(sg, dg))}${toHex(mix(sb, db))}`
+}
+
+/** 토큰명(`--c-*`) 또는 리터럴 `#hex` 를 색값으로 해석. rgba 토큰은 --c-bg 위에 합성. */
 function resolve(p: Palette, token: string): string {
   if (token.startsWith('#')) return token
   const v = p[token]
   if (!v) throw new Error(`팔레트에 토큰 없음: ${token}`)
+  if (v.startsWith('rgba') || v.startsWith('rgb(')) return compositeRgbaOverHex(v, p['--c-bg'])
   return v
 }
 
@@ -111,15 +125,17 @@ const CHECKS: Check[] = [
     min: AA_LARGE,
     info: true
   },
-  // 버튼 흰 글자 on accent/danger(primary/danger 버튼) — 큰/굵은 글자 3:1.
-  { label: 'white on accent (button)', fg: '#ffffff', bg: '--c-accent', min: AA_LARGE },
+  // primary 버튼 글자(accent 채움 위 대비색 — dialogStyles.btn 가 --c-accent-contrast 사용) 3:1.
+  { label: 'accent-contrast on accent (button)', fg: '--c-accent-contrast', bg: '--c-accent', min: AA_LARGE },
+  // danger 버튼은 흰 글자(dialogStyles 리터럴 #fff) — 큰/굵은 글자 3:1.
   { label: 'white on danger (button)', fg: '#ffffff', bg: '--c-danger', min: AA_LARGE }
 ]
 
 const PALETTES: ReadonlyArray<{ name: string; palette: Palette }> = [
   { name: 'LIGHT (= system light)', palette: LIGHT_PALETTE },
   { name: 'DARK (= system dark)', palette: DARK_PALETTE },
-  { name: 'BLUELIGHT', palette: BLUELIGHT_PALETTE }
+  { name: 'BLUELIGHT', palette: BLUELIGHT_PALETTE },
+  { name: 'AGT-DARK (그린)', palette: AGT_PALETTE }
 ]
 
 function main(): void {
