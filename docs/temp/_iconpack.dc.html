@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="efb2fe92-1531-4b16-a5b9-534a89c97b0c"></script>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>/*
+Copyright (c) 2021 Kil Hyung-jin, with Reserved Font Name Pretendard.
+https://github.com/orioncactus/pretendard
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+*/
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 900;
+	font-display: swap;
+	src: local('Pretendard Black'), url("a9ff1500-25c6-436c-b84b-ae7b8bf20790") format('woff2'), url("f3edd48a-4d85-4753-8052-e50f7aa6f0b3") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 800;
+	font-display: swap;
+	src: local('Pretendard ExtraBold'), url("a615372c-58b4-47c0-be81-bd73f55e31cb") format('woff2'), url("4037ec40-de06-47b3-999d-55fde549a113") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 700;
+	font-display: swap;
+	src: local('Pretendard Bold'), url("c4a98b9f-74a5-4e86-9cd0-95549f93f3a3") format('woff2'), url("4ba69281-1c0f-41d2-9071-43d8ddfc7db5") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 600;
+	font-display: swap;
+	src: local('Pretendard SemiBold'), url("9048a289-26b1-4056-8621-5f5a65aaf58a") format('woff2'), url("65a0aa9d-fa81-41bf-9ccb-8fb3af2c9fc3") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 500;
+	font-display: swap;
+	src: local('Pretendard Medium'), url("8edbb5a1-fabf-4363-b8fd-dd2224a44473") format('woff2'), url("eab57421-b9ab-4ffd-af2b-94da5c8b9946") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 400;
+	font-display: swap;
+	src: local('Pretendard Regular'), url("e5c0334f-dbff-4d9e-8fb0-6186051b04c8") format('woff2'), url("b5e453a6-14d4-4b0d-add9-d5597ce6936c") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 300;
+	font-display: swap;
+	src: local('Pretendard Light'), url("161a945d-adbf-4e34-a1aa-1f3368f06035") format('woff2'), url("67e90b08-855e-492a-8381-4863c9c6ac3a") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 200;
+	font-display: swap;
+	src: local('Pretendard ExtraLight'), url("a1ad22ee-594c-456f-a510-86332a55266e") format('woff2'), url("9d59e530-e54e-48aa-a71c-b71cd5b729f2") format('woff');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 100;
+	font-display: swap;
+	src: local('Pretendard Thin'), url("84b98172-deab-4f38-864e-511b982517aa") format('woff2'), url("a520e5e8-908f-40ad-9098-8395dd5dd978") format('woff');
+}
+</style>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0e1115; }
+  *::-webkit-scrollbar { width: 11px; }
+  *::-webkit-scrollbar-thumb { background: #2a313b; border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  ::selection { background: rgba(62,207,142,0.28); }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:radial-gradient(900px 500px at 18% -8%, rgba(62,207,142,0.06), transparent 60%), #0e1115; color:#e7eaee; font-family:'Pretendard', system-ui, sans-serif; padding:40px 44px 72px;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:38px; padding-bottom:24px; border-bottom:1px solid #1c2129;">
+    <div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="font-size:11px; font-weight:700; letter-spacing:.22em; color:#3ecf8e;">FINDER</span>
+        <span style="width:5px; height:5px; border-radius:50%; background:#2a313b;"></span>
+        <span style="font-size:11px; letter-spacing:.06em; color:#5f6772;">ICON SYSTEM</span>
+      </div>
+      <h1 style="margin:0; font-size:27px; font-weight:800; letter-spacing:-.01em; color:#f3f5f7;">파일 탐색기 아이콘 세트</h1>
+      <p style="margin:9px 0 0; font-size:13.5px; color:#7e858f;">파일 유형 · 디렉토리 유형 · 기능 — 모노라인 24px 그리드, 차콜 다크 / 에메랄드 액센트</p>
+    </div>
+    <div style="display:flex; gap:9px;">
+      <sc-for list="{{ legend }}" as="g" hint-placeholder-count="4">
+        <div style="display:flex; align-items:center; gap:7px; padding:7px 11px; background:#13171c; border:1px solid #20262e; border-radius:9px;">
+          <span style="width:9px; height:9px; border-radius:3px; background:{{ g.color }};"></span>
+          <span style="font-size:11px; color:#9aa1ab;">{{ g.label }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ============ FILE TYPES ============ -->
+  <div style="margin-bottom:14px; display:flex; align-items:baseline; gap:11px;">
+    <span style="font-size:14px; font-weight:700; color:#eef1f4;">파일 유형</span>
+    <span style="font-size:11.5px; color:#5f6772; letter-spacing:.02em;">File types · 18</span>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(128px,1fr)); gap:12px; margin-bottom:44px;">
+    <sc-for list="{{ fileTypes }}" as="f" hint-placeholder-count="22">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#5d646e; cursor:default; transition:none;" style-hover="background:#181d24; border-color:#2f6b52; color:#86c9a8;">
+        <div style="position:relative; width:58px; height:58px;">
+          <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+            <path d="M6 2.6 H14 L19.4 8 V19.4 A1.6 1.6 0 0 1 17.8 21 H6.2 A1.6 1.6 0 0 1 4.6 19.4 V4.2 A1.6 1.6 0 0 1 6.2 2.6 Z"></path>
+            <path d="M13.9 2.6 V8.1 H19.4"></path>
+          </svg>
+          <div data-glyph="{{ f.glyph }}" data-gcolor="{{ f.color }}" style="position:absolute; left:0; right:0; top:13px; height:34px; display:flex; align-items:center; justify-content:center; pointer-events:none;"></div>
+          <span style="position:absolute; left:0; right:0; bottom:8px; text-align:center; font-size:8.5px; font-weight:800; letter-spacing:.02em; color:{{ f.color }}; pointer-events:none;">{{ f.ext }}</span>
+        </div>
+        <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size:12.5px; color:#8a93a0;">{{ f.label }}</span>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- ============ DEV LANGUAGES ============ -->
+  <div style="margin-bottom:14px; display:flex; align-items:baseline; gap:11px;">
+    <span style="font-size:14px; font-weight:700; color:#eef1f4;">개발 언어</span>
+    <span style="font-size:11.5px; color:#5f6772; letter-spacing:.02em;">Languages · 22</span>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(128px,1fr)); gap:12px; margin-bottom:44px;">
+    <sc-for list="{{ langTypes }}" as="f" hint-placeholder-count="22">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#5d646e; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#86c9a8;">
+        <div style="position:relative; width:58px; height:58px;">
+          <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+            <path d="M6 2.6 H14 L19.4 8 V19.4 A1.6 1.6 0 0 1 17.8 21 H6.2 A1.6 1.6 0 0 1 4.6 19.4 V4.2 A1.6 1.6 0 0 1 6.2 2.6 Z"></path>
+            <path d="M13.9 2.6 V8.1 H19.4"></path>
+          </svg>
+          <div data-glyph="{{ f.glyph }}" data-gcolor="{{ f.color }}" style="position:absolute; left:0; right:0; top:13px; height:34px; display:flex; align-items:center; justify-content:center; pointer-events:none;"></div>
+          <span style="position:absolute; left:0; right:0; bottom:8px; text-align:center; font-size:8.5px; font-weight:800; letter-spacing:-.2px; color:{{ f.color }}; pointer-events:none;">{{ f.ext }}</span>
+        </div>
+        <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size:12.5px; color:#8a93a0;">{{ f.label }}</span>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- ============ DIRECTORY TYPES ============ -->
+  <div style="margin-bottom:14px; display:flex; align-items:baseline; gap:11px;">
+    <span style="font-size:14px; font-weight:700; color:#eef1f4;">디렉토리 유형</span>
+    <span style="font-size:11.5px; color:#5f6772; letter-spacing:.02em;">Directories · 14</span>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(128px,1fr)); gap:12px; margin-bottom:44px;">
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">폴더</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9.5 15.5v-2.2l2.5-2 2.5 2v2.2z"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">루트 / 드라이브</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><line x1="12" y1="10.5" x2="12" y2="15.6"></line><polyline points="9.6 13.2 12 15.6 14.4 13.2"></polyline></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">다운로드</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><line x1="9.6" y1="12.2" x2="14.4" y2="12.2"></line><line x1="9.6" y1="15" x2="14.4" y2="15"></line></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">문서</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><rect x="9" y="10.6" width="6" height="5" rx="1"></rect><circle cx="10.7" cy="12.3" r="0.7"></circle><path d="M9.2 15.2l1.9-1.7 1.2 1 1.1-0.9 1.6 1.4"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">사진</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M11 16.4V11.2l3-0.8v4.6"></path><circle cx="10.1" cy="16.4" r="1"></circle><circle cx="13.1" cy="14.6" r="1"></circle></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">음악</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polygon points="10.6 11 15 13.5 10.6 16"></polygon></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">동영상</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="10.4 11.6 8.4 13.5 10.4 15.4"></polyline><polyline points="13.6 11.6 15.6 13.5 13.6 15.4"></polyline></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">프로젝트</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><circle cx="10" cy="12" r="1.1"></circle><circle cx="10" cy="15.6" r="1.1"></circle><circle cx="14.2" cy="12.7" r="1.1"></circle><path d="M10 13.1v1.4"></path><path d="M14.2 13.8c0 1.2-1.1 1.5-2.1 1.8"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">Git 저장소</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 10.4l1 2.05 2.25.3-1.62 1.55.4 2.25L12 17.5l-2.03 1.05.4-2.25L8.75 12.75l2.25-.3z"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">즐겨찾기</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><circle cx="10" cy="13.5" r="1"></circle><circle cx="14.6" cy="11.8" r="1"></circle><circle cx="14.6" cy="15.2" r="1"></circle><line x1="10.9" y1="13.1" x2="13.7" y2="12.2"></line><line x1="10.9" y1="13.9" x2="13.7" y2="14.8"></line></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">공유 폴더</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><rect x="9.6" y="13" width="4.8" height="4" rx="0.8"></rect><path d="M10.6 13v-1a1.4 1.4 0 0 1 2.8 0v1"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">잠긴 폴더</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M10 15.6a1.8 1.8 0 0 1 .25-3.55 2.4 2.4 0 0 1 4.6.55 1.55 1.55 0 0 1-.35 3z"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">클라우드 동기화</span></sc-if>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:132px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c9cfd6; cursor:default;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><circle cx="12" cy="13.4" r="2.7"></circle><path d="M9.3 13.4h5.4"></path><path d="M12 10.7c1.35 1.45 1.35 3.95 0 5.4-1.35-1.45-1.35-3.95 0-5.4z"></path></svg>
+      <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">네트워크</span></sc-if>
+    </div>
+  </div>
+
+  <!-- ============ FUNCTIONAL ============ -->
+  <div style="margin-bottom:14px; display:flex; align-items:baseline; gap:11px;">
+    <span style="font-size:14px; font-weight:700; color:#eef1f4;">기능</span>
+    <span style="font-size:11.5px; color:#5f6772; letter-spacing:.02em;">Actions · 38</span>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(118px,1fr)); gap:12px;">
+
+    <sc-for list="{{ actions }}" as="a" hint-placeholder-count="28">
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:120px; border-radius:15px; background:#13171c; border:1px solid #1f252d; color:#c2c8d0; cursor:pointer;" style-hover="background:#181d24; border-color:#2f6b52; color:#3ecf8e;">
+        <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center;" data-act="{{ a.id }}"></div>
+        <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}"><span style="font-size:12.5px; color:#8a93a0;">{{ a.label }}</span></sc-if>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;showLabels&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;colorCoded&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const showLabels = this.props.showLabels ?? true;
+    const colorCoded = this.props.colorCoded ?? true;
+    const P = { blue: '#6aa6f5', amber: '#e0a85b', slate: '#8a93a0', emerald: '#3ecf8e', teal: '#4fc7c7', rose: '#e08aa6', violet: '#b98ce0', lime: '#b5d65f' };
+    const cc = c => colorCoded ? c : '#7e858f';
+
+    const fileRaw = [
+      ['EXE', '실행 파일', P.blue, 'app'], ['DLL', '라이브러리', P.blue, 'plug'],
+      ['YAML', '설정', P.amber, 'gear'], ['YML', '설정', P.amber, 'gear'], ['JSON', '데이터', P.amber, 'braces'],
+      ['SVG', '벡터', P.emerald, 'vector'], ['PNG', '이미지', P.emerald, 'image'], ['JPG', '이미지', P.emerald, 'image'],
+      ['MP4', '동영상', P.rose, 'video'], ['MP3', '오디오', P.violet, 'audio'],
+      ['PDF', '문서', P.rose, 'book'], ['TXT', '텍스트', P.slate, 'text'], ['MD', '마크다운', P.teal, 'md'],
+      ['ZIP', '압축', P.lime, 'archive'], ['ISO', '디스크 이미지', P.violet, 'disc'],
+      ['MAP', '블록맵', P.slate, 'map'], ['LOG', '로그', P.slate, 'log'], ['DB', '데이터베이스', P.violet, 'db'],
+    ];
+    const fileTypes = fileRaw.map(([ext, label, color, glyph]) => ({ ext, label, color: cc(color), glyph }));
+
+    const langRaw = [
+      ['JS', 'JavaScript', P.amber, 'code'], ['TS', 'TypeScript', P.blue, 'code'], ['JSX', 'React', P.teal, 'atom'], ['TSX', 'React TS', P.teal, 'atom'],
+      ['HTML', 'HTML', P.rose, 'markup'], ['CSS', 'CSS', P.violet, 'style'], ['SCSS', 'Sass', P.violet, 'style'], ['VUE', 'Vue', P.emerald, 'atom'],
+      ['PY', 'Python', P.amber, 'code'], ['JAVA', 'Java', P.rose, 'code'], ['KT', 'Kotlin', P.violet, 'code'], ['C', 'C', P.blue, 'code'],
+      ['CPP', 'C++', P.blue, 'code'], ['CS', 'C#', P.violet, 'code'], ['GO', 'Go', P.teal, 'code'], ['RS', 'Rust', P.rose, 'code'],
+      ['RB', 'Ruby', P.rose, 'code'], ['PHP', 'PHP', P.violet, 'code'], ['SWIFT', 'Swift', P.rose, 'code'], ['DART', 'Dart', P.teal, 'code'],
+      ['SQL', 'SQL', P.amber, 'db'], ['SH', 'Shell', P.slate, 'shell'],
+    ];
+    const langTypes = langRaw.map(([ext, label, color, glyph]) => ({ ext, label, color: cc(color), glyph }));
+
+    const actions = [
+      ['back', '뒤로'], ['forward', '앞으로'], ['up', '상위 폴더'], ['refresh', '새로고침'], ['home', '홈'], ['search', '검색'], ['newFolder', '새 폴더'], ['newFile', '새 파일'],
+      ['copy', '복사'], ['cut', '잘라내기'], ['paste', '붙여넣기'], ['delete', '삭제'], ['rename', '이름 변경'], ['sort', '정렬'], ['filter', '필터'], ['listView', '목록 보기'],
+      ['gridView', '그리드 보기'], ['splitView', '분할 보기'], ['preview', '미리보기'], ['star', '즐겨찾기'], ['share', '공유'], ['download', '다운로드'], ['upload', '업로드'], ['compress', '압축'],
+      ['lock', '잠금'], ['settings', '설정'], ['terminal', '터미널'], ['trash', '휴지통'],
+      ['quadSplit', '4분할'], ['panelLeft', '좌측 패널'], ['panelRight', '우측 패널'], ['panelBottom', '하단 패널'],
+      ['compare', '폴더 비교'], ['detailView', '상세 보기'], ['dashboard', '대시보드'], ['insight', '인사이트'], ['shortcuts', '단축키'], ['theme', '테마'],
+    ].map(([id, label]) => ({ id, label }));
+
+    return { showLabels, colorCoded, fileTypes, langTypes, actions, legend: [
+      { label: '실행', color: P.blue }, { label: '설정/데이터', color: P.amber }, { label: '미디어', color: P.rose }, { label: '코드', color: P.teal },
+    ] };
+  }
+
+  componentDidMount() { this.paintIcons(); this.paintGlyphs(); }
+  componentDidUpdate() { this.paintIcons(); this.paintGlyphs(); }
+
+  paintGlyphs() {
+    const GL = {
+      app: '<rect x="4" y="5" width="16" height="14" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/>',
+      plug: '<path d="M9 3v4M15 3v4"/><rect x="7" y="7" width="10" height="6" rx="1.5"/><path d="M12 13v4a3 3 0 0 1-3 3H7"/>',
+      gear: '<circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2M7.2 7.2l1.4 1.4M15.4 15.4l1.4 1.4M16.8 7.2l-1.4 1.4M8.6 15.4l-1.4 1.4"/>',
+      braces: '<path d="M9 4c-1.8 0-2 1.5-2 4s-.6 3.5-2 4c1.4.5 2 1.5 2 4s.2 4 2 4"/><path d="M15 4c1.8 0 2 1.5 2 4s.6 3.5 2 4c-1.4.5-2 1.5-2 4s-.2 4-2 4"/>',
+      vector: '<rect x="3" y="3" width="4" height="4" rx="1"/><rect x="17" y="3" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M7 5h10M5 7v10M19 7v10M7 19h10"/>',
+      image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5-4 4-2-2-4 4"/>',
+      video: '<rect x="3" y="5" width="18" height="14" rx="2"/><polygon points="10 9 15 12 10 15"/>',
+      audio: '<path d="M9 17V6l9-2v11"/><circle cx="6.5" cy="17" r="2.4"/><circle cx="15.5" cy="15" r="2.4"/>',
+      book: '<path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z"/><path d="M18 20H8a2 2 0 0 0-2 2"/><line x1="9.5" y1="9" x2="14.5" y2="9"/>',
+      text: '<line x1="6" y1="7" x2="18" y2="7"/><line x1="6" y1="11" x2="18" y2="11"/><line x1="6" y1="15" x2="14" y2="15"/>',
+      md: '<rect x="3" y="6" width="18" height="12" rx="1.6"/><path d="M6.5 15V9l2.5 3 2.5-3v6"/><path d="M16.5 9v4M14.5 12l2 2 2-2"/>',
+      log: '<line x1="5" y1="7" x2="6.4" y2="7"/><line x1="8.5" y1="7" x2="18" y2="7"/><line x1="5" y1="11" x2="6.4" y2="11"/><line x1="8.5" y1="11" x2="18" y2="11"/><line x1="5" y1="15" x2="6.4" y2="15"/><line x1="8.5" y1="15" x2="14" y2="15"/>',
+      archive: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 4v3M12 9v2M12 13v2"/><rect x="10.3" y="14" width="3.4" height="4" rx="1"/>',
+      disc: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+      map: '<polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/>',
+      db: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.6 3.1 3 7 3s7-1.4 7-3V6"/><path d="M5 12v6c0 1.6 3.1 3 7 3s7-1.4 7-3v-6"/>',
+      code: '<polyline points="9 8 5 12 9 16"/><polyline points="15 8 19 12 15 16"/>',
+      markup: '<polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/><line x1="13.5" y1="6" x2="10.5" y2="18"/>',
+      style: '<circle cx="9" cy="8" r="2"/><circle cx="16" cy="11" r="2"/><circle cx="8" cy="16" r="2"/><circle cx="15" cy="17.5" r="2"/>',
+      atom: '<circle cx="12" cy="12" r="1.8"/><ellipse cx="12" cy="12" rx="9" ry="3.8"/><ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(120 12 12)"/>',
+      shell: '<rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="12" y1="15" x2="16" y2="15"/>',
+    };
+    document.querySelectorAll('[data-glyph]').forEach(el => {
+      const body = GL[el.getAttribute('data-glyph')];
+      if (body == null) return;
+      const col = el.getAttribute('data-gcolor') || '#9aa1ab';
+      el.innerHTML = `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+    });
+  }
+
+  paintIcons() {
+    const I = {
+      quadSplit: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="3" y1="12" x2="21" y2="12"/>',
+      panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="4" y="5" width="5" height="14" fill="currentColor" opacity="0.16" stroke="none"/><line x1="9" y1="4" x2="9" y2="20"/>',
+      panelRight: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="15" y="5" width="5" height="14" fill="currentColor" opacity="0.16" stroke="none"/><line x1="15" y1="4" x2="15" y2="20"/>',
+      panelBottom: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="4" y="14" width="16" height="5" fill="currentColor" opacity="0.16" stroke="none"/><line x1="3" y1="14" x2="21" y2="14"/>',
+      compare: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v5a2.5 2.5 0 0 0 2.5 2.5H12"/><polyline points="10 14 12.5 16.5 10 19"/><path d="M18 15.5v-5A2.5 2.5 0 0 0 15.5 8H12"/><polyline points="14 10.5 11.5 8 14 5.5"/>',
+      detailView: '<rect x="3" y="5" width="6.5" height="6.5" rx="1.2"/><line x1="12" y1="6.5" x2="21" y2="6.5"/><line x1="12" y1="10" x2="18" y2="10"/><line x1="3" y1="15.5" x2="21" y2="15.5"/><line x1="3" y1="19" x2="16" y2="19"/>',
+      dashboard: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="3" y="16" width="8" height="5" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/>',
+      insight: '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>',
+      shortcuts: '<rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10.5" x2="6.01" y2="10.5"/><line x1="10" y1="10.5" x2="10.01" y2="10.5"/><line x1="14" y1="10.5" x2="14.01" y2="10.5"/><line x1="18" y1="10.5" x2="18.01" y2="10.5"/><line x1="8" y1="14" x2="16" y2="14"/>',
+      theme: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor" stroke="none"/>',
+      back: '<path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>',
+      forward: '<path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>',
+      up: '<path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>',
+      refresh: '<path d="M21 3v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 9"/><path d="M3 21v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 15"/>',
+      home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9.5 20v-6h5v6"/>',
+      search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>',
+      newFolder: '<path d="M3 7a2 2 0 0 1 2-2h3.4l1.8 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><line x1="12" y1="10.6" x2="12" y2="16"/><line x1="9.5" y1="13.3" x2="14.5" y2="13.3"/>',
+      newFile: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/>',
+      copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5V4.5A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/>',
+      cut: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><line x1="8.2" y1="7.4" x2="20" y2="16"/><line x1="8.2" y1="16.6" x2="20" y2="8"/>',
+      paste: '<path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+      delete: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+      rename: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+      sort: '<line x1="4" y1="6" x2="13" y2="6"/><line x1="4" y1="12" x2="11" y2="12"/><line x1="4" y1="18" x2="9" y2="18"/><path d="M17 4v14"/><path d="M14 15l3 3 3-3"/>',
+      filter: '<polygon points="3 4 21 4 14 12 14 19 10 21 10 12"/>',
+      listView: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="12" r="1.1"/><circle cx="4" cy="18" r="1.1"/>',
+      gridView: '<rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/>',
+      splitView: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/>',
+      preview: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.6"/>',
+      star: '<path d="M12 2.5l2.95 6.36 6.8.84-5.02 4.64 1.33 6.66L12 17.7 5.94 21l1.33-6.66L2.25 9.7l6.8-.84z"/>',
+      share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><line x1="8.2" y1="10.9" x2="15.8" y2="6.1"/><line x1="8.2" y1="13.1" x2="15.8" y2="17.9"/>',
+      download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+      upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="15"/>',
+      compress: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v2M12 8v2M12 12v1.5"/><rect x="10.3" y="13.5" width="3.4" height="4" rx="1"/>',
+      lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+      settings: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1.5" y1="14" x2="6.5" y2="14"/><line x1="9.5" y1="8" x2="14.5" y2="8"/><line x1="17.5" y1="16" x2="22.5" y2="16"/>',
+      terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="12" y1="15" x2="16" y2="15"/>',
+      trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+    };
+    const root = this.containerEl || document;
+    root.querySelectorAll('[data-act]').forEach(el => {
+      const body = I[el.getAttribute('data-act')];
+      if (body == null) return;
+      el.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+    });
+  }
+}
+</script>
+
+
+</body></html>
