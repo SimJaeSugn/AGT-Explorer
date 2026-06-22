@@ -27,6 +27,7 @@ import type {
   WorkspaceInfo
 } from '@shared/dto'
 import type {
+  AppInfoDTO,
   AppOpenPathEvt,
   ClipboardFilesReadRes,
   ClipboardHasFilesRes,
@@ -307,6 +308,11 @@ export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
 /** Main 이 argv/second-instance 로 받은 경로를 푸시하면 콜백. 반환값으로 구독 해제. */
 export function subscribeOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe {
   return bridge().app.onOpenPath(cb)
+}
+
+/** app:get-info — 앱·런타임 기본 정보(버전 등) 조회. 설정 "소프트웨어 정보"에서 사용. */
+export const appApi = {
+  getInfo: (): Promise<Result<AppInfoDTO>> => bridge().app.getInfo()
 }
 
 // ── window:* 어댑터 (U3: 멀티 윈도우 — 탭 분리(새 창), US-20.3) ──────────

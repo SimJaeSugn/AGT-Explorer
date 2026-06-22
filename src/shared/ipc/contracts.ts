@@ -854,6 +854,9 @@ export interface IpcRequestMap {
   [CHANNELS.WINDOW_SPLIT_TAB]: { req: WindowSplitTabReq; res: Result<void> }
   [CHANNELS.WINDOW_GET_INIT]: { req: void; res: Result<WindowInitRes> }
 
+  // app:* 앱 기본 정보 (설정 "소프트웨어 정보")
+  [CHANNELS.APP_GET_INFO]: { req: void; res: Result<AppInfoDTO> }
+
   // preview:* (P6 — 신규 Should)
   [CHANNELS.PREVIEW_READ]: { req: PreviewReadReq; res: Result<PreviewData> }
   [CHANNELS.PREVIEW_THUMBNAIL]: { req: ThumbnailReq; res: Result<ThumbnailRes> }
@@ -1054,6 +1057,24 @@ export interface QueueStateEvt {
 /** 탐색기 컨텍스트 메뉴로 전달된 경로(정규화된 로컬 폴더/드라이브/파일). 렌더러가 새 탭으로 연다. */
 export interface AppOpenPathEvt {
   readonly path: string
+}
+
+// ── app:get-info (앱 기본 정보 — 설정 "소프트웨어 정보") ────────────────────
+/**
+ * 앱·런타임 기본 정보. 메인이 app.getVersion()·process.versions·platform/arch 로 채운다.
+ * 전부 비-비밀·읽기 전용. 자동 업데이트 동작 가능 여부(packaged)도 함께 노출한다.
+ */
+export interface AppInfoDTO {
+  readonly name: string
+  readonly version: string
+  readonly electron: string
+  readonly chrome: string
+  readonly node: string
+  readonly v8: string
+  readonly platform: string
+  readonly arch: string
+  /** 패키징된 빌드 여부(자동 업데이트는 packaged 에서만 동작). */
+  readonly packaged: boolean
 }
 
 // ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3) ────────────────

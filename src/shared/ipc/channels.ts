@@ -182,6 +182,7 @@ export const CHANNELS = {
   // argv(최초 실행)·second-instance(중복 실행) 로 받은 탐색기 경로를 렌더러로 푸시한다.
   // Main→Renderer 단방향 이벤트(요청-응답 아님). 새 탭으로 해당 폴더/드라이브를 연다.
   APP_OPEN_PATH: 'app:open-path', // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
+  APP_GET_INFO: 'app:get-info', // invoke → Result<AppInfoDTO> (버전·런타임 기본 정보 — 설정 "소프트웨어 정보")
 
   // ── window:* 멀티 윈도우 (신규 U3 — 탭 분리(새 창), US-20.3 Could) ──────────
   // 둘 다 invoke(요청-응답) → EVENT_CHANNELS 무변(신규 푸시 evt 0).

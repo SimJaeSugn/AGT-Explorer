@@ -11,8 +11,10 @@
  * 각 변경은 app/usecases/settings 의 change·toggle 액션이 즉시 반영 + 영속한다.
  * 단축아이콘 토글/재배열은 settings:set 의 iconBarHidden/iconBarOrder 로 영속한다.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ThemeMode } from '@shared/dto'
+import type { AppInfoDTO } from '@shared/ipc/contracts'
+import { getAppInfo } from '@renderer/app/usecases/appInfo'
 import { useRootStore } from '@renderer/app/stores/rootStore'
 import type { SettingsCategory } from '@renderer/app/stores/uiSlice'
 import { WorkspacePanel } from '@renderer/ui/workspace/WorkspacePanel'
@@ -49,7 +51,8 @@ const CATEGORIES: ReadonlyArray<{ id: SettingsCategory; label: string; icon: str
   { id: 'system', label: '시스템', icon: '⚙' },
   { id: 'workspace', label: '워크스페이스', icon: '🗂' },
   { id: 'shortcuts', label: '단축키', icon: '⌨' },
-  { id: 'agent', label: 'AI 에이전트', icon: '✨' }
+  { id: 'agent', label: 'AI 에이전트', icon: '✨' },
+  { id: 'about', label: '소프트웨어 정보', icon: 'ℹ' }
 ]
 
 /** 단축아이콘 패널의 그룹 표시명(iconBarItems 의 group 키 → 한글 라벨). */
@@ -165,6 +168,7 @@ export function SettingsDialog(): JSX.Element | null {
             {category === 'workspace' && <WorkspaceCategory onClose={close} />}
             {category === 'shortcuts' && <ShortcutsCategory />}
             {category === 'agent' && <AgentSettings />}
+            {category === 'about' && <AboutCategory />}
           </div>
         </div>
       </div>
@@ -415,6 +419,103 @@ function ShortcutsCategory(): JSX.Element {
           ))}
         </div>
       ))}
+    </div>
+  )
+}
+
+/** 소프트웨어 정보: 버전·런타임 기본 정보(app:get-info). 읽기 전용. */
+function AboutCategory(): JSX.Element {
+  const [info, setInfo] = useState<AppInfoDTO | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void getAppInfo().then((v) => {
+      if (!alive) return
+      if (v) setInfo(v)
+      else setFailed(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const rows: ReadonlyArray<[string, string]> = info
+    ? [
+        ['제품명', info.name],
+        ['버전', info.version],
+        ['Electron', info.electron],
+        ['Chromium', info.chrome],
+        ['Node.js', info.node],
+        ['V8', info.v8],
+        ['플랫폼', `${info.platform} (${info.arch})`],
+        ['패키징', info.packaged ? '설치본(자동 업데이트 가능)' : '개발 빌드(자동 업데이트 비활성)']
+      ]
+    : []
+
+  return (
+    <div>
+      <CategoryHeading>소프트웨어 정보</CategoryHeading>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 14px' }}>
+        <span aria-hidden style={{ fontSize: 40, lineHeight: 1 }}>
+          🗂
+        </span>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>AGT-Finder</div>
+          <div style={{ color: tokens.color.textMuted, fontSize: 12 }}>멀티 디렉토리 파일탐색기</div>
+          {info && (
+            <div style={{ fontSize: 13, marginTop: 2 }}>
+              버전 <strong>{info.version}</strong>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {failed && (
+        <div style={{ color: tokens.color.textMuted, fontSize: 13 }}>정보를 불러오지 못했습니다.</div>
+      )}
+      {!info && !failed && (
+        <div style={{ color: tokens.color.textMuted, fontSize: 13 }}>불러오는 중…</div>
+      )}
+
+      {info && (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {rows.map(([k, v]) => (
+              <div key={k} style={labelStyle}>
+                <span style={fieldLabel}>{k}</span>
+                <span style={{ fontSize: 13, userSelect: 'text', wordBreak: 'break-all' }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              void navigator.clipboard?.writeText(
+                rows.map(([k, v]) => `${k}: ${v}`).join('\n')
+              )
+            }}
+            style={{
+              marginTop: 12,
+              border: `1px solid ${tokens.color.border}`,
+              borderRadius: 6,
+              background: tokens.color.bg,
+              color: tokens.color.text,
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '5px 12px'
+            }}
+          >
+            정보 복사
+          </button>
+
+          <p style={{ color: tokens.color.textMuted, fontSize: 12, marginTop: 14, lineHeight: 1.6 }}>
+            업데이트는 설치본에서 자동으로 확인됩니다. 새 버전이 있으면 백그라운드로 내려받은 뒤
+            다음 실행 때 적용됩니다.
+          </p>
+        </>
+      )}
     </div>
   )
 }

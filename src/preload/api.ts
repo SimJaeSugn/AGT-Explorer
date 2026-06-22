@@ -12,6 +12,7 @@
 import { ipcRenderer } from 'electron'
 import { CHANNELS } from '@shared/ipc/channels'
 import type {
+  AppInfoDTO,
   AppOpenPathEvt,
   ClipboardFilesReadRes,
   ClipboardFilesReq,
@@ -195,6 +196,7 @@ export interface ExplorerApi {
   // ── app:* (V2 — 탐색기 "AGT-Finder로 열기" 경로 푸시 수신) ──────
   readonly app: {
     onOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe
+    getInfo(): Promise<Result<AppInfoDTO>>
   }
 
   // ── window:* (U3 — 멀티 윈도우: 탭 분리(새 창), US-20.3) ────────
@@ -424,7 +426,8 @@ export const api: ExplorerApi = {
   version: '0.1.0',
 
   app: {
-    onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb)
+    onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb),
+    getInfo: () => invoke(CHANNELS.APP_GET_INFO)
   },
 
   window: {

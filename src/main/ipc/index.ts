@@ -10,6 +10,7 @@
  */
 import { registerAgentHandlers } from './agent.handlers'
 import { registerAnalyzeHandlers } from './analyze.handlers'
+import { registerAppHandlers } from './app.handlers'
 import { registerArchiveHandlers } from './archive.handlers'
 import { registerClipboardHandlers } from './clipboard.handlers'
 import { registerDndHandlers } from './dnd.handlers'
@@ -44,6 +45,7 @@ export function registerIpcHandlers(): void {
   registerWindowHandlers() // U3: window:split-tab/get-init (멀티 윈도우 — 탭 분리, US-20.3)
   registerArchiveHandlers() // M9 Q1: archive:open/list/close/extract/add (압축 어댑터 — ADR-008)
   registerAgentHandlers() // §Z Z0: agent:* + agent:provider:*/key:* (계약+키/제공자 store·루프 골격 — ADR-014·ADR-015)
+  registerAppHandlers() // app:get-info (앱 기본 정보 — 설정 "소프트웨어 정보")
   registerClipboardHdropAndDndRemote()
 }
 
