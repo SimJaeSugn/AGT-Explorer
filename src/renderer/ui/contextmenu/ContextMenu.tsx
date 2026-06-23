@@ -249,10 +249,13 @@ export function ContextMenu(): JSX.Element | null {
         visibility: pos ? 'visible' : 'hidden',
         minWidth: 200,
         maxWidth: 320,
-        // 항목이 많아 뷰포트보다 길면 잘리지 않도록 최대 높이 제한 + 내부 스크롤.
+        // 항목이 많아 뷰포트보다 길면 잘리지 않도록 최대 높이 제한 + 세로 스크롤만.
         // (offsetHeight 가 이 값으로 캡되어 아래 경계 보정도 정확히 클램프된다.)
+        // overflowX:hidden 명시 — overflowY 만 지정하면 overflow-x 가 auto 로 계산되어
+        // 가로 스크롤바가 생길 수 있다. 하위 메뉴(플라이아웃)는 position:fixed 라 이 클립과 무관.
         maxHeight: `calc(100vh - ${MARGIN * 2}px)`,
         overflowY: 'auto',
+        overflowX: 'hidden',
         padding: `${PAD_Y}px 0`,
         background: tokens.color.bg,
         border: `1px solid ${tokens.color.borderStrong}`,
@@ -380,26 +383,27 @@ function Flyout({
 }): JSX.Element {
   const [activeIdx, setActiveIdx] = useState(-1)
   const ref = useRef<HTMLDivElement | null>(null)
-  // side: 좌/우 펼침. topOffset: 부모 기준 세로 오프셋(경계 클램프 결과). null=측정 전.
-  const [place, setPlace] = useState<{ side: 'left' | 'right'; topOffset: number } | null>(null)
+  // 뷰포트 절대 좌표. position:fixed 라 부모(메인 메뉴)의 overflow 클립을 벗어난다. null=측정 전.
+  const [place, setPlace] = useState<{ left: number; top: number } | null>(null)
 
   useLayoutEffect(() => {
     const el = ref.current
-    const parent = el?.parentElement // 부모 menuitem(position:relative).
+    const parent = el?.parentElement // 부모 menuitem.
     if (!el || !parent) return
     const pr = parent.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
     const w = el.offsetWidth
     const h = el.offsetHeight
-    // 좌우: 우측이 넘치고 왼쪽에 공간이 있으면 왼쪽으로 반전.
-    const side: 'left' | 'right' =
-      pr.right + w > vw - MARGIN && pr.left - w >= MARGIN ? 'left' : 'right'
+    // 좌우: 우측이 넘치고 왼쪽에 공간이 있으면 왼쪽으로 반전. 그 뒤 뷰포트 경계 클램프.
+    const openLeft = pr.right + w > vw - MARGIN && pr.left - w >= MARGIN
+    let left = openLeft ? pr.left - w : pr.right
+    left = Math.min(Math.max(MARGIN, left), Math.max(MARGIN, vw - w - MARGIN))
     // 상하: 기본은 부모 상단(−PAD_Y 보정). 아래로 넘치면 위로 끌어올리고 [MARGIN, vh−h−MARGIN] 클램프.
-    let viewTop = pr.top - PAD_Y
-    if (viewTop + h > vh - MARGIN) viewTop = vh - MARGIN - h
-    if (viewTop < MARGIN) viewTop = MARGIN
-    setPlace({ side, topOffset: viewTop - pr.top })
+    let top = pr.top - PAD_Y
+    if (top + h > vh - MARGIN) top = vh - MARGIN - h
+    if (top < MARGIN) top = MARGIN
+    setPlace({ left, top })
   }, [items])
 
   return (
@@ -408,9 +412,10 @@ function Flyout({
       role="menu"
       aria-label="하위 메뉴"
       style={{
-        position: 'absolute',
-        top: place ? place.topOffset : -PAD_Y,
-        ...(place?.side === 'left' ? { right: '100%' } : { left: '100%' }),
+        // position:fixed — 메인 메뉴의 overflow(스크롤)에 잘리지 않고 뷰포트 기준으로 펼친다.
+        position: 'fixed',
+        left: place?.left ?? -9999,
+        top: place?.top ?? -9999,
         // 측정 전(첫 레이아웃)에는 숨겨 잘못된 위치 깜빡임 방지.
         visibility: place ? 'visible' : 'hidden',
         minWidth: 160,
