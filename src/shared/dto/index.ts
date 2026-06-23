@@ -415,6 +415,13 @@ export interface SettingsSnapshot {
   /** 프로그램 시작 시 용량 대시보드 자동 표시(기본 true, I장 §4.4·§6.5). */
   readonly showDashboardOnStartup: boolean
   /**
+   * 프로그램 시작 시 홍보영상 스플래시 표시(기본 true). 켜면 초기화 지연을 가리기 위해
+   * 앞단에 홍보영상을 먼저 띄우고 메인 창은 숨긴 채 백그라운드 초기화한다. 초기화가
+   * 끝나면 닫기 버튼이 활성화되어 사용자가 바로 닫을지 계속 볼지 고른다. 비파괴 추가
+   * (optional) — 구버전 설정(키 누락)은 coerce 가 true 폴백(defaults.ts). 신규 채널 0.
+   */
+  readonly showPromoSplash?: boolean
+  /**
    * 복사 후 체크섬 검증(§R4·US-17.4·F25·Could). 켜면 복사 op 완료(op:done) 후
    * 원본↔사본 SHA-256 해시 비교(hash:verify)로 무결성을 검증한다. 기본 off(비파괴 —
    * 끄면 복사 동작 무변경·신규 채널 0). 비파괴 추가(optional) — 구버전 설정은

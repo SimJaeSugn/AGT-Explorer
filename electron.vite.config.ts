@@ -23,10 +23,31 @@ function copyShellWorkers(): { name: string; closeBundle(): void } {
   }
 }
 
+/**
+ * 스플래시(홍보영상) 정적 에셋(래퍼 index.html + 22MB promo.html)을 out/splash/ 로
+ * 복사한다. rollup 은 이 HTML 들을 번들하지 않으므로 직접 복사한다(.ps1 워커 선례).
+ * 패키징은 electron-builder.yml 의 out 전체 포함 규칙(files)이 out/splash/ 를 그대로
+ * 담는다(asar 내부 — BrowserWindow.loadFile 로 읽을 수 있어 asarUnpack 불요). 스플래시 창은
+ * join(__dirname,'../splash/index.html') 로 참조한다(out/main → ../splash = out/splash).
+ */
+function copySplashAssets(): { name: string; closeBundle(): void } {
+  const files = ['index.html', 'promo.html']
+  return {
+    name: 'copy-splash-assets',
+    closeBundle(): void {
+      const outDir = resolve('out/splash')
+      mkdirSync(outDir, { recursive: true })
+      for (const f of files) {
+        copyFileSync(resolve(`resources/splash/${f}`), resolve(`out/splash/${f}`))
+      }
+    }
+  }
+}
+
 // main/preload/renderer 3-엔트리 빌드 설정 (ADR-001, directory-structure §3)
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), copyShellWorkers()],
+    plugins: [externalizeDepsPlugin(), copyShellWorkers(), copySplashAssets()],
     build: {
       // P7: 별도 sourcemap(.map) 생성 — 디버깅용. NSIS 패키지에는 미포함
       // (electron-builder.yml files 의 `!out/**/*.map` 제외 규칙으로 배포 제외).
@@ -63,7 +84,12 @@ export default defineConfig({
       sourcemap: true, // P7: 별도 .map 생성(배포 제외)
       // sandbox:true 렌더러의 preload 는 CommonJS 여야 한다 → .cjs 강제 (ADR-005)
       rollupOptions: {
-        input: resolve('src/preload/index.ts'),
+        input: {
+          // 메인 렌더러 preload(window.api 전체 표면).
+          index: resolve('src/preload/index.ts'),
+          // 스플래시(홍보영상) 창 전용 최소 preload(window.splashApi) → out/preload/splash.cjs.
+          splash: resolve('src/preload/splash.ts')
+        },
         output: {
           format: 'cjs',
           entryFileNames: '[name].cjs'

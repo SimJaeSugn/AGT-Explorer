@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AGT-Finder</title>
+    <!--
+      스플래시(홍보영상) 래퍼.
+      - 22MB 자가 압축 해제 홍보 페이지(promo.html)를 <iframe> 으로 풀-블리드 렌더한다.
+        promo 는 자기 document 를 통째 재작성(DOMParser/replaceWith)하므로, 우리 닫기
+        버튼은 부모 문서(이 래퍼)에 두고 iframe 으로 격리한다(버튼이 지워지지 않음).
+      - 이 창은 'splash' 세션 파티션으로 로드되어 defaultSession 의 엄격 CSP가 적용되지
+        않는다 → promo 의 인라인 스크립트·blob URL·DecompressionStream 이 정상 동작한다.
+      - 닫기 버튼은 초기화가 끝나기 전엔 비활성('초기화 중…')이고, main 이 splash:ready 를
+        보내면(렌더러 부팅 완료) 활성화된다. 클릭하면 splashApi.close() → main 이 splash 를
+        닫고 메인 창을 띄운다.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0f1216;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard',
+          sans-serif;
+      }
+      #frame {
+        position: fixed;
+        inset: 0;
+        border: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #0f1216;
+      }
+      /* 프레임리스 창 이동용 드래그 스트립(상단 44px). 버튼은 no-drag 로 클릭 가능. */
+      #dragbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 44px;
+        -webkit-app-region: drag;
+        z-index: 5;
+      }
+      #closebtn {
+        position: fixed;
+        top: 10px;
+        right: 12px;
+        z-index: 10;
+        -webkit-app-region: no-drag;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        padding: 8px 15px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(20, 24, 28, 0.72);
+        color: rgba(255, 255, 255, 0.55);
+        cursor: default;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        transition: color 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        user-select: none;
+      }
+      #closebtn.ready {
+        color: #0f1216;
+        background: #40dd97;
+        border-color: #40dd97;
+        cursor: pointer;
+        box-shadow: 0 2px 14px rgba(64, 221, 151, 0.45);
+      }
+      #closebtn.ready:hover {
+        filter: brightness(1.06);
+      }
+      #spinner {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-top-color: rgba(255, 255, 255, 0.7);
+        animation: spin 0.8s linear infinite;
+      }
+      #closebtn.ready #spinner {
+        display: none;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" src="./promo.html" referrerpolicy="no-referrer" title="AGT-Finder 홍보영상"></iframe>
+    <div id="dragbar"></div>
+    <button id="closebtn" type="button" aria-live="polite" disabled>
+      <span id="spinner"></span><span id="label">초기화 중…</span>
+    </button>
+    <script>
+      (function () {
+        var btn = document.getElementById('closebtn')
+        var label = document.getElementById('label')
+        var ready = false
+
+        function makeReady() {
+          if (ready) return
+          ready = true
+          btn.classList.add('ready')
+          btn.disabled = false
+          label.textContent = '닫고 시작하기  ✕'
+          btn.title = '초기화가 끝났습니다. 클릭하면 영상을 닫고 앱으로 들어갑니다.'
+        }
+
+        function close() {
+          if (ready && window.splashApi && window.splashApi.close) window.splashApi.close()
+        }
+
+        btn.addEventListener('click', close)
+        window.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' || e.key === 'Enter') close()
+        })
+
+        if (window.splashApi && window.splashApi.onReady) {
+          window.splashApi.onReady(makeReady)
+        }
+      })()
+    </script>
+  </body>
+</html>

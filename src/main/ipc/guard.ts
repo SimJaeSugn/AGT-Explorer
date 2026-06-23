@@ -179,6 +179,7 @@ export const zSettingsSetReq = z.object({
       showExtensions: z.boolean().optional(),
       recentLimit: z.number().int().optional(),
       showDashboardOnStartup: z.boolean().optional(),
+      showPromoSplash: z.boolean().optional(),
       verifyOnCopy: z.boolean().optional(),
       // 단축아이콘(상단 아이콘바 표시/순서). 항목 본문 정규화는 coerceSettings 에 위임.
       iconBarHidden: z.array(z.string()).optional(),

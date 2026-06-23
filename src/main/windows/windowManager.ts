@@ -45,10 +45,17 @@ let primaryWebContentsId: number | null = null
  * 만든다. createMainWindow() 와 동일 로직의 단일 출처 — primary/split 공용.
  */
 function createWindow(opts?: {
-  width: number
-  height: number
-  minWidth: number
-  minHeight: number
+  width?: number
+  height?: number
+  minWidth?: number
+  minHeight?: number
+  /**
+   * true 면 자동 표시(ready-to-show/did-finish-load/타임아웃)를 달지 않는다. 스플래시
+   * (홍보영상)가 떠 있는 동안 메인 창을 숨긴 채 백그라운드 초기화하기 위함 — 호출부가
+   * 적절한 시점(스플래시 닫힘)에 직접 show() 한다. 로드 실패(did-fail-load) 시엔
+   * deferShow 와 무관하게 표시해 흰 화면에 갇히지 않게 한다.
+   */
+  deferShow?: boolean
 }): BrowserWindow {
   const window = new BrowserWindow({
     width: opts?.width ?? 1200,
@@ -74,22 +81,25 @@ function createWindow(opts?: {
   // 그 안에서 window.webContents 에 접근하면 "Object has been destroyed" 가 난다(종료 시 크래시).
   const wcId = window.webContents.id
 
-  // 1차: 정상 경로 — 렌더러 첫 페인트 준비 시 표시.
-  window.on('ready-to-show', () => {
-    window.show()
-  })
-
-  // 폴백 — ready-to-show 지연·누락으로 창이 영영 숨겨지는 문제 방지.
-  //   ① 렌더러 로드 완료 시, ② 3초 타임아웃 시에도 (아직 안 보이면) 강제 표시.
+  // 아직 보이지 않으면 강제 표시(멱등).
   const showOnce = (): void => {
     if (!window.isDestroyed() && !window.isVisible()) window.show()
   }
-  window.webContents.once('did-finish-load', showOnce)
-  const showFallback = setTimeout(showOnce, 3000)
-  window.on('show', () => clearTimeout(showFallback))
-  window.on('closed', () => clearTimeout(showFallback))
 
-  // 렌더러 로드 실패 진단(흰 화면/창 미표시 원인 추적).
+  // deferShow(스플래시 동안 메인 창 숨김)가 아니면 정상 자동 표시 경로를 단다.
+  //   ① 렌더러 첫 페인트 준비(ready-to-show), ② 로드 완료, ③ 3초 타임아웃.
+  if (!opts?.deferShow) {
+    window.on('ready-to-show', () => {
+      window.show()
+    })
+    window.webContents.once('did-finish-load', showOnce)
+    const showFallback = setTimeout(showOnce, 3000)
+    window.on('show', () => clearTimeout(showFallback))
+    window.on('closed', () => clearTimeout(showFallback))
+  }
+
+  // 렌더러 로드 실패 진단(흰 화면/창 미표시 원인 추적). deferShow 여도 실패 시엔
+  // 표시해(showOnce) 사용자가 빈 창에 갇히지 않게 한다.
   window.webContents.on('did-fail-load', (_e, code, desc, url) => {
     // eslint-disable-next-line no-console
     console.error(`[window] did-fail-load: code=${code} desc=${desc} url=${url}`)
@@ -128,8 +138,8 @@ function createWindow(opts?: {
  * primary(첫) 창을 만든다. 세션 복원·자동저장은 이 창의 렌더러가 담당한다.
  * index.ts whenReady 와 activate(모든 창 닫힌 뒤 재활성)에서 호출한다.
  */
-export function createPrimaryWindow(): BrowserWindow {
-  const win = createWindow()
+export function createPrimaryWindow(opts?: { deferShow?: boolean }): BrowserWindow {
+  const win = createWindow({ deferShow: opts?.deferShow ?? false })
   primaryWebContentsId = win.webContents.id
   initByWebContents.set(win.webContents.id, { primary: true, initialTab: null, mode: 'full' })
   return win

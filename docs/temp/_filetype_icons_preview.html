@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>새 파일유형/개발언어 아이콘 미리보기</title>
+<style>
+  body { margin:0; background:#0e1115; color:#e7eaee; font-family:'Pretendard',system-ui,sans-serif; padding:32px 40px 64px; }
+  h1 { font-size:22px; font-weight:800; margin:0 0 4px; }
+  p.sub { color:#7e858f; font-size:13px; margin:0 0 28px; }
+  h2 { font-size:14px; font-weight:700; margin:30px 0 12px; color:#eef1f4; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:11px; }
+  .card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; height:118px; border-radius:14px; background:#13171c; border:1px solid #1f252d; }
+  .row { display:flex; align-items:center; gap:14px; background:#13171c; border:1px solid #1f252d; border-radius:10px; padding:8px 14px; margin-bottom:6px; }
+  .name { font-size:13px; color:#c9cfd6; }
+  .ext { font-size:11px; color:#5f6772; }
+  /* FileTypeIcon 칩 (fileTypeIcons.tsx 와 동일 비율) */
+  .chip { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; }
+  .mono { font-family:'SFMono-Regular',ui-monospace,'Menlo',monospace; font-weight:800; line-height:1; letter-spacing:-0.02em; }
+</style>
+</head>
+<body>
+  <h1>새 파일유형 / 개발언어 아이콘</h1>
+  <p class="sub">아이콘 세트 "특징 강조형" 참조 · 종이 베이스 제거 · 유형=고유 글리프 · 언어=모노그램 · 패널 적용 코드(fileTypeIcons.tsx)와 동일 데이터/렌더</p>
+
+  <h2>파일 유형 — 그리드(48px)</h2>
+  <div class="grid" id="ftGrid"></div>
+
+  <h2>개발 언어 — 그리드(48px)</h2>
+  <div class="grid" id="langGrid"></div>
+
+  <h2>자세히 행 — 24px 칩</h2>
+  <div id="rows"></div>
+
+<script>
+const P = { blue:'#6aa6f5', amber:'#e0a85b', slate:'#8a93a0', emerald:'#3ecf8e', teal:'#4fc7c7', rose:'#e08aa6', violet:'#b98ce0', lime:'#b5d65f' };
+function hexA(hex,a){const m=hex.replace('#','');return `rgba(${parseInt(m.slice(0,2),16)},${parseInt(m.slice(2,4),16)},${parseInt(m.slice(4,6),16)},${a})`;}
+
+const GL = {
+  app:'<rect x="3" y="4" width="18" height="16" rx="2.4"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="6" cy="6.5" r="0.6" fill="currentColor"/><circle cx="8.4" cy="6.5" r="0.6" fill="currentColor"/>',
+  plug:'<path d="M9 3v4M15 3v4"/><rect x="7" y="7" width="10" height="6" rx="1.5"/><path d="M12 13v4a3 3 0 0 1-3 3H7"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.9 6.9l1.4 1.4M15.7 15.7l1.4 1.4M17.1 6.9l-1.4 1.4M8.3 15.7l-1.4 1.4"/>',
+  braces:'<path d="M9 4c-1.8 0-2 1.5-2 4s-.6 3.5-2 4c1.4.5 2 1.5 2 4s.2 4 2 4"/><path d="M15 4c1.8 0 2 1.5 2 4s.6 3.5 2 4c-1.4.5-2 1.5-2 4s-.2 4-2 4"/>',
+  vector:'<rect x="3" y="3" width="4" height="4" rx="1"/><rect x="17" y="3" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M7 5h10M5 7v10M19 7v10M7 19h10"/>',
+  image:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5-4 4-2-2-4 4"/>',
+  video:'<rect x="3" y="5" width="18" height="14" rx="2"/><polygon points="10 9 15 12 10 15" fill="currentColor" stroke="none"/>',
+  audio:'<path d="M9 17V6l9-2v11"/><circle cx="6.5" cy="17" r="2.4"/><circle cx="15.5" cy="15" r="2.4"/>',
+  book:'<path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z"/><path d="M18 20H8a2 2 0 0 0-2 2"/><line x1="9.5" y1="9" x2="14.5" y2="9"/>',
+  text:'<line x1="6" y1="7" x2="18" y2="7"/><line x1="6" y1="11" x2="18" y2="11"/><line x1="6" y1="15" x2="14" y2="15"/>',
+  md:'<rect x="3" y="6" width="18" height="12" rx="1.6"/><path d="M6.5 15V9l2.5 3 2.5-3v6"/><path d="M16.5 9v4M14.5 12l2 2 2-2"/>',
+  log:'<line x1="5" y1="7" x2="6.4" y2="7"/><line x1="8.5" y1="7" x2="18" y2="7"/><line x1="5" y1="11" x2="6.4" y2="11"/><line x1="8.5" y1="11" x2="18" y2="11"/><line x1="5" y1="15" x2="6.4" y2="15"/><line x1="8.5" y1="15" x2="14" y2="15"/>',
+  archive:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 4v3M12 9v2M12 13v2"/><rect x="10.3" y="14" width="3.4" height="4" rx="1"/>',
+  disc:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+  map:'<polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/>',
+  db:'<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.6 3.1 3 7 3s7-1.4 7-3V6"/><path d="M5 12v6c0 1.6 3.1 3 7 3s7-1.4 7-3v-6"/>',
+  font:'<path d="M5 19l5.5-14h3L19 19"/><path d="M7.5 13h9"/>',
+};
+
+// 파일 유형 (대표)
+const fileTypes = [
+  ['exe','app',P.blue],['dll','plug',P.blue],['yaml','gear',P.amber],['json','braces',P.amber],
+  ['svg','vector',P.emerald],['png','image',P.emerald],['mp4','video',P.rose],['mp3','audio',P.violet],
+  ['pdf','book',P.rose],['txt','text',P.slate],['md','md',P.teal],['zip','archive',P.lime],
+  ['iso','disc',P.violet],['map','map',P.slate],['log','log',P.slate],['db','db',P.violet],['ttf','font',P.teal],
+];
+// 개발 언어 (전체)
+const langs = [
+  ['js','JS',P.amber],['ts','TS',P.blue],['jsx','JSX',P.teal],['tsx','TSX',P.teal],['html','Ht',P.rose],['css','Css',P.violet],
+  ['scss','Sc',P.rose],['vue','Vue',P.emerald],['py','Py',P.amber],['java','Jv',P.rose],['kt','Kt',P.violet],['c','C',P.blue],
+  ['cpp','C++',P.blue],['cs','C#',P.violet],['go','Go',P.teal],['rs','Rs',P.rose],['rb','Rb',P.rose],['php','Php',P.violet],
+  ['swift','Sw',P.rose],['dart','Dt',P.teal],['sql','Sql',P.amber],['sh','Sh',P.slate],
+];
+
+function chip(kind, payload, color, size, showLabel, extLabel){
+  const radius = Math.max(3, Math.round(size*0.26));
+  const el = document.createElement('span');
+  el.className='chip';
+  el.style.width=size+'px'; el.style.height=size+'px';
+  el.style.borderRadius=radius+'px';
+  el.style.background=hexA(color,0.12);
+  el.style.border = kind==='lang' ? `1px solid ${hexA(color,0.3)}` : 'none';
+  el.style.gap = (showLabel && kind==='glyph') ? Math.round(size*0.06)+'px' : '0';
+  if(kind==='lang'){
+    const n=payload.length, ratio = n>=4?0.3:n===3?0.39:0.52;
+    const m=document.createElement('span'); m.className='mono';
+    m.style.color=color; m.style.fontSize=Math.max(7,Math.round(size*ratio))+'px'; m.textContent=payload;
+    el.appendChild(m);
+  } else {
+    const g=Math.round(size*((showLabel)?0.46:0.56));
+    const svg=`<svg width="${g}" height="${g}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:${color};display:block">${GL[payload]||GL.text}</svg>`;
+    const w=document.createElement('span'); w.innerHTML=svg; el.appendChild(w.firstChild);
+    if(showLabel && extLabel){ const lb=document.createElement('span'); lb.style.cssText=`font-size:${Math.max(7,Math.round(size*0.15))}px;font-weight:800;letter-spacing:-0.2px;line-height:1;color:${color}`; lb.textContent=extLabel; el.appendChild(lb); }
+  }
+  return el;
+}
+
+const ftGrid=document.getElementById('ftGrid');
+fileTypes.forEach(([ext,glyph,color])=>{
+  const card=document.createElement('div'); card.className='card';
+  card.appendChild(chip('glyph',glyph,color,48,true,ext.toUpperCase().slice(0,4)));
+  const t=document.createElement('div'); t.innerHTML=`<span class="ext">.${ext}</span>`; t.style.textAlign='center';
+  card.appendChild(t); ftGrid.appendChild(card);
+});
+const langGrid=document.getElementById('langGrid');
+langs.forEach(([ext,mark,color])=>{
+  const card=document.createElement('div'); card.className='card';
+  card.appendChild(chip('lang',mark,color,48,false));
+  const t=document.createElement('div'); t.innerHTML=`<span class="ext">.${ext}</span>`; t.style.textAlign='center';
+  card.appendChild(t); langGrid.appendChild(card);
+});
+const rows=document.getElementById('rows');
+[['report.pdf','glyph','book',P.rose],['App.tsx','lang','TSX',P.teal],['main.py','lang','Py',P.amber],['archive.zip','glyph','archive',P.lime],['styles.css','lang','Css',P.violet],['video.mp4','glyph','video',P.rose],['data.json','glyph','braces',P.amber],['server.go','lang','Go',P.teal]].forEach(([name,kind,p,color])=>{
+  const r=document.createElement('div'); r.className='row';
+  r.appendChild(chip(kind,p,color,24,false));
+  const n=document.createElement('span'); n.className='name'; n.textContent=name; r.appendChild(n);
+  rows.appendChild(r);
+});
+</script>
+</body>
+</html>

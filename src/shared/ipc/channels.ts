@@ -183,6 +183,9 @@ export const CHANNELS = {
   // Main→Renderer 단방향 이벤트(요청-응답 아님). 새 탭으로 해당 폴더/드라이브를 연다.
   APP_OPEN_PATH: 'app:open-path', // 푸시 evt (탐색기 컨텍스트 메뉴 경로 → 새 탭)
   APP_GET_INFO: 'app:get-info', // invoke → Result<AppInfoDTO> (버전·런타임 기본 정보 — 설정 "소프트웨어 정보")
+  // 스플래시(홍보영상): 렌더러 부팅 완료 1회 통지(Renderer→Main, fire-and-forget).
+  // main 이 받으면 스플래시 닫기 버튼을 활성화한다(signalSplashReady). 요청-응답 아님.
+  APP_RENDERER_READY: 'app:renderer-ready', // send evt (렌더러 초기화 완료 → 스플래시 ready)
 
   // ── update:* 자동 업데이트 (사용자 주도 — 설정 "소프트웨어 정보") ──────────
   // 자동 다운로드는 끄고(autoDownload=false), 사용자가 버튼으로 확인→다운로드→설치한다.

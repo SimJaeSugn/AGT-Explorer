@@ -89,6 +89,12 @@ export async function changeShowDashboardOnStartup(v: boolean): Promise<void> {
   await persist({ showDashboardOnStartup: v })
 }
 
+/** 홍보영상 스플래시 표시 토글: 슬라이스 반영 + 영속(기본 on). 다음 실행부터 적용. */
+export async function changeShowPromoSplash(v: boolean): Promise<void> {
+  store.getState().setShowPromoSplash(v)
+  await persist({ showPromoSplash: v })
+}
+
 /** 복사 후 체크섬 검증 토글: 슬라이스 반영 + 영속(§R4·US-17.4, 기본 off). */
 export async function changeVerifyOnCopy(v: boolean): Promise<void> {
   store.getState().setVerifyOnCopy(v)

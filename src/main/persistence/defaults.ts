@@ -117,6 +117,8 @@ export function defaultSettings(): SettingsSnapshot {
     showExtensions: true,
     recentLimit: 10,
     showDashboardOnStartup: true,
+    // 홍보영상 스플래시: 기본 on(초기화 지연 가리기). 끄면 일반 부팅(스플래시 미표시).
+    showPromoSplash: true,
     // §R4 체크섬 검증: 기본 off(끄면 복사 동작 무변경·비파괴).
     verifyOnCopy: false,
     // 단축아이콘: 기본은 전부 표시(빈 숨김)·기본 정의 순서(빈 순서).
@@ -187,6 +189,8 @@ export function coerceSettings(raw: unknown): SettingsSnapshot {
     // 1~1000 범위로 클램프(비정상 값 방어).
     recentLimit: Math.min(1000, Math.max(1, Math.trunc(recentLimit))),
     showDashboardOnStartup: asBool(o['showDashboardOnStartup'], d.showDashboardOnStartup),
+    // 홍보영상 스플래시: 비파괴 — 구버전 설정(키 누락)은 기본 true 폴백.
+    showPromoSplash: asBool(o['showPromoSplash'], d.showPromoSplash ?? true),
     // §R4: 비파괴 — 구버전 설정(키 누락)은 기본 false 폴백.
     verifyOnCopy: asBool(o['verifyOnCopy'], d.verifyOnCopy ?? false),
     // 단축아이콘: 구버전 설정(키 누락)은 빈 배열 폴백(전부 표시·기본 순서). 문자열만 보존.

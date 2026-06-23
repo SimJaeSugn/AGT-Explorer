@@ -30,6 +30,7 @@ import {
   changeShowDashboardOnStartup,
   changeShowExtensions,
   changeShowHidden,
+  changeShowPromoSplash,
   changeStartLocation,
   changeTheme,
   changeVerifyOnCopy,
@@ -291,6 +292,7 @@ function SystemCategory(): JSX.Element {
   const startLocation = useRootStore((s) => s.startLocation)
   const recentLimit = useRootStore((s) => s.recentLimit)
   const showDashboardOnStartup = useRootStore((s) => s.showDashboardOnStartup)
+  const showPromoSplash = useRootStore((s) => s.showPromoSplash)
   const verifyOnCopy = useRootStore((s) => s.verifyOnCopy)
 
   return (
@@ -362,6 +364,21 @@ function SystemCategory(): JSX.Element {
         />
         <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
           프로그램 시작 시 용량 대시보드를 자동으로 엽니다(기본 켜짐).
+        </span>
+      </label>
+
+      {/* 시작 시 홍보영상 표시 */}
+      <label style={labelStyle}>
+        <span style={fieldLabel}>시작 시 홍보영상 표시</span>
+        <input
+          type="checkbox"
+          checked={showPromoSplash}
+          onChange={(e) => void changeShowPromoSplash(e.target.checked)}
+          aria-label="시작 시 홍보영상 표시"
+        />
+        <span style={{ color: tokens.color.textMuted, fontSize: 12 }}>
+          켜면 프로그램 시작 시 홍보영상을 먼저 보여주고 뒤에서 초기화합니다. 초기화가
+          끝나면 영상을 닫고 들어갈 수 있습니다(다음 실행부터 적용·기본 켜짐).
         </span>
       </label>
 

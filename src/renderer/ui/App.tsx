@@ -103,6 +103,8 @@ export function App(): JSX.Element {
       // 설정 로드(applySettings)로 showDashboardOnStartup 가 반영된 뒤 분기.
       const s = useRootStore.getState()
       if (s.showDashboardOnStartup) s.openDashboard()
+      // 초기화 완료 통지 — 홍보영상 스플래시 닫기 버튼을 활성화한다(켜진 경우에만 main 이 반응).
+      window.api?.app?.signalReady?.()
     })()
     return () => {
       if (stopAutosave) stopAutosave()

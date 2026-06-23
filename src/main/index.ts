@@ -1,13 +1,14 @@
 // libuv 스레드풀 상향(프로세스 전역). **가장 첫 import** 로 두어 다른 모듈이 async I/O 를
 // 시작하기 전에 UV_THREADPOOL_SIZE 를 설정한다(부작용 모듈 — 상세 주석은 threadpool.ts 참조).
 import './os/threadpool'
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, ipcMain, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { CHANNELS } from '@shared/ipc/channels'
 import { createPrimaryWindow, getPrimaryWindow } from './windows/windowManager'
+import { createSplashWindow, signalSplashReady, wireSplashIpc } from './windows/splashWindow'
 import { extractPathArg } from './os/launchPath'
 import { registerIpcHandlers } from './ipc'
-import { initPersistence, sessionStore } from './persistence'
+import { initPersistence, sessionStore, settingsStore } from './persistence'
 import { initRemoteProfileStore } from './persistence/RemoteProfileStore'
 import { initCredentialStore } from './os/credentials'
 import { initAgentKeyStore } from './agent/agentKeyStore'
@@ -128,7 +129,11 @@ if (!gotTheLock) {
     // IPC 핸들러 등록(P1: fs:* 읽기 계열). 창 생성 전에 등록한다.
     registerIpcHandlers()
 
-    const mainWindow = createPrimaryWindow()
+    // 스플래시(홍보영상) 표시 여부(설정 영속·기본 켜짐). 켜져 있으면 메인 창은 숨긴 채
+    // (deferShow) 백그라운드 초기화하고, 앞단에 홍보영상을 먼저 띄운다.
+    const splashEnabled = settingsStore().get().showPromoSplash ?? true
+
+    const mainWindow = createPrimaryWindow({ deferShow: splashEnabled })
 
     // V2: 최초 실행이 탐색기 "AGT-Finder로 열기"였다면 argv 경로를 렌더러로 전달한다
     // (창 로드 완료 후 1회 — 렌더러가 새 탭으로 연다). 경로 없으면 무동작.
@@ -137,6 +142,42 @@ if (!gotTheLock) {
       mainWindow.webContents.once('did-finish-load', () => {
         mainWindow.webContents.send(CHANNELS.APP_OPEN_PATH, { path: launchTarget })
       })
+    }
+
+    // 스플래시(홍보영상)를 앞단에 띄우고, 초기화 완료 시 닫기 버튼을 활성화한다.
+    //   - 사용자가 스플래시를 닫으면(또는 로드 실패로 닫히면) 메인 창을 표시한다.
+    //   - 초기화 완료 신호는 렌더러 부팅 끝(APP_RENDERER_READY)이며, 신호 누락 안전망으로
+    //     20초 타임아웃을 둔다(프레임리스 스플래시에 갇히는 좀비 상태 방지).
+    if (splashEnabled) {
+      try {
+        wireSplashIpc()
+        const splash = createSplashWindow()
+
+        splash.on('closed', () => {
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.show()
+            mainWindow.focus()
+          }
+        })
+        // 스플래시 로드 실패 → 닫아서 위 'closed' 경로로 메인 창을 띄운다.
+        splash.webContents.on('did-fail-load', () => {
+          if (!splash.isDestroyed()) splash.close()
+        })
+
+        let readySignaled = false
+        const signalReady = (): void => {
+          if (readySignaled) return
+          readySignaled = true
+          signalSplashReady()
+        }
+        ipcMain.once(CHANNELS.APP_RENDERER_READY, signalReady)
+        setTimeout(signalReady, 20_000)
+      } catch (err) {
+        // 스플래시 생성 실패 → 일반 부팅으로 폴백(메인 창 즉시 표시).
+        // eslint-disable-next-line no-console
+        console.error('[splash] 생성 실패 — 일반 부팅으로 폴백:', err)
+        if (!mainWindow.isVisible()) mainWindow.show()
+      }
     }
 
     // 매핑 네트워크 드라이브 문자 캐시 1회 비동기 수집(J2). non-blocking — PowerShell 콜드스타트가

@@ -199,6 +199,8 @@ export interface ExplorerApi {
   readonly app: {
     onOpenPath(cb: (evt: AppOpenPathEvt) => void): Unsubscribe
     getInfo(): Promise<Result<AppInfoDTO>>
+    /** 렌더러 부팅 완료 통지(스플래시 닫기 버튼 활성화 트리거, fire-and-forget). */
+    signalReady(): void
   }
 
   // ── update:* (사용자 주도 자동 업데이트 — 설정 "소프트웨어 정보") ──────
@@ -437,7 +439,8 @@ export const api: ExplorerApi = {
 
   app: {
     onOpenPath: (cb) => subscribe(CHANNELS.APP_OPEN_PATH, cb),
-    getInfo: () => invoke(CHANNELS.APP_GET_INFO)
+    getInfo: () => invoke(CHANNELS.APP_GET_INFO),
+    signalReady: () => ipcRenderer.send(CHANNELS.APP_RENDERER_READY)
   },
 
   update: {

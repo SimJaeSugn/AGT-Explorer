@@ -161,6 +161,8 @@ export interface UiSlice {
   readonly queuePanelOpen: boolean
   /** 프로그램 시작 시 용량 대시보드 자동 표시(설정 영속, I장 §4.4). */
   readonly showDashboardOnStartup: boolean
+  /** 프로그램 시작 시 홍보영상 스플래시 표시(설정 영속). 기본 on. */
+  readonly showPromoSplash: boolean
   /** 복사 후 체크섬 검증(설정 영속, §R4·US-17.4). 기본 off. */
   readonly verifyOnCopy: boolean
   /** 상단 아이콘바에서 숨긴 명령 id(단축아이콘 설정·영속). 기본 빈 배열=전부 표시. */
@@ -247,6 +249,7 @@ export interface UiSlice {
   closeDashboard(): void
   /** 시작 시 대시보드 표시 설정(영속은 usecase/settings 가 처리). */
   setShowDashboardOnStartup(v: boolean): void
+  setShowPromoSplash(v: boolean): void
   /** 복사 후 체크섬 검증 설정(영속은 usecase/settings 가 처리, §R4). */
   setVerifyOnCopy(v: boolean): void
   /** 아이콘바 숨김 명령 id 설정(영속은 usecase/settings 가 처리). */
@@ -367,6 +370,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   dedupOpen: false,
   queuePanelOpen: false,
   showDashboardOnStartup: true,
+  showPromoSplash: true,
   verifyOnCopy: false,
   iconBarHidden: [],
   iconBarOrder: [],
@@ -387,6 +391,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
       s.showExtensions = snapshot.showExtensions
       s.recentLimit = Math.min(1000, Math.max(1, Math.trunc(snapshot.recentLimit)))
       s.showDashboardOnStartup = snapshot.showDashboardOnStartup
+      // 홍보영상 스플래시: 비파괴 — 구버전 스냅샷(undefined)은 true 폴백.
+      s.showPromoSplash = snapshot.showPromoSplash ?? true
       // §R4: 비파괴 — 구버전 스냅샷(undefined)은 false 폴백.
       s.verifyOnCopy = snapshot.verifyOnCopy ?? false
       // 단축아이콘: 구버전 스냅샷(undefined)은 빈 배열 폴백(전부 표시·기본 순서).
@@ -477,6 +483,12 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setShowDashboardOnStartup(v) {
     set((s) => {
       s.showDashboardOnStartup = v
+    })
+  },
+
+  setShowPromoSplash(v) {
+    set((s) => {
+      s.showPromoSplash = v
     })
   },
 
