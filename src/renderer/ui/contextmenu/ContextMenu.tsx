@@ -84,7 +84,10 @@ export function ContextMenu(): JSX.Element | null {
       if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return
       closeContextMenu()
     }
-    function onScroll(): void {
+    // 메뉴 내부(본문/플라이아웃) 휠·스크롤은 메뉴 자체 스크롤이므로 닫지 않는다.
+    // 메뉴 밖(뒤 목록 등)에서 스크롤하면 앵커가 어긋나므로 닫는다.
+    function onScroll(e: Event): void {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return
       closeContextMenu()
     }
     function onResize(): void {
@@ -246,6 +249,10 @@ export function ContextMenu(): JSX.Element | null {
         visibility: pos ? 'visible' : 'hidden',
         minWidth: 200,
         maxWidth: 320,
+        // 항목이 많아 뷰포트보다 길면 잘리지 않도록 최대 높이 제한 + 내부 스크롤.
+        // (offsetHeight 가 이 값으로 캡되어 아래 경계 보정도 정확히 클램프된다.)
+        maxHeight: `calc(100vh - ${MARGIN * 2}px)`,
+        overflowY: 'auto',
         padding: `${PAD_Y}px 0`,
         background: tokens.color.bg,
         border: `1px solid ${tokens.color.borderStrong}`,
@@ -359,7 +366,11 @@ function MenuRow({
   )
 }
 
-/** 하위 메뉴 플라이아웃(태그 색상 목록 등). 부모 항목 우측에 펼친다. */
+/**
+ * 하위 메뉴 플라이아웃(태그 색상·레지스트리 ShellNew 목록 등). 기본은 부모 항목 우측에
+ * 펼치되, 화면 경계를 벗어나면 좌측으로 반전하고 상하로 클램프해 잘리지 않게 한다.
+ * (부모 menuitem 의 viewport 사각형 기준으로 측정 후 1회 배치 — useLayoutEffect.)
+ */
 function Flyout({
   items,
   onRun
@@ -368,14 +379,40 @@ function Flyout({
   onRun: (child: MenuItem) => void
 }): JSX.Element {
   const [activeIdx, setActiveIdx] = useState(-1)
+  const ref = useRef<HTMLDivElement | null>(null)
+  // side: 좌/우 펼침. topOffset: 부모 기준 세로 오프셋(경계 클램프 결과). null=측정 전.
+  const [place, setPlace] = useState<{ side: 'left' | 'right'; topOffset: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    const parent = el?.parentElement // 부모 menuitem(position:relative).
+    if (!el || !parent) return
+    const pr = parent.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    // 좌우: 우측이 넘치고 왼쪽에 공간이 있으면 왼쪽으로 반전.
+    const side: 'left' | 'right' =
+      pr.right + w > vw - MARGIN && pr.left - w >= MARGIN ? 'left' : 'right'
+    // 상하: 기본은 부모 상단(−PAD_Y 보정). 아래로 넘치면 위로 끌어올리고 [MARGIN, vh−h−MARGIN] 클램프.
+    let viewTop = pr.top - PAD_Y
+    if (viewTop + h > vh - MARGIN) viewTop = vh - MARGIN - h
+    if (viewTop < MARGIN) viewTop = MARGIN
+    setPlace({ side, topOffset: viewTop - pr.top })
+  }, [items])
+
   return (
     <div
+      ref={ref}
       role="menu"
       aria-label="하위 메뉴"
       style={{
         position: 'absolute',
-        top: -PAD_Y,
-        left: '100%',
+        top: place ? place.topOffset : -PAD_Y,
+        ...(place?.side === 'left' ? { right: '100%' } : { left: '100%' }),
+        // 측정 전(첫 레이아웃)에는 숨겨 잘못된 위치 깜빡임 방지.
+        visibility: place ? 'visible' : 'hidden',
         minWidth: 160,
         maxWidth: 260,
         // 긴 목록(레지스트리 ShellNew 형식 수십 개)은 화면 밖으로 넘치지 않도록 스크롤(§Y2).
