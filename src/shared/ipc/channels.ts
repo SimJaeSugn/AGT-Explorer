@@ -186,6 +186,9 @@ export const CHANNELS = {
   // 스플래시(홍보영상): 렌더러 부팅 완료 1회 통지(Renderer→Main, fire-and-forget).
   // main 이 받으면 스플래시 닫기 버튼을 활성화한다(signalSplashReady). 요청-응답 아님.
   APP_RENDERER_READY: 'app:renderer-ready', // send evt (렌더러 초기화 완료 → 스플래시 ready)
+  // 스플래시 "앞으로 보지 않기"로 showPromoSplash 설정이 바뀌면 main 이 메인 렌더러에 푸시한다
+  // (설정 화면 즉시 동기화). Main→Renderer 단방향 evt.
+  APP_PROMO_SPLASH_CHANGED: 'app:promo-splash-changed', // 푸시 evt (스플래시 토글 → 설정 동기화)
 
   // ── update:* 자동 업데이트 (사용자 주도 — 설정 "소프트웨어 정보") ──────────
   // 자동 다운로드는 끄고(autoDownload=false), 사용자가 버튼으로 확인→다운로드→설치한다.
@@ -278,6 +281,8 @@ export const EVENT_CHANNELS = [
   CHANNELS.QUEUE_STATE,
   // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기" 경로 전달)
   CHANNELS.APP_OPEN_PATH,
+  // app:* 푸시 evt (스플래시 "앞으로 보지 않기" → showPromoSplash 설정 동기화)
+  CHANNELS.APP_PROMO_SPLASH_CHANGED,
   // search:content:* 푸시 evt (신규 M8 — ADR-010, jobId 상관 진행/일치/완료)
   CHANNELS.SEARCH_CONTENT_PROGRESS,
   CHANNELS.SEARCH_CONTENT_MATCH,

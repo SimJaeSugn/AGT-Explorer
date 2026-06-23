@@ -131,7 +131,12 @@ function buildTagSubmenu(paths: string[]): MenuItem {
  * 형식(설치된 프로그램에 따라 동적·이름순). 폴더는 commandId(file.newFolder)로 수렴,
  * 고정 형식은 createNewFile(형식), 레지스트리 형식은 createFromShellNew(item) 직접 호출.
  */
-function buildNewSubmenu(): MenuItem {
+/**
+ * "새로 만들기" 항목 목록(폴더 + 고정 형식 + 레지스트리 ShellNew). 컨텍스트 메뉴 하위 메뉴와
+ * 패널 도구바 "새로 만들기" 드롭다운이 공용으로 쓴다(동일 동작 단일 출처). 동작은 모두 활성
+ * 패널 기준(panelPaths)이므로, 호출 측이 먼저 해당 패널을 활성화한 뒤 run 을 실행해야 한다.
+ */
+export function buildNewMenuChildren(): MenuItem[] {
   const children: MenuItem[] = [
     { id: 'new-folder', label: '폴더', run: cmd('file.newFolder') },
     { id: 'new-sep-fixed', separator: true },
@@ -154,7 +159,11 @@ function buildNewSubmenu(): MenuItem {
       })
     }
   }
-  return { id: 'new', label: '새로 만들기', children }
+  return children
+}
+
+function buildNewSubmenu(): MenuItem {
+  return { id: 'new', label: '새로 만들기', children: buildNewMenuChildren() }
 }
 
 /**

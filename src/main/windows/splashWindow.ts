@@ -17,11 +17,16 @@
  */
 import { join } from 'node:path'
 import { BrowserWindow, ipcMain } from 'electron'
+import { CHANNELS } from '@shared/ipc/channels'
+import { settingsStore } from '../persistence'
+import { getPrimaryWindow } from './windowManager'
 
 /** main→splash: 초기화 완료 → 닫기 버튼 활성화. */
 const SPLASH_READY = 'splash:ready'
 /** splash→main: 사용자가 닫기 버튼 클릭. */
 const SPLASH_CLOSE = 'splash:close'
+/** splash→main: "앞으로 보지 않기" 체크 변경(boolean payload). */
+const SPLASH_SET_DONT_SHOW = 'splash:set-dont-show'
 
 let splashWin: BrowserWindow | null = null
 let ipcWired = false
@@ -90,5 +95,24 @@ export function wireSplashIpc(): void {
   ipcWired = true
   ipcMain.on(SPLASH_CLOSE, () => {
     getSplashWindow()?.close()
+  })
+  // "앞으로 보지 않기" 체크 → showPromoSplash 설정을 끄고(영속) 메인 렌더러 설정 화면을
+  // 즉시 동기화한다. 닫기는 별도(SPLASH_CLOSE)이므로 여기선 영속/동기화만 한다(체크만 하고
+  // 계속 보다가 그냥 닫아도 다음 실행부터 적용됨).
+  ipcMain.on(SPLASH_SET_DONT_SHOW, (_e, raw) => {
+    const show = raw !== true // dontShow=true → showPromoSplash=false
+    try {
+      void settingsStore()
+        .set({ showPromoSplash: show })
+        .catch(() => {
+          /* 영속 실패는 무시(다음 토글/설정에서 재시도) */
+        })
+    } catch {
+      /* persistence 미초기화(이론상 불가 — whenReady 에서 초기화 후 splash 생성) → 스킵 */
+    }
+    const primary = getPrimaryWindow()
+    if (primary && !primary.webContents.isDestroyed()) {
+      primary.webContents.send(CHANNELS.APP_PROMO_SPLASH_CHANGED, { showPromoSplash: show })
+    }
   })
 }

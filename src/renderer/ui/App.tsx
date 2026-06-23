@@ -19,7 +19,7 @@ import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
 import { initAgentBridge } from '@renderer/app/usecases/agent'
-import { loadSettings } from '@renderer/app/usecases/settings'
+import { loadSettings, initPromoSplashBridge } from '@renderer/app/usecases/settings'
 import { bootWindow } from '@renderer/app/usecases/windowInit'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
 import { IconBar } from '@renderer/ui/toolbar/IconBar'
@@ -87,6 +87,8 @@ export function App(): JSX.Element {
     initContentSearchBridge()
     // §Z Z1: agent:event 푸시 → agentSlice 미러(자연어 에이전트·전역 1회 구독·runId 상관).
     initAgentBridge()
+    // 스플래시 "앞으로 보지 않기" → showPromoSplash 설정 변경 푸시 → uiSlice 동기화(전역 1회 구독).
+    initPromoSplashBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 창 초기화(U3 — primary 면 세션 복원+자동저장,

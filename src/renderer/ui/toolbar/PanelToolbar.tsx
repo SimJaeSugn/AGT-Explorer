@@ -10,11 +10,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ViewMode } from '@shared/dto'
 import { useRootStore } from '@renderer/app/stores/rootStore'
-import { breadcrumbs, normalizeDisplay } from '@renderer/domain/paths'
+import { breadcrumbs, normalizeDisplay, isMyPc } from '@renderer/domain/paths'
 import { resolveDriveLabel } from '@renderer/app/selectors/driveLabel'
 import { isRemotePath, locationKindOf, makeRemotePath, parseRemotePath } from '@renderer/domain/rules/remoteLocation'
 import { validateAndNavigate } from '@renderer/app/usecases/navigate'
 import { BreadcrumbDropdown } from '@renderer/ui/toolbar/BreadcrumbDropdown'
+import { NewMenuButton } from '@renderer/ui/toolbar/NewMenuButton'
 import { tokens } from '@renderer/ui/theme/tokens'
 import {
   ArrowLeftIcon,
@@ -218,6 +219,9 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
       >
         <StarIcon size={15} filled={isFav} />
       </button>
+
+      {/* 새로 만들기(컨텍스트 메뉴 "새로 만들기"와 동일 항목·동작). 내 PC·빈 경로면 비활성. */}
+      <NewMenuButton disabled={path === '' || isMyPc(path)} activate={focusPanel} />
 
       {/* 주소 표시줄 */}
       <div style={{ flex: 1, minWidth: 0 }}>

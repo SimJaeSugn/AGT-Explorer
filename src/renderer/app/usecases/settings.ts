@@ -10,7 +10,7 @@
  * app → infra/api 직접 호출(.eslintrc 허용). 영속 실패는 토스트 안내(비차단).
  */
 import type { ThemeMode } from '@shared/dto'
-import { settingsApi, telemetryApi } from '@renderer/infra/api'
+import { settingsApi, telemetryApi, subscribePromoSplashChanged } from '@renderer/infra/api'
 import { store } from '@renderer/app/stores/rootStore'
 import { applyTheme, resolveTheme, systemPrefersDark } from '@renderer/ui/theme/applyTheme'
 
@@ -93,6 +93,20 @@ export async function changeShowDashboardOnStartup(v: boolean): Promise<void> {
 export async function changeShowPromoSplash(v: boolean): Promise<void> {
   store.getState().setShowPromoSplash(v)
   await persist({ showPromoSplash: v })
+}
+
+let promoSplashDisposer: (() => void) | null = null
+
+/**
+ * 스플래시 "앞으로 보지 않기" → main 이 showPromoSplash 설정을 바꾸면 푸시를 받아 슬라이스에
+ * 반영한다(설정 화면 즉시 동기화). 영속은 main 이 이미 끝냈으므로 여기선 슬라이스만 갱신한다.
+ * App 부팅 시 1회 구독(중복 호출 무시).
+ */
+export function initPromoSplashBridge(): void {
+  if (promoSplashDisposer) return
+  promoSplashDisposer = subscribePromoSplashChanged((evt) => {
+    store.getState().setShowPromoSplash(evt.showPromoSplash)
+  })
 }
 
 /** 복사 후 체크섬 검증 토글: 슬라이스 반영 + 영속(§R4·US-17.4, 기본 off). */

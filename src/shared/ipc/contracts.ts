@@ -1064,6 +1064,11 @@ export interface AppOpenPathEvt {
   readonly path: string
 }
 
+/** 스플래시 "앞으로 보지 않기" 토글 결과(showPromoSplash 설정 새 값). 메인 렌더러가 설정 슬라이스에 반영. */
+export interface PromoSplashChangedEvt {
+  readonly showPromoSplash: boolean
+}
+
 // ── app:get-info (앱 기본 정보 — 설정 "소프트웨어 정보") ────────────────────
 /**
  * 앱·런타임 기본 정보. 메인이 app.getVersion()·process.versions·platform/arch 로 채운다.
@@ -1200,6 +1205,8 @@ export interface IpcEventMap {
 
   // app:* 푸시 evt (신규 V2 — 탐색기 "AGT-Finder로 열기")
   [CHANNELS.APP_OPEN_PATH]: AppOpenPathEvt
+  // app:* 푸시 evt (스플래시 "앞으로 보지 않기" → showPromoSplash 설정 동기화)
+  [CHANNELS.APP_PROMO_SPLASH_CHANGED]: PromoSplashChangedEvt
 
   // search:content:* 푸시 evt (신규 M8 — ADR-010)
   [CHANNELS.SEARCH_CONTENT_PROGRESS]: SearchContentProgressEvt
