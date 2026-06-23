@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+  <style>
+    html,body{margin:0;padding:0;background:#000;overflow:hidden;}
+    *{box-sizing:border-box;}
+  </style>
+</helmet>
+<div style="position:fixed;inset:0;background:#000;">
+  <x-import component="PromoVideo" from="./promo.jsx" width="100%" height="100%" hint-size="100%,100%"></x-import>
+</div>
+</x-dc>
+</body>
+</html>
