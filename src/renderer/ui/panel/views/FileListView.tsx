@@ -874,13 +874,15 @@ function FileRow({
   onContext,
   dragSourcesFor
 }: RowProps): JSX.Element {
+  // 비선택·비드롭 행은 배경을 비워(undefined) .agt-hover:hover(전역 CSS)가 보이게 한다.
+  // 선택/드롭 행은 인라인 배경이 우선해 호버가 선택색을 덮지 않는다.
   const bg = dropHighlight
     ? tokens.color.bgHover
     : selected
       ? active
         ? tokens.color.bgSelected
         : tokens.color.bgSelectedInactive
-      : 'transparent'
+      : undefined
   // 리스킨: 활성 패널에서 선택된 행에 좌측 accent 강조바(목업 "채움 + 바").
   const selBar = selected && active ? `inset 3px 0 0 ${tokens.color.accent}` : undefined
   const name = displayName(entry, showExt)
@@ -910,6 +912,7 @@ function FileRow({
     return (
       <div
         role="row"
+        className="agt-hover"
         aria-selected={selected}
         aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
         aria-posinset={index + 1}
@@ -1016,6 +1019,7 @@ function FileRow({
   return (
     <div
       role="row"
+      className="agt-hover"
       aria-selected={selected}
       aria-label={`${name}${entry.isDir ? ', 폴더' : ', 파일'}`}
       aria-posinset={index + 1}

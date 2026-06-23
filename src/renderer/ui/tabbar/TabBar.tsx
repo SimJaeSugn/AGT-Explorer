@@ -171,17 +171,19 @@ function TabItem({
   const ariaLabel = locked ? `${label} (잠긴 탭)` : label
   // 탭 영역 전체 배경: 색상 미지정이면 기존 동작(활성=bg/비활성=투명), 지정 시 파스텔 틴트
   // (활성은 좀 더 진하게). 본문 텍스트 대비를 유지하도록 낮은 알파로 테마 배경 위에 합성.
+  // 비활성·비색상 탭은 배경을 비워(undefined) .agt-hover:hover(전역 CSS)가 보이게 한다.
   const tabBg = swatch
     ? tabTint(swatch, active ? 0.34 : 0.18)
     : active
       ? tokens.color.elevated
-      : 'transparent'
+      : undefined
   // 활성 탭 강조 점 색: 색상 지정 시 그 색, 아니면 accent(미지정 비활성은 숨김).
   const dotColor = swatch ?? tokens.color.accent
 
   return (
     <div
       role="tab"
+      className="agt-hover"
       aria-selected={active}
       aria-label={ariaLabel}
       draggable={!editing}

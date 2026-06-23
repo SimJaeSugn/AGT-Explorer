@@ -56,7 +56,8 @@ function navRowStyle(selected: boolean): React.CSSProperties {
     borderRadius: 9,
     cursor: 'pointer',
     color: selected ? tokens.color.text : tokens.color.textMuted,
-    background: selected ? tokens.color.bgSelected : 'transparent',
+    // 비선택은 배경을 비워(undefined) .agt-hover:hover(전역 CSS)가 보이게 한다.
+    background: selected ? tokens.color.bgSelected : undefined,
     boxShadow: selected ? `inset 2px 0 0 ${tokens.color.accent}` : undefined
   }
 }
@@ -272,6 +273,7 @@ function RemoteSection(): JSX.Element {
               if (pid) s.navigate(pid, rootUri, true)
             }}
             title={`${sess.profile.protocol}://${sess.profile.username}@${sess.profile.host}`}
+            className="agt-hover"
             style={navRowStyle(false)}
           >
             <span style={{ flex: '0 0 auto', display: 'inline-flex' }}>{sess.encrypted ? '🔒' : '⚠'}</span>
@@ -281,7 +283,7 @@ function RemoteSection(): JSX.Element {
           </div>
         )
       })}
-      <div onClick={() => execCommand('remote.open')} title="원격 서버 연결(FTP/SFTP)" style={navRowStyle(false)}>
+      <div onClick={() => execCommand('remote.open')} title="원격 서버 연결(FTP/SFTP)" className="agt-hover" style={navRowStyle(false)}>
         <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
           <GlobeIcon size={15} />
         </span>
@@ -298,6 +300,7 @@ function TrashNode(): JSX.Element {
     <div
       onClick={() => execCommand('trash.open')}
       title="휴지통 관리"
+      className="agt-hover"
       style={navRowStyle(open)}
     >
       <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -315,6 +318,7 @@ function AgentNode(): JSX.Element {
     <div
       onClick={() => execCommand('agent.ask')}
       title="에이전트에게 묻기(읽기 전용·Ctrl+Shift+A)"
+      className="agt-hover"
       style={navRowStyle(open)}
     >
       <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: tokens.color.accent }}>
@@ -629,6 +633,7 @@ function PinnedRow({
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       title={fullPath}
+      className="agt-hover"
       style={navRowStyle(selected)}
     >
       <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -679,7 +684,7 @@ function QuickFolderNode({
   const activePath = useActivePanelPath()
   const selected = activePath === path
   return (
-    <div onClick={() => navigateActive(path)} title={path} style={navRowStyle(selected)}>
+    <div onClick={() => navigateActive(path)} title={path} className="agt-hover" style={navRowStyle(selected)}>
       <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
         {icon}
       </span>
@@ -695,7 +700,7 @@ function MyPcNode(): JSX.Element {
   const activePath = useActivePanelPath()
   const selected = activePath === ''
   return (
-    <div onClick={() => navigateActive('')} style={navRowStyle(selected)}>
+    <div onClick={() => navigateActive('')} className="agt-hover" style={navRowStyle(selected)}>
       <span style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
         <MonitorIcon size={15} />
       </span>

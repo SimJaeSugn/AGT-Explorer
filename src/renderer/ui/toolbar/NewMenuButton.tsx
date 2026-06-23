@@ -181,9 +181,11 @@ export function NewMenuButton({ disabled, activate }: Props): JSX.Element {
         aria-label="새로 만들기"
         aria-haspopup="menu"
         aria-expanded={open}
+        className="agt-iconbtn"
         style={{
           border: 'none',
-          background: open ? tokens.color.bgHover : 'transparent',
+          // 열린 동안은 강조 유지(인라인). 닫혀 있으면 비워 .agt-iconbtn:hover 가 보이게 한다.
+          background: open ? tokens.color.bgHover : undefined,
           borderRadius: 7,
           height: 27,
           padding: '0 5px',

@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 // Pretendard 가변 폰트(로컬 번들 — CSP font-src 'self' 충족, CDN 미사용).
 // tokens.font 의 'Pretendard Variable' 패밀리를 이 @font-face 가 제공한다.
 import 'pretendard/dist/web/variable/pretendardvariable.css'
+// 전역 호버 효과 유틸리티(.agt-iconbtn / .agt-hover — 테마 CSS 변수 사용).
+import '@renderer/ui/global.css'
 import { App } from '@renderer/ui/App'
 import { applyTheme } from '@renderer/ui/theme/applyTheme'
 

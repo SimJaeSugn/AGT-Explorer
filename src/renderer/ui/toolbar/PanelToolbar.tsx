@@ -35,9 +35,10 @@ interface Props {
   readonly showNumber: boolean
 }
 
+// 배경은 .agt-iconbtn(전역 CSS)이 담당한다(투명 기본 + 호버 강조). 여기서 background 를
+// 인라인으로 두면 호버 :hover 를 덮으므로 두지 않는다.
 const btnStyle: React.CSSProperties = {
   border: 'none',
-  background: 'transparent',
   borderRadius: 7,
   width: 27,
   height: 27,
@@ -168,6 +169,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         </span>
       )}
       <button
+        className="agt-iconbtn"
         style={{ ...btnStyle, opacity: nav && nav.back.length ? 1 : 0.4 }}
         disabled={!nav || nav.back.length === 0}
         onClick={() => navBack(panelId)}
@@ -177,6 +179,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         <ArrowLeftIcon size={15} />
       </button>
       <button
+        className="agt-iconbtn"
         style={{ ...btnStyle, opacity: nav && nav.forward.length ? 1 : 0.4 }}
         disabled={!nav || nav.forward.length === 0}
         onClick={() => navForward(panelId)}
@@ -186,6 +189,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         <ArrowRightIcon size={15} />
       </button>
       <button
+        className="agt-iconbtn"
         style={btnStyle}
         onClick={() => navUp(panelId)}
         title="위로 (Alt+↑ / Backspace)"
@@ -193,11 +197,12 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
       >
         <ArrowUpIcon size={15} />
       </button>
-      <button style={btnStyle} onClick={() => refresh(panelId)} title="새로고침 (Ctrl+R)" aria-label="새로고침">
+      <button className="agt-iconbtn" style={btnStyle} onClick={() => refresh(panelId)} title="새로고침 (Ctrl+R)" aria-label="새로고침">
         <RefreshIcon size={14} />
       </button>
       {lockedRoot && (
         <button
+          className="agt-iconbtn"
           style={{ ...btnStyle, color: tokens.color.folder }}
           onClick={() => {
             focusPanel()
@@ -210,6 +215,7 @@ export function PanelToolbar({ panelId, active, panelNumber, showNumber }: Props
         </button>
       )}
       <button
+        className="agt-iconbtn"
         style={{ ...btnStyle, opacity: path === '' ? 0.4 : 1, color: isFav ? tokens.color.folder : tokens.color.textMuted }}
         disabled={path === ''}
         onClick={() => toggleFavorite(path)}
