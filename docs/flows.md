@@ -63,7 +63,7 @@
 | 즐겨찾기 별칭 (J7 ✅) | 즐겨찾기 항목 표시 이름(별칭) 변경 가능(우클릭/`F2` 인라인 편집·`favoriteLabels`)·경로 불변·영속(없으면 basename 폴백) |
 | 즐겨찾기 정렬 (N2 ✅) | 사이드바 즐겨찾기 항목을 **드래그로 순서 변경**(DropLine 삽입 위치 인디케이터·항목 강조)·순서를 `SidebarSnapshot.favorites`에 영속·타 섹션(트리/드라이브/휴지통/최근)과 격리·키보드 대체수단 `Alt+Shift+↑/↓`(접근성). ✅ 구현 완료 (features §N2·US-13.2·실 드래그/키보드 런타임 스모크 🟡) |
 | 즐겨찾기 워터마크 (N1 ✅) | 현재 패널 경로가 **즐겨찾기와 정확 일치**할 때 패널 파일 목록 **뒤 배경**에 그 즐겨찾기 이름(J7 별칭 우선·없으면 basename)을 **크고 반투명**하게 표시(본문 위 비중첩·테마별 반투명도·패널별 독립). ✅ 구현 완료 (features §N1·US-13.1·실 GUI 렌더 런타임 스모크 🟡) |
-| 컨텍스트 메뉴 터미널 (H4 ✅) | 폴더 항목/패널 빈 영역 우클릭에 **"터미널 열기"** — 선택 폴더(또는 현재 경로)를 cwd로 `wt.exe` 우선·없으면 PowerShell 실행(검증 경로만, ADR-005) |
+| 컨텍스트 메뉴 터미널 (H4 ✅) | 폴더 항목/패널 빈 영역 우클릭에 **"터미널 열기"** 와 (2026-06-28) **"터미널 열기(Claude)"** — 선택 폴더(또는 현재 경로)를 cwd로 `wt.exe` 우선·없으면 PowerShell 실행(검증 경로만, ADR-005). (Claude) 항목은 셸 기동 직후 `claude` 자동 실행(옵셔널 `launch:'claude'` 고정 리터럴) |
 | 분할 패널 | 1~4개 패널. 각 패널이 독립 탐색 뷰. 패널 간 D&D 작업 |
 | 미리보기 패널 (S) | 활성 패널 선택 항목의 미리보기. `Ctrl+P` 토글, 우측 또는 하단 부착. **(J5 ✅) 상하 2단(상단 정보 `PreviewInfoCard`+하단 확장 뷰어: 이미지·텍스트·코드 구문 강조(highlight.js)·마크다운(marked+DOMPurify))·(J6 ✅) 분할선 드래그로 폭 조절(`ui.previewWidth` 세션 영속)** |
 | 사용량 대시보드 (S, I1 ✅) | 아이콘바 ④도구 그룹 아이콘 또는 **실행 시 자동 팝업**(설정 "시작 시 대시보드 표시" 기본 켜짐)으로 여는 **모달**(`DashboardModal`). 드라이브 사용량 즉시(도넛+표)·선택 폴더/드라이브 Top10 온디맨드 스캔(막대+표, 진행률·취소·비차단, `analyze:scan:*`)·인사이트. `Esc`로 닫기 (features §I1) |
@@ -78,7 +78,7 @@
 | 브레드크럼 드롭다운 (U2) | 주소 표시줄(C1) 각 세그먼트 펼침(▾) → 그 구간 형제 폴더 드롭다운 이동(온디맨드 로드·키보드 내비). M8 구현 완료(코드)·실 GUI 🟡 (features §U2·F32) |
 | 태그/색상 라벨 (T1) | 항목 우클릭으로 색 라벨 부여·목록/그리드 색 표시·태그 필터·per-경로 메타 세션 영속(앱 내부 메타·데이터 비파괴). M8 구현 완료(코드)·실 GUI 🟡 (features §T1·F28) |
 | 탭 사용자 지정 이름 (U4 ✅·실 GUI 🟡) | 탭 라벨 **더블클릭** 또는 **우클릭 "이름 바꾸기"** 로 인라인 편집해 자동 제목(폴더명)을 덮어쓰는 사용자 지정 이름 부여(Enter 확정·Esc 취소·blur 확정·빈 값=자동 제목 복귀)·`TabSnapshot.customName?` 세션 영속(재시작 후 유지). §U3(탭 색상/잠금·분리)와 별개로 이름만(중복 아님)·신규 채널 0·의존성 0. ✅ 구현 완료 (features §U4·US-20.4·흐름 F35·실 GUI 동작 런타임 스모크 🟡) |
-| 사이드바 "빠른 위치" 섹션 (X1 ✅·실 GUI 🟡) | 즐겨찾기·최근·드라이브·휴지통과 동격의 진입점 — **다운로드** 항목 클릭으로 활성 패널을 OS 다운로드 폴더로 이동. OS 시스템 폴더 경로는 신규 채널 `fs:known-folders`(무인자 invoke → `KnownFoldersDTO`·`app.getPath`)로 적재. **현재는 다운로드만 렌더**(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약). 신규 npm 의존성 0. ✅ 구현 완료 (features §X1·US-22.1·흐름 F36·실 GUI 동작 런타임 스모크 🟡) |
+| 사이드바 "빠른 위치" 섹션 (X1 구현완료(코드)·실 GUI 🟡) | 즐겨찾기·최근·드라이브·휴지통과 동격의 진입점 — (2026-06-28 동작 확장) **다운로드·바탕화면·문서·사진** 4개 노드 클릭으로 활성 패널을 해당 OS 시스템 폴더로 이동(경로 조회 실패 노드는 해당 행만 비표시). OS 시스템 폴더 경로는 신규 채널 `fs:known-folders`(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, pictures, home }`·`app.getPath`)로 적재. **`home`은 DTO로 함께 가져오나 미표시·예약**. 신규 npm 의존성 0. 구현 완료(코드) (features §X1·US-22.1·흐름 F36·실 GUI 동작 런타임 스모크 🟡) |
 | 컨텍스트 메뉴 "Windows 메뉴" 섹션 (Y1 구현 완료(코드)·실 GUI 🟡) | 단일 파일/폴더 우클릭 시 앱 컨텍스트 메뉴(B6) **하단에 "Windows 메뉴" 섹션**(구분선 분리) — Windows에 설치된 프로그램이 등록한 셸 verb(예: "반디집으로 압축하기"·"Cursor로 열기")를 셸 COM Verbs로 열거해 노출, 선택 시 `verb.DoIt()` 실행(상주 PowerShell 워커 `shellVerbsWorker.ps1`·**신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종**). 다중 선택 시 섹션 숨김·중복 verb 블랙리스트 필터·캐스케이드 서브메뉴 best-effort·fire-and-forget 실행·재열거 교차검증→EVERB 거부. 신규 네이티브 의존성 0. 구현 완료(코드)·`verify:shellverbs` 75/0·실 GUI/실 패키지 런타임 스모크 🟡 (features §Y1·US-23.1·흐름 F37·2026-06-12) |
 | AI 에이전트 패널 (Z1 — 읽기 전용 구현 완료(코드)·실 GUI 🟡 / 쓰기 plan/실행 🔜 deferred) | 명령 팔레트(`Ctrl+Shift+P` "AI 에이전트 열기")·아이콘바 도구 그룹으로 여는 패널 — **자연어 입력창 + 에이전트 사고(thinking)/도구 호출 스트림 표시 + plan diff(op별 무엇을·어디로·왜·체크박스 부분 수용·충돌 정책) + 실행/취소·키 설정 진입**. 렌더러는 **표시만**(키·도구·네트워크 미접근)·에이전트 루프는 메인 프로세스(키 safeStorage·단일 신뢰 경계). 읽기 자유/쓰기 plan 적재만·실행=기존 `op:*`+휴지통+`Ctrl+Z` undo 재사용. 멀티 AI 제공자(Claude/OpenAI/내부 OpenAI 호환 엔드포인트)·내부 base URL 화이트리스트 SSRF 차단·BYO 키·내용 동의 게이트·비용 상한. **읽기 전용 범위 구현 완료(코드)·실 GUI 🟡 / 쓰기(plan 수집·confirm·execute=US-24.2) 🔜 deferred(`agent:confirm`=EUNSUPPORTED)**·신규 채널 `agent:*`·신규 의존성 `@anthropic-ai/sdk`+`openai`(상태 단일 출처 roadmap §0.5·✅ 단정 금지) (features §Z1·US-24.1~24.5·흐름 F38~F41·2026-06-14) |
 
@@ -115,10 +115,14 @@ Ctrl+T → 새 탭 → 사이드바 즐겨찾기 클릭 / 주소 표시줄 입�
 
 ### F6. 폴더에서 바로 터미널 열기 (H4 ✅)
 ```
-폴더 항목 또는 패널 빈 영역 우클릭 → "터미널 열기"
+폴더 항목 또는 패널 빈 영역 우클릭 → "터미널 열기"  또는  "터미널 열기(Claude)"
 → 경로 검증(정규화·.. 차단·존재·권한, ADR-005) 통과 시
 → wt.exe 있으면 Windows Terminal / 없으면 PowerShell을 그 폴더(cwd)에서 실행
-   (파일·내 PC 항목에는 비활성·미표시 / 검증 실패 시 실행 없이 사유 안내)
+   ├─ "터미널 열기" = 셸만 연다
+   └─ (2026-06-28) "터미널 열기(Claude)" = 셸을 연 뒤 기동 직후 claude 자동 실행
+        (shell:open-terminal 옵셔널 launch:'claude' 고정 리터럴·임의 명령 미허용
+         / PATH에 claude 미설치 시 셸은 열리되 "claude 없음" 오류)
+   (파일·내 PC 항목에는 두 항목 모두 비활성·미표시 / 검증 실패 시 실행 없이 사유 안내)
 ```
 
 ### F7. 사용량 대시보드 열기·Top10 스캔/취소 (I1 ✅ 구현 완료 — `DashboardModal`·`analyze:scan:*`·`scanEngine`; 유형별 비중은 K3로 정식 구현 완료 ✅ `categorize.ts`·byCategory·`CategoryBar`·네이티브 성능 실측 런타임 스모크 권장)
@@ -516,19 +520,21 @@ Ctrl+Shift+P(신규·미배정 키) → 팔레트 오버레이 열기(Esc 닫기
 ※ 실 GUI(라벨 더블클릭 인라인 편집·우클릭 이름 바꾸기·Enter/Esc/blur·빈 값 자동복귀·재시작 후 유지)는 헤드리스 미증명 → 런타임 스모크 권장 🟡
 ```
 
-### F36. 사이드바 빠른 위치 ▸ 다운로드 이동 (X1 ✅ 구현 완료·실 GUI 동작 🟡 — features §X1·US-22.1)
+### F36. 사이드바 빠른 위치 ▸ OS 알려진 폴더 이동 (X1 구현 완료(코드)·실 GUI 동작 🟡 — features §X1·US-22.1)
 ```
 [적재] 앱/사이드바 초기화 → sidebarSlice.loadKnownFolders → 신규 채널 fs:known-folders(무인자 invoke)
-   → main fs.handlers.ts: app.getPath로 KnownFoldersDTO { downloads, desktop, documents, home } 반환
+   → main fs.handlers.ts: app.getPath로 KnownFoldersDTO { downloads, desktop, documents, pictures, home } 반환
    → sidebarSlice.knownFolders 적재
 [표시] 사이드바 "빠른 위치" 섹션 렌더(즐겨찾기·최근·드라이브·휴지통과 동격 진입점)
-   → 현재는 다운로드 항목만 렌더(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약·정직 표기)
-[이동] 다운로드 항목 클릭 → 활성 패널이 OS 다운로드 폴더(knownFolders.downloads)로 이동
+   → (2026-06-28 동작 확장) 다운로드·바탕화면·문서·사진 4개 노드 렌더
+   → 특정 노드의 OS 경로 조회 실패 시 그 행만 비표시(나머지 노드 정상 렌더)
+   → home은 DTO로 함께 가져오나 미표시·예약(정직 표기)
+[이동] 노드 클릭 → 활성 패널이 해당 OS 시스템 폴더(knownFolders.downloads/desktop/documents/pictures)로 이동
    → 기존 사이드바 항목 클릭(C3·즐겨찾기 클릭)과 동일한 활성 패널 이동 경로 재사용
 ※ 즐겨찾기(C4)=사용자 등록 폴더 / 빠른 위치=OS 제공 표준 폴더 고정 진입점(보완·중복 아님)
 ※ 신규 채널 fs:known-folders 1개(P1 동결 후 신기능·선례 동일 invoke·guard/Result 규약·ADR-005)·신규 npm 의존성 0
-※ 범위 밖(1차): 바탕화면/문서/홈 표시(예약)·빠른 위치 항목 추가/제거/재정렬/고정·다운로드 외 부가 동작
-※ 실 GUI(섹션 렌더·다운로드 클릭 이동·실 app.getPath 경로 해석)는 헤드리스 미증명 → 런타임 스모크 권장 🟡
+※ 범위 밖: home 표시(예약)·빠른 위치 항목 추가/제거/재정렬/고정·노드 외 부가 동작
+※ 실 GUI(섹션 렌더·4개 노드 클릭 이동·실 app.getPath 경로 해석)는 헤드리스 미증명 → 런타임 스모크 권장 🟡
 ```
 
 ### F37. 우클릭 → Windows 셸 컨텍스트 메뉴 항목 노출·실행 (Y1 구현 완료(코드)·실 GUI/실 패키지 🟡 — features §Y1·US-23.1, 신규 채널 `shell:context-verbs`/`shell:invoke-verb`)

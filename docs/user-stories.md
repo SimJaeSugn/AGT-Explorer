@@ -262,11 +262,12 @@
 - [x] 조정한 분할 비율이 세션에 저장되어 재시작 후에도 유지된다(`TabSnapshot.splitRatios`·`coerceSplitRatios`, 탭/레이아웃별 독립)
 
 ### US-7.4 우클릭으로 현재 폴더에서 터미널 열기 — S · 규모 S · ✅ 완료 (※ 네이티브 `wt.exe` 실행은 런타임 스모크 권장)
-개발자로서, GUI에서 보던 폴더로 바로 명령줄 작업을 이어가기 위해 우클릭 한 번으로 그 폴더에서 터미널을 열고 싶다.
+개발자로서, GUI에서 보던 폴더로 바로 명령줄 작업을 이어가기 위해 우클릭 한 번으로 그 폴더에서 터미널을 열고(필요하면 Claude Code CLI까지 바로 띄우고) 싶다.
 - [x] 디렉토리 항목 위 우클릭 메뉴에 "터미널 열기"가 있고, 선택하면 그 폴더를 작업 디렉토리로 터미널이 열린다(`contextMenu.ts`·`openTerminalAt`)
 - [x] 패널 빈 영역 우클릭의 "터미널 열기"는 현재 패널 경로를 작업 디렉토리로 연다
-- [x] Windows Terminal(`wt.exe -d`)이 있으면 그것으로, 없으면 `powershell.exe -NoExit`로 폴백해 열린다(`os/shell.ts#openTerminal`)
-- [x] 파일 항목·드라이브 목록(내 PC)에는 "터미널 열기"가 비활성 또는 미표시된다
+- [x] (2026-06-28 동작 확장) 컨텍스트 메뉴(빈 영역·파일/폴더 행)의 "터미널 열기" **바로 아래**에 **"터미널 열기(Claude)"** 항목이 있고, 선택하면 동일한 폴더에서 터미널이 열리고 **기동 직후 `claude`(Claude Code CLI)가 자동 실행**된다 — `shell:open-terminal` 계약의 옵셔널 `launch:'claude'`(고정 리터럴만 허용·임의 명령 미허용). 노출 조건은 "터미널 열기"와 동일(로컬 폴더). PATH에 claude 미설치 시 셸은 정상으로 열리되 "claude 없음" 오류가 셸에 표시된다. ※ 실 GUI/네이티브 실행 🟡
+- [x] Windows Terminal(`wt.exe -d`)이 있으면 그것으로, 없으면 `powershell.exe -NoExit`로 폴백해 열린다(두 항목 공통·`os/shell.ts#openTerminal`)
+- [x] 파일 항목·드라이브 목록(내 PC)에는 "터미널 열기"/"터미널 열기(Claude)"가 비활성 또는 미표시된다
 - [x] 경로 검증(정규화·`..` 이탈 차단·존재·stat 디렉토리 검증)을 통과하지 못한 경로는 터미널을 실행하지 않고 사유가 안내된다(`shell.handlers.ts`·ADR-005)
 - [x] 경로가 `execFile` 인자 배열로 전달되어 셸 메타문자가 포함된 폴더명에도 명령 주입이 발생하지 않는다(셸 경유 없음)
 
@@ -776,19 +777,18 @@
 
 ## 에픽 22. 좌측 사이드바 빠른 위치 (2026-06-10 신규 기획)
 
-> 트리 사이드바(US-3.3·features C3, Must)에 **"빠른 위치"** 섹션을 더해 자주 쓰는 OS 시스템 폴더(다운로드 등)에 한 번에 닿게 하는 **탐색 진입점 확장** 에픽이다. 2026-06-10 사용자 직접 요청으로 정식 편입. **S(Should)·✅ 구현 완료(코드)**(신규 채널 `fs:known-folders` 하나·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡). 1차는 **다운로드** 항목만 노출한다(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약·정직 표기).
+> 트리 사이드바(US-3.3·features C3, Must)에 **"빠른 위치"** 섹션을 더해 자주 쓰는 OS 시스템 폴더(다운로드·바탕화면·문서·사진)에 한 번에 닿게 하는 **탐색 진입점 확장** 에픽이다. 2026-06-10 사용자 직접 요청으로 정식 편입. **S(Should)·구현 완료(코드)**(신규 채널 `fs:known-folders` 하나·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡). (2026-06-28 동작 확장: 노출 노드 다운로드 단독 → **다운로드·바탕화면·문서·사진 4개**로 확대·각 경로 조회 실패 시 해당 행만 비표시·`home`은 DTO로 함께 가져오나 미표시·예약.)
 > 즐겨찾기(US-3.4·C4)는 사용자가 등록한 폴더 모음, "빠른 위치"는 OS 제공 표준 폴더의 고정 진입점(보완·중복 아님). 상세 규칙은 [features §X](./features.md). 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-10 §U4·§X)"](./PRD.md#6-범위와-우선순위-moscow). 단축키는 신규 키 불요(항목 클릭·[PRD 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)).
-> **[2026-06-10 상태] US-22.1 ✅ 구현 완료(코드)**(코드 정합 — `fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx` "빠른 위치" 섹션). **실 GUI 동작은 런타임 스모크 권장 🟡.** 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
+> **[2026-06-28 상태] US-22.1 구현 완료(코드)**(코드 정합 — `fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx` "빠른 위치" 섹션). **실 GUI 동작은 런타임 스모크 권장 🟡**(상태 단일 출처 [roadmap §0.5](./roadmap.md)). 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
 
-### US-22.1 사이드바 빠른 위치에서 다운로드 폴더로 이동하기 — S · 규모 S · ✅ 구현 완료 (실 GUI 동작 🟡)
-사용자로서, 자주 들르는 다운로드 폴더에 한 번에 가기 위해, 사이드바 "빠른 위치"의 다운로드 항목을 클릭해 활성 패널을 OS 다운로드 폴더로 이동하고 싶다.
-- [x] 사이드바에 **"빠른 위치"** 섹션이 추가되고 그 안에 **다운로드** 항목이 표시된다 (`ui/sidebar/Sidebar.tsx`). ※ 실 GUI 🟡
-- [x] 다운로드 항목을 클릭하면 활성 패널이 **OS 다운로드 폴더**로 이동한다(기존 사이드바 항목 클릭과 동일한 이동 경로) (`Sidebar.tsx` 클릭 → navigate(`knownFolders.downloads`)). ※ 실 GUI 🟡
-- [x] OS 시스템 폴더 경로를 **신규 채널 `fs:known-folders`** 로 가져온다(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, home }`·`app.getPath`) (`fs.handlers.ts`·`sidebarSlice.loadKnownFolders`). ※ 실 경로 해석 🟡
-- [x] **현재는 다운로드 항목만 렌더**되며(바탕화면/문서/홈은 DTO로 함께 가져오나 미표시·예약), 신규 npm 의존성 없이 동작한다 (`Sidebar.tsx` 다운로드만 렌더·정직 표기·신규 의존성 0)
-- [x] 기존 사이드바(C3·즐겨찾기·최근·드라이브·휴지통)·탐색 동작과 충돌·회귀가 없다(추가 진입점일 뿐) (`Sidebar.tsx` 신규 섹션 추가·기존 동작 무변경)
-- [ ] 바탕화면·문서·홈 항목 표시 — **1차 범위 밖**(DTO로 함께 가져오나 다운로드만 렌더·예약)
-- [ ] 빠른 위치 항목 추가/제거·재정렬·고정 — **1차 범위 밖**(OS 제공 고정 진입점·사용자 편집은 즐겨찾기 C4 소관)
+### US-22.1 사이드바 빠른 위치에서 OS 알려진 폴더로 이동하기 — S · 규모 S · 구현 완료(코드) (실 GUI 동작 🟡)
+사용자로서, 자주 들르는 다운로드·바탕화면·문서·사진 폴더에 한 번에 가기 위해, 사이드바 "빠른 위치"의 해당 항목을 클릭해 활성 패널을 그 OS 시스템 폴더로 이동하고 싶다.
+- [x] 사이드바에 **"빠른 위치"** 섹션이 추가되고 그 안에 **다운로드·바탕화면·문서·사진** 4개 노드가 표시된다 (`ui/sidebar/Sidebar.tsx`). ※ 실 GUI 🟡
+- [x] 각 노드를 클릭하면 활성 패널이 해당 **OS 시스템 폴더**(다운로드/바탕화면/문서/사진)로 이동한다(기존 사이드바 항목 클릭과 동일한 이동 경로) (`Sidebar.tsx` 클릭 → navigate(`knownFolders.*`)). ※ 실 GUI 🟡
+- [x] 특정 노드의 **OS 경로 조회가 실패하면 그 행만 비표시**되고 나머지 노드는 정상 렌더된다 (`Sidebar.tsx`). ※ 실 GUI 🟡
+- [x] OS 시스템 폴더 경로를 **신규 채널 `fs:known-folders`** 로 가져온다(무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, pictures, home }`·`app.getPath`) (`fs.handlers.ts`·`sidebarSlice.loadKnownFolders`). ※ 실 경로 해석 🟡
+- [x] `home`은 DTO로 함께 가져오나 미표시(예약)이며, 신규 npm 의존성 없이 동작하고 기존 사이드바(C3·즐겨찾기·최근·드라이브·휴지통)·탐색 동작과 충돌·회귀가 없다(추가 진입점일 뿐) (`Sidebar.tsx` 신규 섹션 추가·신규 의존성 0·기존 동작 무변경)
+- [ ] 빠른 위치 항목 추가/제거·재정렬·고정 — **범위 밖**(OS 제공 고정 진입점·사용자 편집은 즐겨찾기 C4 소관)
 
 ---
 
@@ -895,7 +895,7 @@
 | US-7.1 | 상단 아이콘바로 빠르게 실행 | S | M | UX/레이아웃 확장 | ✅ (IconBar·4그룹 20버튼·commandId 수렴) |
 | US-7.2 | 사이드바 온오프 토글 | S | S | UX/레이아웃 확장 | ✅ (`Ctrl+B`→`toggleSidebar`; 런타임 스모크 권장) |
 | US-7.3 | 분할 패널 비율 조절 | S | M | UX/레이아웃 확장 | ✅ (SplitDivider·`splitRatios` 영속; 런타임 스모크 권장) |
-| US-7.4 | 우클릭 "터미널 열기" | S | S | UX/레이아웃 확장 | ✅ (신규 `shell:open-terminal`·wt.exe→PowerShell 폴백·ADR-005; 네이티브 실행 런타임 스모크 권장) |
+| US-7.4 | 우클릭 "터미널 열기" / "터미널 열기(Claude)" | S | S | UX/레이아웃 확장 | ✅ (신규 `shell:open-terminal`·wt.exe→PowerShell 폴백·ADR-005; 2026-06-28 동작 확장: "터미널 열기(Claude)" 항목 추가 — 옵셔널 `launch:'claude'` 고정 리터럴·기동 직후 `claude` 실행·신규 채널/의존성 0·실 GUI/네이티브 실행 런타임 스모크 🟡) |
 | US-7.5 | 디렉토리 경로 직접 입력 | S | S | UX/레이아웃 확장 | ✅ (`PanelToolbar` 단일클릭 편집·`validateAndNavigate` 재사용) |
 | US-7.6 | 파일 유형별 아이콘 | S | M | UX/레이아웃 확장 | ✅ (`shell:icon` 구현·`OSIcon`·확장자 캐시 LRU512·iconRef 지연; 네이티브 실행 런타임 스모크 권장) |
 | US-8.1 | 사용량 대시보드(드라이브 즉시+Top10 온디맨드) | S | M | 분석·시각화/접근성 테마 | ✅ (신규 `analyze:scan:*`·recharts 도넛+막대+표·진행률/취소/비차단·자동 팝업 기본 켜짐; 유형별 비중은 US-10.3/K3로 정식 구현 완료·네이티브 성능 실측 런타임 스모크 권장) |
@@ -934,7 +934,7 @@
 | US-20.2 | 브레드크럼 드롭다운 | S | S | 빠른 보기·탐색·탭(§U) | 구현 완료(코드)/실 GUI 🟡 (M8·2026-06-10 — 신규 채널 0·`BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시 / 다단계 트리·파일 표시·즐겨찾기 혼합 1차 제외) |
 | US-20.3 | 탭 색상/잠금(닫기 방지·루트 잠금)·탭을 새 창으로 | C | M | 빠른 보기·탐색·탭(§U) | 구현 완료(코드)·실 GUI/멀티윈도우 🟡 (M9·신규 채널 `window:split-tab`/`window:get-init`·색상/잠금=세션 메타 신규 채널 0·세션 영속[분리 창 reopen-only·주 창만 복원] + **2026-06-14 동작 확장·2026-06-15 패널별 결함 수정: 탭 잠금 시 각 분할 패널이 자기 경로를 패널별 맵 `Tab.lockedRoots`로 고정·잠긴 동안 각 패널은 자기 루트 밖(상위) 이동 차단+안내 토스트·🏠 "잠긴 루트로 이동" 버튼·해제 시 루트 동반 해제·`lockedRoots` 맵 세션 영속(구버전 단일값 하위호환)·`domain/rules/tabLock.ts`·`panelsSlice.lockedRootForPanel` navigate 가드·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경** / 창간 탭 이동·창별 워크스페이스·탭 그룹화 1차 제외) |
 | US-20.4 | 탭 사용자 지정 이름(custom tab name) | S | S | 빠른 보기·탐색·탭(§U) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 탭 라벨 더블클릭 인라인 편집·우클릭 "이름 바꾸기"·Enter 확정/Esc 취소/blur 확정·빈 값=자동 제목 복귀·세션 영속·`Tab.customName?`/`TabSnapshot.customName?` 하위호환 선택 필드·`tabsSlice.setTabName`/`clearTabName`·`TabBar.tsx`/`TabRenameInput`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:store`·§U3 색상/잠금과 별개로 이름만·실 GUI 동작 런타임 스모크 🟡 / 탭 색상·잠금·탭 분리=§U3 소관·탭 아이콘 변경 1차 범위 밖) |
-| US-22.1 | 빠른 위치 ▸ 다운로드 이동 | S | S | 사이드바 빠른 위치(§X) | ✅ 구현 완료 (2026-06-10 사용자 직접 요청 편입 — 사이드바 "빠른 위치" 섹션·다운로드 항목 클릭으로 활성 패널을 OS 다운로드 폴더로 이동·신규 채널 `fs:known-folders`[무인자 invoke → `KnownFoldersDTO`·`app.getPath`]·`fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx`·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡 / 현재 다운로드만 렌더[바탕화면/문서/홈 DTO로 함께 가져오나 미표시·예약]·항목 추가/제거/재정렬/고정 1차 범위 밖) |
+| US-22.1 | 빠른 위치 ▸ OS 알려진 폴더 이동 | S | S | 사이드바 빠른 위치(§X) | 구현 완료(코드) (2026-06-10 사용자 직접 요청 편입·2026-06-28 동작 확장 — 사이드바 "빠른 위치" 섹션·**다운로드·바탕화면·문서·사진 4개 노드** 클릭으로 활성 패널을 해당 OS 시스템 폴더로 이동·각 경로 조회 실패 시 해당 행만 비표시·신규 채널 `fs:known-folders`[무인자 invoke → `KnownFoldersDTO { downloads, desktop, documents, pictures, home }`·`app.getPath`]·`fs.handlers.ts`·`sidebarSlice.knownFolders`/`loadKnownFolders`·`Sidebar.tsx`·신규 npm 의존성 0·실 GUI 동작 런타임 스모크 🟡 / `home`은 DTO로 함께 가져오나 미표시·예약·항목 추가/제거/재정렬/고정 범위 밖) |
 | US-21.1 | 자세히 보기 컬럼 헤더·너비 조절 | S | S | 자세히 컬럼(§W) | ✅ 구현 완료 (헤더 막대 이름/크기/유형/수정한 날짜·분리자 드래그·분리자 포커스 방향키 리사이즈·컬럼 min48/max600 클램프·`이름` 신축·폭 세션 영속[전역 1벌]·자세히 보기 한정·`columnWidths.ts`·`columnsSlice`·`FileListView`·`SessionSnapshot.ui.detailsColumnWidths`·렌더러+세션 영속·신규 채널 0·의존성 0·`SESSION_SCHEMA_VERSION` 무변경·`verify:domain` 24·실 GUI 동작 런타임 스모크 🟡 / 헤더 클릭 정렬·컬럼 표시숨김/순서 1차 범위 밖) |
 | US-23.1 | Windows 셸 컨텍스트 메뉴 연동 | S | M | 셸 컨텍스트 메뉴(§Y) | ✅ 구현 완료(코드)·실 GUI/실 패키지 🟡 (2026-06-12 편입 → 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS — 우클릭 메뉴 하단 "Windows 메뉴" 섹션·셸 COM Verbs 열거+`verb.DoIt()`·상주 PowerShell 워커 `shellVerbsWorker.ps1`·**신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종**·`FileOpErrorCode` EVERB 확장·신규 의존성 0·`verify:shellverbs` 75/0·typecheck/build PASS·실 노드 스모크 통과·B6/ADR-005 확장 / 정직 한계: 캐스케이드 서브메뉴 best-effort·다중 선택 단일 한정·중복 verb 블랙리스트 필터·verb 실행 fire-and-forget·워커 첫 조회 지연 로딩 상태·**실 GUI/실 패키지 런타임 스모크 🟡** / 비범위: 네이티브 메뉴 팝업·서브메뉴 완전 재현·다중 선택 invoke) |
 | US-24.1 | 자연어 지시로 변경안(plan) 받기 | C | L | Agentic 에이전트(§Z) | 읽기 부분 구현 완료(코드)·실 동작 🟡 (NL 지시 → 도구 8종[읽기 7종 + `open_tab` 내비게이션·`mode:'navigate'`·비파괴·파일 쓰기 아님] 자율 탐색 → 파일/폴더 Q&A·새 탭 내비·thinking/도구호출 실시간 표시·읽기 자유 / 쓰기 plan(stage)은 US-24.2로 deferred·`verify:agent` 225/0[2026-06-14 `open_tab` 추가로 201→225]·실 SDK/스트림/GUI는 API 키+Electron 필요로 🟡·상태 단일 출처 roadmap §0.5) |
