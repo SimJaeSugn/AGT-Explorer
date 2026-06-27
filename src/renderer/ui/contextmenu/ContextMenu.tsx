@@ -329,7 +329,7 @@ function MenuRow({
         padding: '0 14px',
         cursor: 'default',
         whiteSpace: 'nowrap',
-        // 비활성(정보) 행은 흐리게 — 로딩 표시("Windows 메뉴 불러오는 중…", §Y1).
+        // 비활성(정보) 행은 흐리게 — 로딩 표시("Windows 메뉴 ▸ 불러오는 중…", §Y1).
         color: item.disabled
           ? tokens.color.textMuted
           : item.danger

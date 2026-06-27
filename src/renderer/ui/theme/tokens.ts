@@ -43,12 +43,14 @@ export const tokens = {
   rowHeight: 26,
   /**
    * 아이콘 그리드 셀 크기(J4 보기 5종). 보기별 셀 폭·높이·아이콘 픽셀.
-   * medium 은 기존 단일 gridCell(104×96) 호환값.
+   * 높이는 아이콘 + 2줄 라벨(파일명 줄바꿈)이 잘리지 않도록 책정한다:
+   *   h ≥ 6(상단패딩) + icon + 4(gap) + 34(2줄 라벨·lineHeight 1.3×12 + 여유) + 6(하단패딩).
+   * 이전 small(72)/medium(96)은 2줄 라벨 하단이 셀 밖으로 넘쳐 둘째 줄이 세로로 잘렸다(회귀 수정).
    */
   gridCell: {
-    large: { w: 128, h: 120, icon: 64 },
-    medium: { w: 104, h: 96, icon: 48 },
-    small: { w: 80, h: 72, icon: 32 }
+    large: { w: 128, h: 124, icon: 64 },
+    medium: { w: 104, h: 100, icon: 48 },
+    small: { w: 80, h: 84, icon: 32 }
   },
   /**
    * 본문 폰트 — Pretendard 가변 폰트(main.tsx 에서 @font-face 번들 로드) 우선,

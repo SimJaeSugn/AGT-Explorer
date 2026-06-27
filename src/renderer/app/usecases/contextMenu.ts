@@ -46,7 +46,7 @@ export interface MenuItem {
   /** 클릭/Enter 시 실행(separator·children 보유 항목은 없을 수 있음). */
   readonly run?: () => void
   /**
-   * 비활성(정보) 행 — 클릭 무동작·흐리게 표시(예: "Windows 메뉴 불러오는 중…" 로딩 행, §Y1).
+   * 비활성(정보) 행 — 클릭 무동작·흐리게 표시(예: "Windows 메뉴 ▸ 불러오는 중…" 로딩 행, §Y1).
    * run 없는 행과 함께 쓰여 시각적으로 구분만 더한다(키보드 이동은 건너뛰지 않음 — 표시 전용).
    */
   readonly disabled?: boolean
@@ -192,6 +192,11 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
     // 노출 시에만 separator 추가(§1.7 배치). panelPath 는 navigate 가 보장하는 실존 디렉토리.
     if (!isMyPc(panelPath) && panelPath !== '') {
       empty.push({ id: 'terminal', label: '터미널 열기', run: () => void openTerminalAt(panelPath) })
+      empty.push({
+        id: 'terminal-claude',
+        label: '터미널 열기(Claude)',
+        run: () => void openTerminalAt(panelPath, 'claude')
+      })
       empty.push({ id: 'sep-terminal', separator: true })
     }
     // §P1: "다른 패널과 비교"(좌우 2분할일 때만). 두 패널 폴더를 메타 4상태로 diff.
@@ -281,6 +286,11 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
   if (terminalDir !== null) {
     const dir = terminalDir
     items.push({ id: 'terminal', label: '터미널 열기', run: () => void openTerminalAt(dir) })
+    items.push({
+      id: 'terminal-claude',
+      label: '터미널 열기(Claude)',
+      run: () => void openTerminalAt(dir, 'claude')
+    })
     items.push({ id: 'sep-terminal', separator: true })
   }
 

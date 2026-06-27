@@ -95,7 +95,7 @@ export function registerFsHandlers(): void {
   // OS 알려진 폴더 경로(app.getPath)를 렌더러에 제공. 조회 실패 항목은 빈 문자열(throw 0).
   ipcMain.handle(CHANNELS.FS_KNOWN_FOLDERS, async (event): Promise<Result<KnownFoldersDTO>> => {
     if (!isTrustedSender(event)) return err(untrustedSenderError())
-    const pathOf = (name: 'downloads' | 'desktop' | 'documents' | 'home'): string => {
+    const pathOf = (name: 'downloads' | 'desktop' | 'documents' | 'pictures' | 'home'): string => {
       try {
         return app.getPath(name)
       } catch {
@@ -106,6 +106,7 @@ export function registerFsHandlers(): void {
       downloads: pathOf('downloads'),
       desktop: pathOf('desktop'),
       documents: pathOf('documents'),
+      pictures: pathOf('pictures'),
       home: pathOf('home')
     })
   })

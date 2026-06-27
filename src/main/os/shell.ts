@@ -123,15 +123,27 @@ function execFileNoThrow(
  * §3.3-4, 공백·한글·`&` 포함 경로도 주입 무해). 터미널은 보여야 하므로
  * windowsHide:false. 비-Windows 는 미지원 안내 반환(개발/CI 폴백, openWith 스타일).
  *
+ * launch='claude' 면 터미널 기동 직후 `claude`(Claude Code CLI)를 실행한다. 실행 셸은
+ * `powershell.exe -NoExit -Command claude` — claude 종료 후에도 창을 유지한다. launch 는
+ * **고정 리터럴**('claude')만 받으므로 명령은 코드 상수이고 사용자 입력 보간이 없다(주입 무해).
+ *
  * 호출부(shell.handlers)는 이미 정규화·존재·디렉토리(stat) 검증을 통과한 경로만 전달.
  */
-export async function openTerminal(normalizedDir: string): Promise<OpenResult> {
+export async function openTerminal(
+  normalizedDir: string,
+  launch?: 'claude'
+): Promise<OpenResult> {
   if (process.platform !== 'win32') {
     return { errorMessage: '터미널 열기는 Windows 에서만 지원됩니다.' }
   }
 
+  // launch 지정 시 터미널 안에서 실행할 셸(고정 명령 — 사용자 입력 없음). claude 종료 후
+  // 창을 유지하도록 -NoExit. wt 에는 `-d <dir>` 뒤 commandline 으로, 단독 PS 폴백에는 그대로.
+  const innerShell = launch === 'claude' ? ['powershell.exe', '-NoExit', '-Command', 'claude'] : []
+  const finalPsArgs = launch === 'claude' ? ['-NoExit', '-Command', 'claude'] : ['-NoExit']
+
   // 1차: Windows Terminal 직접 spawn. 스토어 별칭이면 동기 EINVAL → 폴백.
-  if ((await spawnDetached('wt.exe', ['-d', normalizedDir])) === null) {
+  if ((await spawnDetached('wt.exe', ['-d', normalizedDir, ...innerShell])) === null) {
     return { errorMessage: '' }
   }
 
@@ -139,12 +151,14 @@ export async function openTerminal(normalizedDir: string): Promise<OpenResult> {
   // 동일한 경로(PS→CreateProcess 는 별칭을 정상 실행). 경로는 env 로 전달해 보간
   // 회피(showProperties 선례), 인자는 PS 가 배열로 전달(문자열 합성 0). 드라이브
   // 루트(`E:\`) 등 후행 \ 는 PS 인용 시 `"...\"` 파손을 막기 위해 \\ 로 이스케이프.
+  // launch 명령은 고정 리터럴이라 스크립트에 직접 박는다(사용자 입력 보간 없음).
   // wt 미설치/실행 불가면 PS 가 비0 종료 → 3차.
+  const relayWt = launch === 'claude' ? 'wt.exe -d $d powershell.exe -NoExit -Command claude;' : 'wt.exe -d $d;'
   const relayScript = [
     "$ErrorActionPreference = 'Stop';",
     '$d = $env:EXPLORER_TERMINAL_DIR;',
     "if ($d.EndsWith('\\')) { $d += '\\' }",
-    'wt.exe -d $d;'
+    relayWt
   ].join(' ')
   const relayError = await execFileNoThrow(
     'powershell.exe',
@@ -158,8 +172,8 @@ export async function openTerminal(normalizedDir: string): Promise<OpenResult> {
   if (relayError === null) return { errorMessage: '' }
 
   // 3차(최종 폴백): PowerShell 창. -NoExit 로 창 유지, cwd 옵션으로 작업 디렉토리
-  // 지정(경로를 명령행 문자열로 합성하지 않음 — 주입 차단).
-  const psError = await spawnDetached('powershell.exe', ['-NoExit'], { cwd: normalizedDir })
+  // 지정(경로를 명령행 문자열로 합성하지 않음 — 주입 차단). launch 면 -Command claude 추가.
+  const psError = await spawnDetached('powershell.exe', finalPsArgs, { cwd: normalizedDir })
   return { errorMessage: psError ? psError.message : '' }
 }
 

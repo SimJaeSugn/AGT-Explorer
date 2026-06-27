@@ -87,6 +87,8 @@ export interface KnownFoldersDTO {
   readonly desktop: string
   /** 문서. */
   readonly documents: string
+  /** 사진. */
+  readonly pictures: string
   /** 홈(사용자 프로필). */
   readonly home: string
 }

@@ -190,8 +190,9 @@ export function registerShellHandlers(): void {
       return err(fe.code === 'EUNKNOWN' ? fileOpError('ENOENT', '대상을 찾을 수 없습니다.', cwd) : fe)
     }
 
-    // 검증 통과 → 터미널 실행 위임. 실패만 EUNKNOWN 으로 전파.
-    const r = await openTerminal(cwd)
+    // 검증 통과 → 터미널 실행 위임. launch='claude' 면 기동 직후 claude 실행(고정 명령).
+    // 실패만 EUNKNOWN 으로 전파.
+    const r = await openTerminal(cwd, parsed.value.launch)
     if (r.errorMessage) {
       return err(fileOpError('EUNKNOWN', `터미널을 열 수 없습니다: ${r.errorMessage}`, cwd))
     }

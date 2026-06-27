@@ -100,6 +100,7 @@ export const ICON_PATHS: Record<string, string> = {
   sparkles: '<path d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15.6l-1.7-4.6L6 9.3l4.3-1.7z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/>',
   chevronRight: '<polyline points="9 18 15 12 9 6"/>',
   chevronDown: '<polyline points="6 9 12 15 18 9"/>',
+  fileText: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><line x1="8.5" y1="13" x2="15.5" y2="13"/><line x1="8.5" y1="16.5" x2="13" y2="16.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>'
 }
@@ -138,6 +139,8 @@ export const HomeIcon = (p: IconProps): JSX.Element => <Icon name="home" {...p} 
 export const SearchIcon = (p: IconProps): JSX.Element => <Icon name="search" {...p} />
 export const SettingsIcon = (p: IconProps): JSX.Element => <Icon name="settings" {...p} />
 export const DownloadIcon = (p: IconProps): JSX.Element => <Icon name="download" {...p} />
+export const FileTextIcon = (p: IconProps): JSX.Element => <Icon name="fileText" {...p} />
+export const ImageIcon = (p: IconProps): JSX.Element => <Icon name="image" {...p} />
 export const ListIcon = (p: IconProps): JSX.Element => <Icon name="listView" {...p} />
 export const GridIcon = (p: IconProps): JSX.Element => <Icon name="gridView" {...p} />
 export const ColumnsIcon = (p: IconProps): JSX.Element => <Icon name="columns" {...p} />

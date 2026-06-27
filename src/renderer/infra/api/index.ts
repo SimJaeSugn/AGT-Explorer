@@ -198,8 +198,12 @@ export const shellApi = {
     bridge().shell.showProperties({ path }),
   /** shell:icon — OS 파일 아이콘 dataUrl 조회(확장자/폴더/드라이브 캐시, H6). */
   icon: (req: ShellIconReq): Promise<Result<ShellIconRes>> => bridge().shell.icon(req),
-  /** shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4). */
-  openTerminal: (cwd: string): Promise<Result<void>> => bridge().shell.openTerminal({ cwd }),
+  /**
+   * shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4).
+   * launch='claude' 면 터미널 기동 직후 `claude` 를 실행한다(고정 명령).
+   */
+  openTerminal: (cwd: string, launch?: 'claude'): Promise<Result<void>> =>
+    bridge().shell.openTerminal(launch ? { cwd, launch } : { cwd }),
   /** shell:open-external — 검증된 http/https URL 을 OS 기본 브라우저로 연다(V1). */
   openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url }),
   /**

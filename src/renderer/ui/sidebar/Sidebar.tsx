@@ -18,6 +18,8 @@ import {
   StarIcon,
   MonitorIcon,
   DownloadIcon,
+  FileTextIcon,
+  ImageIcon,
   ClockIcon,
   HardDriveIcon,
   GlobeIcon,
@@ -198,17 +200,27 @@ export function Sidebar({ containerRef }: SidebarProps): JSX.Element | null {
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {favorites.length > 0 && <FavoritesSection favorites={favorites} />}
 
-          {knownFolders && (knownFolders.desktop || knownFolders.downloads) && (
-            <div aria-label="빠른 위치">
-              <div style={sectionHeader}>빠른 위치</div>
-              {knownFolders.desktop && (
-                <QuickFolderNode icon={<MonitorIcon size={15} />} label="바탕화면" path={knownFolders.desktop} />
-              )}
-              {knownFolders.downloads && (
-                <QuickFolderNode icon={<DownloadIcon size={15} />} label="다운로드" path={knownFolders.downloads} />
-              )}
-            </div>
-          )}
+          {knownFolders &&
+            (knownFolders.desktop ||
+              knownFolders.downloads ||
+              knownFolders.documents ||
+              knownFolders.pictures) && (
+              <div aria-label="빠른 위치">
+                <div style={sectionHeader}>빠른 위치</div>
+                {knownFolders.desktop && (
+                  <QuickFolderNode icon={<MonitorIcon size={15} />} label="바탕화면" path={knownFolders.desktop} />
+                )}
+                {knownFolders.downloads && (
+                  <QuickFolderNode icon={<DownloadIcon size={15} />} label="다운로드" path={knownFolders.downloads} />
+                )}
+                {knownFolders.documents && (
+                  <QuickFolderNode icon={<FileTextIcon size={15} />} label="문서" path={knownFolders.documents} />
+                )}
+                {knownFolders.pictures && (
+                  <QuickFolderNode icon={<ImageIcon size={15} />} label="사진" path={knownFolders.pictures} />
+                )}
+              </div>
+            )}
 
       {recent.length > 0 && (
         <div aria-label="최근">

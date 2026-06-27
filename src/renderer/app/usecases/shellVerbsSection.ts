@@ -43,6 +43,8 @@ export interface WinVerbsMenuItem {
   readonly disabled?: boolean
   /** 클릭 시 실행(로딩 행은 없음 → 클릭 무동작). */
   readonly run?: () => void
+  /** 하위 메뉴(있으면 플라이아웃) — verb 행들을 "Windows 메뉴" 한 항목 아래로 모은다. */
+  readonly children?: WinVerbsMenuItem[]
 }
 
 /**
@@ -72,10 +74,11 @@ export function isResponseStillRelevant(
 
 /**
  * winVerbs 상태 → "Windows 메뉴" 섹션 MenuItem 배열(병합용·순수).
- *  - undefined/empty            → []            (섹션 자체 비노출)
- *  - loading                    → [separator, 로딩 행]
- *  - ready & items.length>0     → [separator, ...verb 행]
- *  - ready & items.length===0   → []            (방어 — empty 와 동치)
+ * 컨텍스트 메뉴가 길어지지 않도록 verb 들을 "Windows 메뉴" **한 항목의 하위 메뉴**로 모은다.
+ *  - undefined/empty            → []                              (섹션 자체 비노출)
+ *  - loading                    → [separator, {Windows 메뉴 ▸ [로딩 행]}]
+ *  - ready & items.length>0     → [separator, {Windows 메뉴 ▸ [...verb 행]}]
+ *  - ready & items.length===0   → []                              (방어 — empty 와 동치)
  *
  * onInvoke(verbId) 는 verb 행 클릭 핸들러(shellVerbs.invokeWinVerb 바인딩). 로딩 행은
  * run 미부여 → ContextMenu 의 `if(!item.run) return` 가드로 클릭 무동작.
@@ -89,18 +92,22 @@ export function buildWinVerbsSection(
   if (winVerbs.status === 'loading') {
     return [
       { id: 'win-sep', separator: true },
-      { id: 'win-loading', label: 'Windows 메뉴 불러오는 중…', disabled: true }
+      {
+        id: 'win-menu',
+        label: 'Windows 메뉴',
+        children: [{ id: 'win-loading', label: '불러오는 중…', disabled: true }]
+      }
     ]
   }
   // ready
   if (winVerbs.items.length === 0) return []
-  const out: WinVerbsMenuItem[] = [{ id: 'win-sep', separator: true }]
-  for (const v of winVerbs.items) {
-    out.push({
-      id: `win-${v.verbId}`,
-      label: v.display,
-      run: () => onInvoke(v.verbId)
-    })
-  }
-  return out
+  const children: WinVerbsMenuItem[] = winVerbs.items.map((v) => ({
+    id: `win-${v.verbId}`,
+    label: v.display,
+    run: () => onInvoke(v.verbId)
+  }))
+  return [
+    { id: 'win-sep', separator: true },
+    { id: 'win-menu', label: 'Windows 메뉴', children }
+  ]
 }

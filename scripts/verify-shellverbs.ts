@@ -421,24 +421,30 @@ async function main(): Promise<void> {
     const emptyState: WinVerbsState = { status: 'empty', items: [] }
     check('[merge] empty → 0개(비노출)', buildWinVerbsSection(emptyState, onInvoke).length === 0)
 
-    // loading → separator + 로딩 행 1개(비활성·run 없음).
+    // loading → separator + "Windows 메뉴" 하위 메뉴(로딩 행 1개·비활성·run 없음).
     const loadingState: WinVerbsState = { status: 'loading', items: [] }
     const ld = buildWinVerbsSection(loadingState, onInvoke)
-    check('[merge] loading → separator + 로딩 행(2)', ld.length === 2)
+    check('[merge] loading → separator + Windows 메뉴 항목(2)', ld.length === 2)
     check('[merge] loading[0] separator', ld[0]!.separator === true)
-    check('[merge] loading 행 disabled·run 없음', ld[1]!.disabled === true && ld[1]!.run === undefined)
-    check('[merge] loading 행 라벨', ld[1]!.label === 'Windows 메뉴 불러오는 중…')
+    check('[merge] loading[1] = Windows 메뉴 하위', ld[1]!.id === 'win-menu' && ld[1]!.label === 'Windows 메뉴')
+    const ldKids = ld[1]!.children ?? []
+    check('[merge] loading 하위 = 로딩 행 1개', ldKids.length === 1)
+    check('[merge] loading 행 disabled·run 없음', ldKids[0]!.disabled === true && ldKids[0]!.run === undefined)
+    check('[merge] loading 행 라벨', ldKids[0]!.label === '불러오는 중…')
 
-    // ready(N>0) → separator + verb 행 N개. verbId 가 id 에 반영·클릭 시 onInvoke.
+    // ready(N>0) → separator + "Windows 메뉴" 하위 메뉴(verb 행 N개). verbId 반영·클릭 시 onInvoke.
     const readyState: WinVerbsState = { status: 'ready', items: verbs }
     const rd = buildWinVerbsSection(readyState, onInvoke)
-    check('[merge] ready → separator + 2 verb 행(3)', rd.length === 3)
+    check('[merge] ready → separator + Windows 메뉴 항목(2)', rd.length === 2)
     check('[merge] ready[0] separator', rd[0]!.separator === true)
-    check('[merge] ready verb id = win-<verbId>', rd[1]!.id === 'win-2:반디집으로 압축하기')
-    check('[merge] ready verb 라벨 = display', rd[1]!.label === '반디집으로 압축하기')
-    rd[1]!.run?.()
+    check('[merge] ready[1] = Windows 메뉴 하위', rd[1]!.id === 'win-menu' && rd[1]!.label === 'Windows 메뉴')
+    const rdKids = rd[1]!.children ?? []
+    check('[merge] ready 하위 = 2 verb 행', rdKids.length === 2)
+    check('[merge] ready verb id = win-<verbId>', rdKids[0]!.id === 'win-2:반디집으로 압축하기')
+    check('[merge] ready verb 라벨 = display', rdKids[0]!.label === '반디집으로 압축하기')
+    rdKids[0]!.run?.()
     check('[merge] ready verb 클릭 → onInvoke(verbId)', invoked === '2:반디집으로 압축하기')
-    rd[2]!.run?.()
+    rdKids[1]!.run?.()
     check('[merge] ready 둘째 verb 클릭 → onInvoke', invoked === '4:Cursor로 열기')
 
     // ready 인데 items 0 → 방어적으로 empty 와 동치(비노출).

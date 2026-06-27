@@ -170,6 +170,12 @@ export interface ShellShowPropertiesReq {
 export interface ShellOpenTerminalReq {
   /** 터미널 작업 디렉토리(검증된 실존 폴더). */
   readonly cwd: string
+  /**
+   * 터미널 기동 직후 실행할 고정 명령(선택). 현재 'claude' 만 지원하며, Main 이 고정
+   * 리터럴 명령으로 매핑한다(임의 명령 문자열 미허용 — 실행 표면 최소화·ADR-005).
+   * 미지정이면 빈 셸만 연다(기존 동작).
+   */
+  readonly launch?: 'claude'
 }
 export interface ShellOpenExternalReq {
   /** 외부 브라우저로 열 URL. http/https 만 — 핸들러가 프로토콜을 재검증한다(ADR-005). */

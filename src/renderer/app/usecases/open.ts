@@ -51,11 +51,12 @@ function terminalErrorMessage(code: string): string {
 
 /**
  * "터미널 열기"(shell:open-terminal) — 컨텍스트 메뉴에서 디렉토리/패널 경로 대상.
+ * launch='claude' 면 터미널 기동 직후 `claude`(Claude Code CLI)를 실행한다("터미널 열기(Claude)").
  * 성공은 무음(터미널 창이 뜸), 실패만 안내 토스트(터미널 전용 문구).
  * ui→infra 직접 import 금지 규칙을 이 usecase 경유로 준수(ContextMenu→여기→shellApi).
  */
-export async function openTerminalAt(path: string): Promise<void> {
-  const res = await shellApi.openTerminal(path)
+export async function openTerminalAt(path: string, launch?: 'claude'): Promise<void> {
+  const res = await shellApi.openTerminal(path, launch)
   if (!res.ok) {
     store.getState().pushToast('error', terminalErrorMessage(res.error.code))
   }
