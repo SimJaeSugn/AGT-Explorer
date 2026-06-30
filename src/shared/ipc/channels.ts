@@ -113,6 +113,11 @@ export const CHANNELS = {
   FS_WATCH_STOP: 'fs:watch:stop', // invoke → Result<void> (경로 이동·언마운트 시 중지)
   FS_WATCH_ERROR: 'fs:watch:error', // 푸시 evt (권한·네트워크·미지원 드라이브 감시 실패 격리)
 
+  // ── fs:drives-changed 드라이브 토폴로지 변경 알림 (신규) ───────────────
+  // USB 등 이동식/네트워크 드라이브 연결·해제(WM_DEVICECHANGE)를 main 이 감지·디바운스해
+  // 모든 창에 1건 푸시한다. 페이로드 없음(렌더러가 fs:drives 로 재열거) — fs:watch:event 동형.
+  FS_DRIVES_CHANGED: 'fs:drives-changed', // 푸시 evt (드라이브 연결/해제 → 목록 재열거)
+
   // ── dnd:* 외부 드래그 (M1, 신규 §M) ─ 계약만 동결, impl: MP3 ───────────
   // webContents.startDrag 위임(로컬 검증 경로만 외부로 노출). 원격 경로 거부.
   DND_START_DRAG: 'dnd:start-drag', // invoke → Result<{ started }>
@@ -266,6 +271,8 @@ export const EVENT_CHANNELS = [
   // fs:watch:* 푸시 evt (신규 J장 J2)
   CHANNELS.FS_WATCH_EVENT,
   CHANNELS.FS_WATCH_ERROR,
+  // fs:drives-changed 푸시 evt (드라이브 연결/해제 — WM_DEVICECHANGE)
+  CHANNELS.FS_DRIVES_CHANGED,
   // remote:* 푸시 evt (신규 §M M3 — TOFU 호스트키 확인·세션 격리 오류)
   CHANNELS.REMOTE_HOST_KEY,
   CHANNELS.REMOTE_SESSION_ERROR,

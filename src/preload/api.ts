@@ -41,6 +41,7 @@ import type {
   FsWatchStopReq,
   FsWatchEvt,
   FsWatchErrorEvt,
+  DrivesChangedEvt,
   OpCancelReq,
   OpConflictEvt,
   OpDoneEvt,
@@ -247,6 +248,8 @@ export interface ExplorerApi {
     watchStop(req: FsWatchStopReq): Promise<Result<void>>
     onWatchEvent(cb: (evt: FsWatchEvt) => void): Unsubscribe
     onWatchError(cb: (evt: FsWatchErrorEvt) => void): Unsubscribe
+    /** 드라이브 연결/해제(WM_DEVICECHANGE) → 드라이브 목록 재열거 신호. */
+    onDrivesChanged(cb: (evt: DrivesChangedEvt) => void): Unsubscribe
   }
 
   // ── shell:* (타입만 노출, impl: P2/P4/P6) ──────────────────────
@@ -481,7 +484,8 @@ export const api: ExplorerApi = {
     watchStart: (req) => invoke(CHANNELS.FS_WATCH_START, req),
     watchStop: (req) => invoke(CHANNELS.FS_WATCH_STOP, req),
     onWatchEvent: (cb) => subscribe(CHANNELS.FS_WATCH_EVENT, cb),
-    onWatchError: (cb) => subscribe(CHANNELS.FS_WATCH_ERROR, cb)
+    onWatchError: (cb) => subscribe(CHANNELS.FS_WATCH_ERROR, cb),
+    onDrivesChanged: (cb) => subscribe(CHANNELS.FS_DRIVES_CHANGED, cb)
   },
 
   shell: {

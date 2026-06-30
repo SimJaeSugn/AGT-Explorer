@@ -1075,6 +1075,13 @@ export interface PromoSplashChangedEvt {
   readonly showPromoSplash: boolean
 }
 
+// ── fs:drives-changed 푸시 evt (드라이브 토폴로지 변경) ────────────────────
+/**
+ * 드라이브 연결/해제 알림(페이로드 없음). main 이 WM_DEVICECHANGE 를 디바운스해 1건 보낸다.
+ * 렌더러는 이를 받아 fs:drives 로 드라이브 목록을 재열거한다(사이드바·"내 PC" 패널·대시보드).
+ */
+export type DrivesChangedEvt = Record<string, never>
+
 // ── app:get-info (앱 기본 정보 — 설정 "소프트웨어 정보") ────────────────────
 /**
  * 앱·런타임 기본 정보. 메인이 app.getVersion()·process.versions·platform/arch 로 채운다.
@@ -1192,6 +1199,9 @@ export interface IpcEventMap {
   // fs:watch:* 푸시 evt (신규 J장 J2, 계약만 동결)
   [CHANNELS.FS_WATCH_EVENT]: FsWatchEvt
   [CHANNELS.FS_WATCH_ERROR]: FsWatchErrorEvt
+
+  // fs:drives-changed 푸시 evt (드라이브 연결/해제 — WM_DEVICECHANGE)
+  [CHANNELS.FS_DRIVES_CHANGED]: DrivesChangedEvt
 
   // remote:* 푸시 evt (신규 §M M3, 계약만 동결)
   [CHANNELS.REMOTE_HOST_KEY]: RemoteHostKeyEvt

@@ -20,6 +20,7 @@ import { driveTypeService } from './os/driveType'
 import { shellVerbsService } from './os/shellVerbs'
 import { diskTypeService } from './os/diskType'
 import { initAutoUpdate } from './os/autoUpdate'
+import { initDeviceChangeWatch } from './os/deviceChange'
 
 // ── 단일 인스턴스 락 (PRD §7, ADR-005) ──────────────────────────────
 // 두 번째 실행 시도는 즉시 종료하고, 첫 인스턴스의 창을 포커스한다.
@@ -134,6 +135,10 @@ if (!gotTheLock) {
     const splashEnabled = settingsStore().get().showPromoSplash ?? true
 
     const mainWindow = createPrimaryWindow({ deferShow: splashEnabled })
+
+    // USB 등 드라이브 연결/해제(WM_DEVICECHANGE)를 감지해 모든 창에 fs:drives-changed 를
+    // 푸시한다(디바운스). 렌더러가 드라이브 목록을 자동 재열거한다(사이드바·"내 PC"·대시보드).
+    initDeviceChangeWatch(mainWindow)
 
     // V2: 최초 실행이 탐색기 "AGT-Finder로 열기"였다면 argv 경로를 렌더러로 전달한다
     // (창 로드 완료 후 1회 — 렌더러가 새 탭으로 연다). 경로 없으면 무동작.

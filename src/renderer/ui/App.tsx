@@ -15,6 +15,7 @@ import { initChecksumBridge } from '@renderer/app/usecases/checksum'
 import { initCompareBridge } from '@renderer/app/usecases/compare'
 import { initScanBridge } from '@renderer/app/usecases/dashboard'
 import { initWatchBridge } from '@renderer/app/usecases/watchBridge'
+import { initDrivesBridge } from '@renderer/app/usecases/drivesBridge'
 import { initRemoteBridge } from '@renderer/app/usecases/remote'
 import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
@@ -79,6 +80,8 @@ export function App(): JSX.Element {
     initScanBridge()
     // J2: 좌/우 패널 현재 디렉토리 실시간 감시 브리지(전역 1회 구독).
     initWatchBridge()
+    // 드라이브 연결/해제(USB 등 WM_DEVICECHANGE) → 사이드바·"내 PC"·대시보드 자동 갱신(전역 1회 구독).
+    initDrivesBridge()
     // §M M3: remote:host-key·remote:session-error 푸시 → remoteSlice 브리지(전역 1회 구독).
     initRemoteBridge()
     // V2: app:open-path 푸시 → 탐색기 "AGT-Finder로 열기" 경로를 새 탭으로(전역 1회 구독).

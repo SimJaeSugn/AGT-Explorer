@@ -65,6 +65,7 @@ import type {
   FsWatchStartRes,
   FsWatchEvt,
   FsWatchErrorEvt,
+  DrivesChangedEvt,
   OpConflictEvt,
   OpDoneEvt,
   OpProgressEvt,
@@ -309,6 +310,11 @@ export function subscribeWatchStream(h: WatchStreamHandlers): Unsubscribe {
     offEvent()
     offError()
   }
+}
+
+/** fs:drives-changed — 드라이브 연결/해제 푸시 구독(USB 등). 반환값으로 구독 해제. */
+export function subscribeDrivesChanged(cb: (evt: DrivesChangedEvt) => void): Unsubscribe {
+  return bridge().fs.onDrivesChanged(cb)
 }
 
 // ── app:* 어댑터 (V2: 탐색기 "AGT-Finder로 열기" 경로 푸시 구독) ──────────

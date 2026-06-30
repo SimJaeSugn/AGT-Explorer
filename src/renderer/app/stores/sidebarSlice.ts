@@ -155,16 +155,26 @@ export const createSidebarSlice: SliceCreator<SidebarSlice> = (set, get) => {
         const res = await fsApi.drives()
         if (!res.ok) return
         set((s) => {
+          // 드라이브 변경(USB 연결/해제) 재호출 시에도 살아있는 드라이브의 펼침/로드 상태를
+          // 보존한다(병합). 기존 노드가 있으면 라벨만 갱신하고 expanded/childPaths 는 유지,
+          // 없으면 새로 만든다. 사라진 드라이브 루트는 제거한다(언마운트 반영).
+          const nextPaths = new Set(res.value.map((d) => d.path))
+          for (const old of s.treeRoots) {
+            if (!nextPaths.has(old)) delete s.tree[old]
+          }
           s.treeRoots = []
           for (const d of res.value) {
-            s.tree[d.path] = {
-              path: d.path,
-              label: d.label,
-              kind: 'drive',
-              expanded: false,
-              loading: false,
-              childPaths: null
-            }
+            const prev = s.tree[d.path]
+            s.tree[d.path] = prev
+              ? { ...prev, label: d.label, kind: 'drive' }
+              : {
+                  path: d.path,
+                  label: d.label,
+                  kind: 'drive',
+                  expanded: false,
+                  loading: false,
+                  childPaths: null
+                }
             s.treeRoots.push(d.path)
           }
         })
