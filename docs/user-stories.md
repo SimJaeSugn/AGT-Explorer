@@ -20,6 +20,8 @@
 > **[2026-06-14 에픽24(US-24.1~24.5, features §Z) Agentic 자연어 파일 에이전트 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기 US-24.2 🔜 deferred]** 사용자 직접 요청으로 정식 편입(설계 ADR-014/015·`docs/architecture/agent-natural-language-design.md` 완료). **US-24.1 자연어 지시로 읽기 도구 자율 탐색·US-24.3 AI 제공자·키 설정·전환·US-24.4 내부 자체 모델 엔드포인트 등록(SSRF 안전)·US-24.5 도구 범위·내용 동의·비용 상한 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / US-24.2 plan diff 확인·부분 수용·실행(쓰기·undo)은 🔜 deferred(사용자 "읽기 전용으로 완성" 결정·`agent:confirm`=EUNSUPPORTED). 전부 C(Could).** **읽기 자유 / 쓰기는 확인 전 미실행**(쓰기 도구는 plan 적재만·실행은 기존 `op:*`+휴지통+`Ctrl+Z` undo 재사용)·**멀티 AI 제공자(Claude/OpenAI/내부 OpenAI 호환 엔드포인트)·BYO 키 safeStorage·내부 base URL 화이트리스트 SSRF 차단·로컬/휴지통 한정·내용 전송 명시 동의·비용 상한.** 신규 채널 `agent:*`·신규 npm 의존성 `@anthropic-ai/sdk`+`openai`(네이티브 0)·`SESSION_SCHEMA_VERSION` 무변(에이전트 상태 휘발). **상태 단일 출처는 roadmap §0.5 — 수용기준 본문은 행동 계약 수준·✅로 단정 금지(실 SDK/GUI는 API 키+Electron 필요로 미검증).** 우선순위 근거 [PRD §6 §Z 분류 근거](./PRD.md#6-범위와-우선순위-moscow). 상세 features §Z·flows F38~F41·PRD §7(D8)/§11(D8)/§12(M11). 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
 > **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커·멀티윈도우 🟡 — 파워기능 M9 2종 + 신규 Should US-20.4·US-22.1]** M9 배정 2종 + 사용자 명시 요청 신규 Should 2건을 구현·통합 검증 완료. **US-16.1 압축파일 폴더처럼 열기(에픽16·§Q, S — 신규 채널 `archive:open/list/close/extract/add` 5종·신규 의존성 `yauzl`+`yazl`[MIT·네이티브 0]·`main/archive/*`·`archiveWorker.ts`·`shared/archive/{safePath,archivePath}`·Zip Slip 차단[ADR-008]·`verify:archive` 56·`verify:archiveui` 43)·US-20.3 탭 색상/잠금·탭 분리(에픽20·§U, C — 색상/잠금=세션 메타[`Tab.color?`/`locked?`·신규 채널 0]·탭 분리=멀티 윈도우[`windowManager.ts`·`windowSplit.ts`·신규 채널 `window:split-tab`/`window:get-init`]) 구현 완료(코드 정합·verify 충족).** **신규 Should US-20.4 탭 사용자 지정 이름(에픽20·§U — 신규 채널 0·`tabsSlice.setTabName/clearTabName`·`TabSnapshot.customName?`·이미 ✅ 표기)·US-22.1 빠른 위치 ▸ 다운로드(에픽22·§X — 신규 채널 `fs:known-folders`·`KnownFoldersDTO`·이미 ✅ 표기)도 정합.** **Q1만 신규 의존성 추가(yauzl/yazl)·Q1·U3·X1 신규 채널 추가·U4 신규 채널 0.** 검증: `npm run build`(typecheck node+web + archiveWorker.js 번들) PASS·ESLint 0·부팅 스모크 정상·`verify:archive` 56·`verify:archiveui` 43 + store/persistence 증분(전부 0 fail·회귀 0). **정직 한계(✅ 위장 아님): 헤드리스 verify·코드 정합·부팅 스모크만 ✅. 실 동작(zip 실 열기/추출/추가·멀티 윈도우 실 분리/이동/복원·탭 인라인 이름변경·색상/잠금·다운로드 노드 이동)은 런타임 스모크 권장 🟡. US-20.3 정직 한계: 멀티 윈도우 세션 복원은 주 창만(분리 창 reopen-only·재시작 복원 안 함·의도적 MVP). M9 잔여 0 — 파워기능 §P~§U 14종 전부 완료(M6~M9 종료·T3 폐기).** 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
 
+> **[2026-06-30 동작 확장 정식 편입 — 에픽9 US-9.8 드라이브 연결/해제 자동 갱신(Should)]** 비계획 구현(roadmap §0.5 "⚠️ 스코프 일탈" 플래그)이던 V14(USB 등 이동식/네트워크 드라이브 연결·해제 토폴로지 변경 자동 감지→사이드바 트리·"내 PC" 패널·대시보드 재열거)를 사용자 정식 편입 결정으로 **에픽9에 US-9.8로 신설**(features §J8·flows F42). J2(US-9.2)는 "열린 디렉토리 **내부** 파일 변경(생성/삭제/이름변경/이동)" 워처일 뿐 드라이브 **목록(토폴로지)** 변경은 별개 — US-9.8은 J2와 인접한 별개 신규 항목. **신규 invoke 채널 0·신규 푸시 evt 1종 `fs:drives-changed`(Electron 내장 `BrowserWindow.hookWindowMessage(WM_DEVICECHANGE)`·네이티브 0)·`SESSION_SCHEMA_VERSION` 무변.** **구현 완료(코드)·`verify:store` 296/0·`verify:persistence` 147/0·build PASS / 실 USB 물리 연결·해제→실 GUI 자동 갱신은 Electron 미실행·물리 디바이스 부재로 미검증 → 런타임 스모크 권장 🟡**(✅ 위장 아님). 범례: ✅ 완료 · 🟡 부분 · 🔜 미착수.
+
 ---
 
 ## 에픽 1. 멀티 디렉토리 동시 관리 (핵심 차별점)
@@ -389,6 +391,15 @@
 - [x] 별칭은 표시 전용이며 실제 경로·이동 동작은 변하지 않는다
 - [x] 별칭이 설정/세션에 영속되어 재시작 후 유지되며 기본 basename으로 초기화할 수 있다
 - [x] 빈 별칭은 basename 폴백, 같은 별칭 중복은 허용된다
+
+### US-9.8 드라이브 연결/해제 자동 갱신 — S · 규모 S · ✅ 구현 완료(코드)·실 GUI/실 디바이스 🟡 (2026-06-30 정식 편입) (`os/deviceChange.ts`(`hookWindowMessage(WM_DEVICECHANGE)`)·신규 푸시 evt `fs:drives-changed`·`usecases/drivesBridge.ts`·`sidebarSlice.loadDrives` 병합)
+사용자로서, USB 메모리·외장하드·네트워크 드라이브를 꽂거나 뺄 때마다 수동 새로고침하지 않기 위해, 드라이브 목록이 자동으로 갱신되길 원한다.
+- [x] USB 등 이동식/네트워크 드라이브를 **연결**하면 새 드라이브가 수동 새로고침 없이 **사이드바 트리·"내 PC" 패널·대시보드 디스크 사용량**에 자동으로 나타난다(`fs:drives-changed`→`loadDrives`/패널 `refresh`/`loadDriveUsage`)
+- [x] 드라이브를 **해제**하면 사이드바·"내 PC"에서 사라진 드라이브 루트가 제거된다(`loadDrives` 병합 — 사라진 루트 제거)
+- [x] 자동 재열거 후에도 **살아 있는 드라이브의 펼침·로드 상태가 보존된다**(병합 — `expanded`/`childPaths`/`loading` 승계·라벨 갱신·신규만 추가). 다른 경로(특정 폴더)를 보고 있는 패널은 영향받지 않는다(현재 경로 패널 보존)
+- [x] 한 번의 토폴로지 변경이 일으키는 다발 메시지는 **디바운스(1.2초)로 묶여 단일 재열거**로 수렴된다(연속 연결/해제에도 UI 비차단)
+- [x] 감지는 **Windows 한정**이다(non-win32에서는 no-op)·감지 훅 실패는 기능 저하(자동 갱신 없음)일 뿐 앱이 중단되지 않는다(throw 0 격리·수동 새로고침은 항상 동작)
+- [x] 부수로 드라이브 미디어(SSD/HDD)·네트워크 드라이브 문자 캐시(`driveTypeService`/`diskTypeService`)도 함께 새로고침되어 새 드라이브의 동시성·네트워크 판정이 정합된다
 
 ---
 
@@ -907,6 +918,7 @@
 | US-9.5 | 미리보기 2단 뷰어(확장) | S | M | 보기/실시간/뷰어/브랜딩 | ✅ (`PreviewInfoCard`+`CodePreview`(highlight.js)/`MarkdownPreview`(marked+DOMPurify)·lazy·DOMPurify 새니타이즈) |
 | US-9.6 | 미리보기 패널 폭 조절 | S | S | 보기/실시간/뷰어/브랜딩 | ✅ (H3 `SplitDivider` 재사용·`ui.previewWidth` 영속) |
 | US-9.7 | 즐겨찾기 별칭 변경 | S | S | 보기/실시간/뷰어/브랜딩 | ✅ (`favoriteLabels`·`Sidebar` 인라인 편집·basename 폴백) |
+| US-9.8 | 드라이브 연결/해제 자동 갱신 | S | S | 보기/실시간/뷰어/브랜딩 | 🟡 (2026-06-30 정식 편입·구현 완료(코드)·실 GUI/실 디바이스 🟡 — `os/deviceChange.ts` `hookWindowMessage(WM_DEVICECHANGE)`·1.2초 디바운스·신규 푸시 evt `fs:drives-changed`·`drivesBridge.ts`·`sidebarSlice.loadDrives` 병합[펼침 보존]; 실 USB 물리 연결/해제 GUI 갱신 런타임 스모크 권장) |
 | US-10.1 | 파일 작업 되돌리기(`Ctrl+Z` 다단계 undo) | S | M | 되돌리기/휴지통/유형별 비중 | ✅ (P6 잔여 정식 구현·`undoSlice.ts` cap 50·`undo.ts` 역연산·`notYet`→`performUndo`; copy-undo 보수적·영구삭제 미push·런타임 스모크 권장) |
 | US-10.2 | 휴지통 관리(복원·비우기) | S | M | 되돌리기/휴지통/유형별 비중 | ✅ (P6 잔여 정식 구현·신규 채널 `trash:*`·`recycleBin.ts` Shell COM·`TrashDialog.tsx`·이름/원경로/삭제일/크기·확인 모달·`confirmed` 게이트·ADR-005·verify:recyclebin 37; COM 런타임 스모크 권장) |
 | US-10.3 | 파일 유형별 비중 인사이트 | S | S | 되돌리기/휴지통/유형별 비중 | ✅ (US-8.1 "(가능 시) 유형별 비중" 선택항 정식화·`categorize.ts`·`scanEngine.ts` byCategory 1패스·`CategoryBar.tsx`·recharts 재사용·verify:scan 39) |

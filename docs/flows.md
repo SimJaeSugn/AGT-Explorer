@@ -23,6 +23,7 @@
 > **[2026-06-12 §Y Windows 셸 컨텍스트 메뉴 연동 / F37 구현 완료(코드)·실 GUI/실 패키지 🟡]** 우클릭 메뉴 하단 "Windows 메뉴" 섹션(셸 COM Verbs 열거+`verb.DoIt()`·상주 PowerShell 워커 `shellVerbsWorker.ps1`·features §Y1·US-23.1)을 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS로 완료. 플로우 **F37**·§1 IA(컨텍스트 메뉴 "Windows 메뉴" 섹션)·§3 예외(다중 선택/조회 실패·verb 실행 실패)를 🔜→구현 완료(코드)로 갱신. **신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종(P1 동결 후 신기능 선례 동일 규약)·신규 npm/네이티브 의존성 0·`FileOpErrorCode` EVERB 확장·`verify:shellverbs` 75/0·typecheck/build PASS·실 노드 스모크 통과.** **정직 한계(✅ 위장 아님): 실 GUI(섹션 표출·verb 클릭 실행·다중선택/원격/archive 숨김·한글 display)·실 패키지 설치본(asar ps1·ExecutionPolicy)은 런타임 스모크 권장 🟡. 별도 트랙: `verify:worker` FAIL은 §Y 무관 사전 환경 결함(§Y 회귀 아님).**
 > **[2026-06-14 동작 확장 정식 편입 — 기존 플로우 갱신·새 플로우 신설 아님]** 이미 구현·검증된 동작 확장 3건을 기획에 정식 편입(상태 단일 출처 [roadmap §0.5 2026-06-14 단락](./roadmap.md)). **① F33 탭 루트 잠금(U3·US-20.3)** — 탭 잠금이 "닫기 방지"에 더해 활성 패널 경로를 잠긴 루트로 고정(루트 밖 이동 차단+안내 토스트·🏠 복귀 버튼·해제 시 동반 해제·세션 영속·`tabLock.ts`·`panelsSlice` navigate 가드). **② F16 원격 초기 폴더 진입(M3·US-12.3)** — 연결 직후 서버 작업 디렉토리(`pwd`/`cwd`·보통 홈) 진입·미보고 시 `/` 폴백. **③ F16 폴더 재귀 업로드 + 업로드 충돌 정책(M3·US-12.5)** — 폴더 업로드 시 하위 트리 재귀 생성·업로드도 다운로드와 동일 `ConflictPolicy` 배선. **셋 다 기존 항목 동작 확장·MoSCoW 무변경(U3=Could·M3=Could)·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경·구현 완료(코드)·실 동작/실 GUI 런타임 스모크 🟡**(라이브 FTP/Electron 미검증·`verify:remote` 36·✅ 위장 아님). F33·F16·§1 IA(사이드바 "원격")·§3 예외(탭 잠금 닫기 방지·루트 잠금)에 반영.
 > **[2026-06-14 §Z Agentic 자연어 파일 에이전트 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기(F38 confirm/execute·F39) 🔜 deferred]** 자연어 파일 에이전트(features §Z1·user-stories 에픽24·US-24.1~24.5)를 정식 편입. 플로우 **F38~F41** 신설 — F38 NL→plan→confirm→execute(**읽기 자율 탐색·파일/폴더 Q&A는 구현 완료(코드)·🟡 / plan 수집·confirm·execute=쓰기는 US-24.2 deferred·`agent:confirm`=EUNSUPPORTED**)·F39 부분 수용 거부·되돌리기(**쓰기·🔜 deferred**)·F40 AI 제공자/키/내부 엔드포인트 설정(Claude/OpenAI/내부 OpenAI 호환·base URL 화이트리스트 SSRF 차단·BYO 키 safeStorage·**구현 완료(코드)·실 SDK/probe 🟡**)·F41 파일 내용 전송 동의 게이트(기본 경로·메타만·**읽기 안전 레일 구현 완료(코드)·🟡**). IA는 §1 영역 역할(AI 에이전트 패널·명령 팔레트/아이콘바/`Ctrl+Shift+A` 진입)에, 예외는 §3(키 없음·tool-use 미지원·인젝션=쓰기 미실행+diff 게이트·경로 스코프 탈출·SSRF 차단·비용 상한·내용 동의)에 반영. **에이전트 루프=메인 프로세스(키·네트워크 단일 신뢰 경계)·렌더러는 표시만·1차 도구 범위 로컬/휴지통 한정(영구삭제·원격·압축·셸 미노출).** Could·읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기 deferred 🔜 — 신규 채널 `agent:*`·신규 의존성 `@anthropic-ai/sdk`+`openai`·**상태 단일 출처 roadmap §0.5·✅로 단정 금지(실 SDK/스트림/GUI/SSRF 네트워크는 API 키+Electron 필요로 미검증).** 보안 경계는 PRD §7 D8([로컬 전용/D7 추가 정밀화]·제공자 엔드포인트만 송신·내부 화이트리스트·내용 동의).
+> **[2026-06-30 동작 확장 정식 편입 — J8 드라이브 연결/해제 자동 갱신 / F42 구현 완료(코드)·실 USB·실 GUI 🟡]** 비계획 구현(roadmap §0.5 "⚠️ 스코프 일탈" 플래그)이던 V14를 사용자 정식 편입 결정으로 정식 편입(features §J8·user-stories US-9.8). 플로우 **F42**(USB 연결/해제→`WM_DEVICECHANGE`→1.2초 디바운스→`fs:drives-changed` 푸시→사이드바/"내 PC"/대시보드 재열거) 신설·§3 예외(드라이브 연결/해제 자동 갱신·Windows 한정 no-op·훅 실패 격리) 추가. **J2(디렉토리 내부 파일 워처 `fs:watch:*`)와 인접하나 별개**(드라이브 마운트/언마운트 ≠ 디렉토리 내부 변경). **신규 푸시 evt `fs:drives-changed` 1종·신규 invoke 채널 0·신규 npm/네이티브 의존성 0(Windows 내장 `BrowserWindow.hookWindowMessage`)·`SESSION_SCHEMA_VERSION` 무변.** 구현 완료(코드)·`verify:store` 296/0·`verify:persistence` 147/0·build PASS / 실 USB 물리 연결·해제→실 GUI 자동 갱신은 런타임 스모크 권장 🟡(✅ 위장 아님).
 
 ---
 
@@ -179,6 +180,20 @@ Ctrl+T → 새 탭 → 사이드바 즐겨찾기 클릭 / 주소 표시줄 입�
    ├─ 매핑 네트워크 드라이브(X:\) ✅ → GetDriveType 연동(os/driveType.ts PowerShell CIM DriveType=4→문자 캐시·paths.isNetworkDriveRoot)으로 eager 폴링 적용
    └─ 【잔여 한계】 subst·일부 클라우드 드라이브(DriveType≠4) → 미포함, reactive(fs.watch 실패 시) 폴백에만 의존·수동 새로고침 유지(런타임 매핑 변경 시 첫 진입 reactive→차순 eager)
 패널 경로 이동 → 워처를 새 경로로 교체(fs:watch:stop·이전 경로 해제·누수 없음)
+```
+
+### F42. 드라이브 연결/해제(토폴로지 변경) 자동 갱신 (J8 🟡 — 2026-06-30 정식 편입·os/deviceChange.ts·신규 푸시 evt fs:drives-changed·drivesBridge.ts·실 USB/실 GUI 런타임 스모크 권장)
+```
+USB 등 이동식/네트워크 드라이브 연결 또는 해제(마운트/언마운트)
+→ Windows가 최상위 창에 WM_DEVICECHANGE(0x0219) 전송
+→ main 이 hookWindowMessage 로 가로채(연결/해제 구분 없이 "드라이브 목록 다시 읽기" 신호)
+→ 1.2초 디바운스(다발 메시지를 단일 재열거로 수렴) → broadcastDrivesChanged
+   → 열린 모든 창에 fs:drives-changed 1건 푸시 + driveTypeService.refresh()/diskTypeService.refresh()(격리·throw 0)
+→ 렌더러 drivesBridge(전역 1회 구독)가 수신 → 드라이브를 보고 있는 곳 재열거:
+   ├─ ① 사이드바 트리 루트: loadDrives() 병합(살아 있는 드라이브의 expanded/childPaths/loading 보존·라벨 갱신·신규 추가·사라진 루트 제거)
+   ├─ ② "내 PC"(빈 경로·isMyPc) 패널만: refresh(id,{preserve:true}) — 다른 경로(특정 폴더) 패널은 미간섭
+   └─ ③ 대시보드 디스크 사용량: loadDriveUsage()(열려 있으면 즉시 반영·닫혀 있어도 다음 열람 시 최신)
+【플랫폼/예외】 non-win32 → no-op(미동작) / hookWindowMessage 미지원·실패 → try/catch 격리(자동 갱신만 비활성·앱 중단 0·수동 새로고침은 항상 동작)
 ```
 
 ### F11. 미리보기 2단 뷰어 · 폭 조절 · 즐겨찾기 별칭 (J5·J6·J7 ✅)
@@ -681,6 +696,7 @@ Ctrl+Shift+P(신규·미배정 키) → 팔레트 오버레이 열기(Esc 닫기
 | 대시보드 스캔 취소(I1 ✅) | 취소 버튼·새 대상 선택 시 진행 중 스캔 즉시 중단(`analyze:scan:cancel`·SharedArrayBuffer), 부분 집계 반영(`canceled=true`)·사유 안내(UI 비차단) |
 | 패널 워처 대량 변경(J2 ✅) | 다발 변경은 디바운스로 묶어 1회 갱신(UI 비차단·WatchService 병합) |
 | 패널 워처 예외(J2 ✅) | 감시 폴더 삭제·접근 불가/권한/네트워크/미지원 시 워처 정리+사유 표시(throw 0 격리·앱 중단 없음). **UNC + 매핑 네트워크 드라이브(`X:\`) eager 폴링 폴백 ✅(4s readdir diff·`GetDriveType` 연동). `subst`·일부 클라우드(`DriveType≠4`)만 미포함 — reactive 폴백 의존·무에러·무신호 시 수동 새로고침 유지** |
+| 드라이브 연결/해제 자동 갱신(J8 🟡·2026-06-30 정식 편입) | USB 등 이동식/네트워크 드라이브 마운트/언마운트(`WM_DEVICECHANGE`)를 1.2초 디바운스로 묶어 단일 재열거(연속 연결/해제 비차단)→사이드바 트리(`loadDrives` 병합·펼침 보존)·"내 PC" 패널(`refresh`)·대시보드(`loadDriveUsage`) 자동 갱신. **Windows 한정**(non-win32 no-op)·`hookWindowMessage` 미지원/실패는 격리(자동 갱신만 비활성·앱 중단 0·수동 새로고침 유지). J2(디렉토리 내부 파일 워처)와 별개. 실 USB 물리 연결/해제 GUI 갱신은 런타임 스모크 권장 🟡 |
 | 미리보기 미지원 형식(J5 ✅) | 코드/마크다운/이미지/텍스트 외 형식은 상단 메타+형식 아이콘 폴백(빈 화면 없음·`UnsupportedPreview`) |
 | 박스 선택 시작 위치(J1 ✅) | 항목 위 드래그=D&D, 빈 영역 드래그=러버밴드(시작 위치로 분기·충돌 없음·`boxSelect.ts`) |
 | 되돌리기 충돌(K1 ✅) | undo 역연산 자리에 동명 파일/폴더 생김 → 임의 덮어쓰기 없이 중단·사유 안내(선검증·US-2.4 충돌 안전). copy-undo는 보수적(사본 경로 충돌 시 미생성 중단) |

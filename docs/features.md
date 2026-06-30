@@ -488,6 +488,7 @@
 > 기존 보기(B1)·미리보기(D3)·분할 크기조절(H3)·즐겨찾기(C4)를 **Windows 탐색기 수준의 보기·실시간성·뷰어 경험**으로 확장하고, 제품 브랜딩을 **AGT-Finder**로 전환한다.
 > 우선순위는 PRD §6 MoSCoW를 단일 출처로 따른다(대부분 Should — feat-J4 브랜딩만 Must for 릴리스). 단축키는 [PRD.md 8장](./PRD.md#8-단축키-체계-확정--충돌-없음)이 단일 출처다.
 > **[2026-06-07 상태] 구현 완료 ✅** — team-dev 구현·QA PASS. 신규 의존성 highlight.js(BSD-3)·marked(MIT)·dompurify(MPL-2.0, 마크다운 새니타이즈)는 lazy 청크 분리, 파일시스템 워처는 신규 채널 `fs:watch:*`(non-recursive·디바운스·격리). **J2(US-9.2)는 정렬/필터 유지·디바운스·격리·경로 교체·선택/스크롤 보존·UNC 폴링 폴백 모두 충족으로 🟡→✅ 격상**(보류 2건 구현 완료) 후, **매핑 네트워크 드라이브(`X:\`)도 `GetDriveType` 연동(`os/driveType.ts` PowerShell CIM `Win32_LogicalDisk DriveType=4`·`paths.isNetworkDriveRoot`)으로 eager 폴링 적용되어 ✅ 격상**(신규 npm 의존성·신규 IPC 채널 0). **잔여 한계(정직 표기): `subst`·일부 클라우드 드라이브(`DriveType≠4`)는 미포함 → reactive 폴백 유지.** 범례: ✅ 구현 완료 · 🟡 부분 · 🔜 미착수.
+> **[2026-06-30 동작 확장 정식 편입] feat-J8 드라이브 연결/해제(토폴로지 변경) 자동 갱신(Should)** — 비계획 구현(roadmap §0.5 "⚠️ 스코프 일탈" 플래그)이던 V14를 사용자 정식 편입 결정으로 §J에 추가. USB 등 이동식/네트워크 드라이브 연결·해제(`WM_DEVICECHANGE`)를 감지해 드라이브 목록(사이드바·"내 PC"·대시보드)을 자동 재열거한다. **J2(디렉토리 내부 파일 워처 `fs:watch:*`)와 인접하나 별개**(드라이브 마운트/언마운트 ≠ 디렉토리 내부 변경). **신규 푸시 evt `fs:drives-changed` 1종·신규 invoke 채널 0·신규 npm/네이티브 의존성 0(Windows 내장 `hookWindowMessage`)·`SESSION_SCHEMA_VERSION` 무변.** 구현 완료(코드)·`verify:store` 296/0·`verify:persistence` 147/0·build PASS / 실 USB 물리 연결·해제→실 GUI 자동 갱신은 런타임 스모크 권장 🟡(✅ 위장 아님·US-9.8·flows F42).
 
 ### J1. 파일 드래그 박스 선택(러버밴드) (S) ✅ 구현 완료 — `domain/rules/boxSelect.ts`(사각형 교차 판정 순수함수)·`app/stores/selectionSlice.ts#boxSelect`(교체/누적/범위)·`FileListView`(러버밴드 오버레이·경계 자동 스크롤·가상 스크롤 마운트 항목 포함). ※ 실제 마우스 드래그·자동 스크롤은 런타임 DOM 의존 → 런타임 스모크 권장
 **목적**: 파일 목록 빈 영역에서 마우스 드래그로 사각형(러버밴드)을 그려 그 안에 들어온 항목을 한 번에 다중 선택한다. E3 "마우스 박스 선택"과 roadmap P2 DoD의 박스 다중선택(후속으로 남아 있던 항목)을 **정식 기능화**한다. (US-9.1)
@@ -667,6 +668,27 @@
 - [x] 별칭은 표시 전용이며 실제 경로·이동 동작은 변하지 않는다(별칭을 바꿔도 같은 폴더로 이동)
 - [x] 별칭이 설정/세션에 영속되어 재시작 후에도 유지되며, 기본 basename으로 초기화할 수 있다
 - [x] 빈 별칭은 basename 폴백으로 처리되고, 같은 별칭 중복은 허용된다
+
+### J8. 드라이브 연결/해제(토폴로지 변경) 자동 갱신 (S) ✅ 구현 완료(코드)·실 GUI/실 디바이스 🟡 (2026-06-30 정식 편입) — 신규 푸시 evt `fs:drives-changed`·`src/main/os/deviceChange.ts`(`initDeviceChangeWatch(win)`·`BrowserWindow.hookWindowMessage(0x0219 WM_DEVICECHANGE)`·1.2초 디바운스 `broadcastDrivesChanged`→전 창 푸시 + `driveTypeService.refresh()`/`diskTypeService.refresh()`·`process.platform!=='win32'` no-op·hookWindowMessage 실패 try/catch 격리 throw 0·창 closed 시 타이머 정리)·`main/index.ts`(primary 창 직후 호출)·`channels.ts FS_DRIVES_CHANGED`(EVENT_CHANNELS 등록)·`contracts.ts DrivesChangedEvt`(=Record<string,never>+IpcEventMap)·`preload/api.ts fs.onDrivesChanged`·`renderer/infra/api subscribeDrivesChanged`·신규 `renderer/app/usecases/drivesBridge.ts`(`initDrivesBridge` 전역 1회 구독)·`sidebarSlice.loadDrives` 병합화·`ui/App.tsx`(부팅 1회). 신규 invoke 채널 0·신규 npm/네이티브 의존성 0(Windows 내장 hookWindowMessage)
+**목적**: USB 메모리·외장하드·네트워크 드라이브를 **연결·해제**(드라이브 마운트/언마운트 = 토폴로지 변경)할 때, 수동 새로고침 없이 **드라이브 목록**(사이드바 트리·"내 PC" 패널·대시보드 디스크 사용량)이 자동으로 최신 상태가 되게 한다. (US-9.8)
+
+> J2(좌/우 패널 실시간 갱신)는 "**열린 디렉토리 내부**의 파일 변경(생성·삭제·이름변경·이동)" 워처다(`fs:watch:*`). J8은 그와 인접하지만 **별개** — **드라이브 자체의 마운트/언마운트(드라이브 목록 변경)** 를 감지한다. 둘은 신호원(파일 워처 ≠ `WM_DEVICECHANGE`)·갱신 대상(패널 목록 ≠ 드라이브 목록)이 다르다.
+
+| 항목 | 동작 규칙 |
+|---|---|
+| 감지 | Windows가 이동식/네트워크 드라이브 마운트·언마운트 시 최상위 창에 보내는 `WM_DEVICECHANGE`(0x0219) 메시지를 가로채 감지한다(연결/해제 구분 없이 "드라이브 목록 다시 읽기" 신호로 처리) |
+| 디바운스 | 한 번의 토폴로지 변경이 일으키는 다발 메시지를 **1.2초 디바운스**로 묶어 **단일 재열거**로 수렴(연속 연결/해제에도 비차단) |
+| 갱신 대상 | ① 사이드바 트리 드라이브 루트(`loadDrives` **병합** — 살아 있는 드라이브의 펼침/로드 상태 보존·라벨 갱신·신규 추가·사라진 루트 제거) ② "내 PC"(빈 경로)를 보고 있는 패널만 재적재(`refresh`·다른 경로 패널은 미간섭) ③ 대시보드 디스크 사용량(`loadDriveUsage`·열려 있으면 즉시 반영) |
+| 부수 캐시 | 새 드라이브의 미디어(SSD/HDD·`driveTypeService`)·네트워크 드라이브 문자(`diskTypeService`) 캐시도 함께 새로고침해 동시성·네트워크 판정 정합(둘 다 throttle+격리·throw 0) |
+| 플랫폼/예외 | **Windows 한정**(non-win32 no-op)·`hookWindowMessage` 미지원/실패는 try/catch로 격리(자동 갱신만 비활성·앱 중단 0·수동 새로고침은 항상 동작) |
+| 보안/계약 | **신규 invoke 채널 0**·**신규 푸시 evt 1종 `fs:drives-changed`**(Main→Renderer·EVENT_CHANNELS 정식 등록·페이로드 빈 객체)·렌더러는 키/네트워크/파일 직접 접근 없음(ADR-005) |
+
+**수용 기준** (✅ 구현 — `os/deviceChange.ts`·`drivesBridge.ts`·`fs:drives-changed`·`sidebarSlice.loadDrives` 병합)
+- [x] USB 등 이동식/네트워크 드라이브를 **연결**하면 새 드라이브가 수동 새로고침 없이 사이드바 트리·"내 PC" 패널·대시보드 디스크 사용량에 자동으로 나타난다(`fs:drives-changed`→`loadDrives`/패널 `refresh`/`loadDriveUsage`)
+- [x] 드라이브를 **해제**하면 사이드바·"내 PC"에서 사라진 드라이브 루트가 제거된다(`loadDrives` 병합)
+- [x] 자동 재열거 후에도 살아 있는 드라이브의 펼침·로드 상태가 보존되고(병합 — `expanded`/`childPaths`/`loading` 승계), 특정 폴더를 보고 있는 패널은 영향받지 않는다
+- [x] 한 번의 토폴로지 변경이 일으키는 다발 메시지는 1.2초 디바운스로 묶여 단일 재열거로 수렴된다(UI 비차단)
+- [x] Windows 한정으로 동작하고(non-win32 no-op), 감지 훅 실패 시 자동 갱신만 비활성될 뿐 앱이 중단되지 않는다(throw 0 격리)
 
 ---
 
