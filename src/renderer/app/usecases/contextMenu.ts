@@ -197,6 +197,11 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
         label: '터미널 열기(Claude)',
         run: () => void openTerminalAt(panelPath, 'claude')
       })
+      empty.push({
+        id: 'terminal-admin',
+        label: '터미널 열기(관리자 권한)',
+        run: () => void openTerminalAt(panelPath, undefined, true)
+      })
       empty.push({ id: 'sep-terminal', separator: true })
     }
     // §P1: "다른 패널과 비교"(좌우 2분할일 때만). 두 패널 폴더를 메타 4상태로 diff.
@@ -290,6 +295,11 @@ export function buildMenuItems(panelId: string, targetPath: string | null): Menu
       id: 'terminal-claude',
       label: '터미널 열기(Claude)',
       run: () => void openTerminalAt(dir, 'claude')
+    })
+    items.push({
+      id: 'terminal-admin',
+      label: '터미널 열기(관리자 권한)',
+      run: () => void openTerminalAt(dir, undefined, true)
     })
     items.push({ id: 'sep-terminal', separator: true })
   }

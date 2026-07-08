@@ -127,14 +127,23 @@ function execFileNoThrow(
  * `powershell.exe -NoExit -Command claude` — claude 종료 후에도 창을 유지한다. launch 는
  * **고정 리터럴**('claude')만 받으므로 명령은 코드 상수이고 사용자 입력 보간이 없다(주입 무해).
  *
+ * admin=true 면 UAC 승격 경로(openTerminalElevated)로 위임한다 — 직접 spawn 으로는
+ * 프로세스 승격이 불가하므로 PowerShell `Start-Process -Verb RunAs` 릴레이를 쓴다.
+ *
  * 호출부(shell.handlers)는 이미 정규화·존재·디렉토리(stat) 검증을 통과한 경로만 전달.
  */
 export async function openTerminal(
   normalizedDir: string,
-  launch?: 'claude'
+  launch?: 'claude',
+  admin?: boolean
 ): Promise<OpenResult> {
   if (process.platform !== 'win32') {
     return { errorMessage: '터미널 열기는 Windows 에서만 지원됩니다.' }
+  }
+
+  // 관리자 권한: spawn 은 승격 불가 → PowerShell Start-Process -Verb RunAs 릴레이(UAC).
+  if (admin) {
+    return openTerminalElevated(normalizedDir, launch)
   }
 
   // launch 지정 시 터미널 안에서 실행할 셸(고정 명령 — 사용자 입력 없음). claude 종료 후
@@ -175,6 +184,47 @@ export async function openTerminal(
   // 지정(경로를 명령행 문자열로 합성하지 않음 — 주입 차단). launch 면 -Command claude 추가.
   const psError = await spawnDetached('powershell.exe', finalPsArgs, { cwd: normalizedDir })
   return { errorMessage: psError ? psError.message : '' }
+}
+
+/**
+ * 관리자 권한(UAC 승격)으로 터미널을 연다(shell:open-terminal admin=true, ADR-005).
+ *
+ * 프로세스 승격은 ShellExecute "runas" 동사로만 가능하므로 비승격 PowerShell 릴레이가
+ * `Start-Process -Verb RunAs` 를 호출해 UAC 를 띄운다(사용자 승인 시 승격 기동). 대상은
+ * wt 설치 시 Windows Terminal, 없으면 PowerShell 창 — 릴레이 스크립트 안에서 `Get-Command
+ * wt.exe` 로 한 번만 판정해 **UAC 프롬프트가 한 번만** 뜨게 한다. 경로는 env(EXPLORER_TERMINAL_DIR)
+ * 로만 전달하고 인자는 PowerShell 배열 리터럴로 넘겨 명령행 문자열 합성이 없다(주입 무해 — 공백·
+ * 한글·`&` 경로 안전). launch 명령은 고정 리터럴('claude')이라 스크립트에 직접 박는다.
+ * 사용자가 UAC 를 취소하면 Start-Process 가 throw → 릴레이 비0 종료 → 오류 메시지 반환(호출부 토스트).
+ */
+async function openTerminalElevated(dir: string, launch?: 'claude'): Promise<OpenResult> {
+  // 승격 후 터미널 안에서 실행할 셸(고정 명령). wt 는 -d <dir> 뒤 commandline, PS 폴백은 인자 배열.
+  const wtArgs =
+    launch === 'claude'
+      ? "@('-d', $d, 'powershell.exe', '-NoExit', '-Command', 'claude')"
+      : "@('-d', $d)"
+  const psArgs = launch === 'claude' ? "@('-NoExit', '-Command', 'claude')" : "@('-NoExit')"
+
+  // 드라이브 루트(`E:\`) 등 후행 \ 는 인용 시 파손을 막기 위해 \\ 로 이스케이프(비승격 릴레이 선례).
+  const script = [
+    "$ErrorActionPreference = 'Stop';",
+    '$d = $env:EXPLORER_TERMINAL_DIR;',
+    "if ($d.EndsWith('\\')) { $d += '\\' }",
+    '$wt = Get-Command wt.exe -ErrorAction SilentlyContinue;',
+    `if ($wt) { Start-Process -FilePath 'wt.exe' -ArgumentList ${wtArgs} -Verb RunAs }`,
+    `else { Start-Process -FilePath 'powershell.exe' -ArgumentList ${psArgs} -WorkingDirectory $d -Verb RunAs }`
+  ].join(' ')
+
+  const relayError = await execFileNoThrow(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', script],
+    {
+      windowsHide: true,
+      timeout: 120000, // UAC 응답 대기 여유(사용자가 프롬프트에 응답할 때까지).
+      env: { ...process.env, EXPLORER_TERMINAL_DIR: dir }
+    }
+  )
+  return { errorMessage: relayError ? relayError.message : '' }
 }
 
 /**

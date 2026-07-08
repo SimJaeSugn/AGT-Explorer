@@ -139,6 +139,13 @@ export interface UiSlice {
   readonly settingsOpen: boolean
   /** 설정 화면 현재 카테고리(좌측 네비·딥링크). 기본 'layout'. */
   readonly settingsCategory: SettingsCategory
+  /**
+   * 자동 업데이트 새 버전 가용 여부(시작 시 확인·update:status 브리지). 설정 아이콘(⚙)과
+   * 설정 "소프트웨어 정보" 메뉴의 배지 표시 조건. 휘발 런타임 상태(영속 제외).
+   */
+  readonly updateAvailable: boolean
+  /** 확인된 새 버전 문자열(있으면). 배지 툴팁·About 섹션 초기 상태 seed 용. */
+  readonly updateLatestVersion: string | null
   /** 사용량 대시보드 모달 열림 여부(I장 §4.1). */
   readonly dashboardOpen: boolean
   /** 휴지통 관리 모달 열림 여부(K장 K2). */
@@ -243,6 +250,8 @@ export interface UiSlice {
   closeSettings(): void
   /** 설정 카테고리 전환(좌측 네비 클릭). */
   setSettingsCategory(category: SettingsCategory): void
+  /** 자동 업데이트 가용 상태 설정(시작 시 확인·update:status 브리지). available=false 면 버전도 초기화. */
+  setUpdateAvailable(available: boolean, version: string | null): void
   /** 사용량 대시보드 모달 열기(inputContext='dialog'). */
   openDashboard(): void
   /** 사용량 대시보드 모달 닫기(다른 모달 없으면 inputContext='list' 복귀). */
@@ -359,6 +368,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   settingsLoaded: false,
   settingsOpen: false,
   settingsCategory: 'layout',
+  updateAvailable: false,
+  updateLatestVersion: null,
   dashboardOpen: false,
   trashOpen: false,
   remoteDialogOpen: false,
@@ -452,6 +463,13 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setSettingsCategory(category) {
     set((s) => {
       if (SETTINGS_CATEGORIES.has(category)) s.settingsCategory = category
+    })
+  },
+
+  setUpdateAvailable(available, version) {
+    set((s) => {
+      s.updateAvailable = available
+      s.updateLatestVersion = available ? version : null
     })
   },
 

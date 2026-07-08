@@ -38,6 +38,9 @@ export function TabBar(): JSX.Element {
   const tabOrder = useRootStore((s) => s.tabOrder)
   const activeTabId = useRootStore((s) => s.activeTabId)
   const openSettings = useRootStore((s) => s.openSettings)
+  // 자동 업데이트 새 버전 가용 시 설정(⚙) 아이콘에 배지 표시.
+  const updateAvailable = useRootStore((s) => s.updateAvailable)
+  const updateLatestVersion = useRootStore((s) => s.updateLatestVersion)
   const [dragId, setDragId] = useState<string | null>(null)
   // 인라인 이름 편집 중인 탭 id(없으면 null) — 탭바 로컬 상태(파일 renameTarget 과 분리).
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -95,9 +98,14 @@ export function TabBar(): JSX.Element {
       </button>
       <button
         onClick={() => openSettings()}
-        title="설정 (Ctrl+,)"
-        aria-label="설정"
+        title={
+          updateAvailable
+            ? `설정 (Ctrl+,) — 새 버전 ${updateLatestVersion ?? ''} 사용 가능`.trimEnd()
+            : '설정 (Ctrl+,)'
+        }
+        aria-label={updateAvailable ? '설정 (새 업데이트 있음)' : '설정'}
         style={{
+          position: 'relative',
           marginLeft: 'auto',
           border: 'none',
           background: 'transparent',
@@ -113,6 +121,7 @@ export function TabBar(): JSX.Element {
         }}
       >
         <SettingsIcon size={16} />
+        {updateAvailable && <UpdateBadge />}
       </button>
       {menu && (
         <TabContextMenu
@@ -125,6 +134,30 @@ export function TabBar(): JSX.Element {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * 설정(⚙) 아이콘 우상단 업데이트 배지 — 새 버전 가용 시 표시하는 작은 붉은 점.
+ * 아이콘 버튼(position:relative) 기준 절대 배치. 상태는 aria-label 로 고지하므로 aria-hidden.
+ */
+function UpdateBadge(): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: tokens.color.danger,
+        border: `1.5px solid ${tokens.color.chrome}`,
+        boxSizing: 'content-box',
+        pointerEvents: 'none'
+      }}
+    />
   )
 }
 

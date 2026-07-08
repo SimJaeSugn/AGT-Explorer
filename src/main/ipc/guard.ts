@@ -131,7 +131,11 @@ export const zShellOpenExternalReq = z.object({ url: z.string().min(1).max(8192)
 
 // ── H4/H6: shell:open-terminal / shell:icon ──────────────────────────────
 // open-terminal: cwd 는 항상 실존 디렉토리(핸들러가 stat 으로 추가 검증).
-export const zShellOpenTerminalReq = z.object({ cwd: zPath, launch: z.literal('claude').optional() })
+export const zShellOpenTerminalReq = z.object({
+  cwd: zPath,
+  launch: z.literal('claude').optional(),
+  admin: z.literal(true).optional()
+})
 // icon: 항상 실존 path 필수. ext 는 폴더/드라이브 합성키 전용 힌트(__dir__/__drive__)이며
 // 일반 파일에는 오지 않는다(파일 키는 backend 가 win32.extname(path) 로 환원). 이로써
 // "빈 요청"·"임의 ext 문자열"을 입구에서 거부한다(동결 contracts 보다 좁게 허용).

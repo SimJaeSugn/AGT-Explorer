@@ -176,6 +176,12 @@ export interface ShellOpenTerminalReq {
    * 미지정이면 빈 셸만 연다(기존 동작).
    */
   readonly launch?: 'claude'
+  /**
+   * 관리자 권한(승격)으로 터미널을 연다(선택·Windows). true 면 Main 이 PowerShell
+   * `Start-Process -Verb RunAs` 릴레이로 UAC 승격 후 터미널을 기동한다. 미지정이면
+   * 일반 권한(기존 동작). 경로/명령은 여전히 인자 배열·env 로만 전달(주입 무해).
+   */
+  readonly admin?: true
 }
 export interface ShellOpenExternalReq {
   /** 외부 브라우저로 열 URL. http/https 만 — 핸들러가 프로토콜을 재검증한다(ADR-005). */

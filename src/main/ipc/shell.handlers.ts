@@ -191,8 +191,8 @@ export function registerShellHandlers(): void {
     }
 
     // 검증 통과 → 터미널 실행 위임. launch='claude' 면 기동 직후 claude 실행(고정 명령).
-    // 실패만 EUNKNOWN 으로 전파.
-    const r = await openTerminal(cwd, parsed.value.launch)
+    // admin=true 면 UAC 승격(Start-Process -Verb RunAs). 실패만 EUNKNOWN 으로 전파.
+    const r = await openTerminal(cwd, parsed.value.launch, parsed.value.admin)
     if (r.errorMessage) {
       return err(fileOpError('EUNKNOWN', `터미널을 열 수 없습니다: ${r.errorMessage}`, cwd))
     }

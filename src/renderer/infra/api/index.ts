@@ -202,9 +202,14 @@ export const shellApi = {
   /**
    * shell:open-terminal — 해당 경로에서 터미널 실행(wt.exe→PowerShell, H4).
    * launch='claude' 면 터미널 기동 직후 `claude` 를 실행한다(고정 명령).
+   * admin=true 면 UAC 승격(관리자 권한)으로 연다.
    */
-  openTerminal: (cwd: string, launch?: 'claude'): Promise<Result<void>> =>
-    bridge().shell.openTerminal(launch ? { cwd, launch } : { cwd }),
+  openTerminal: (cwd: string, launch?: 'claude', admin?: boolean): Promise<Result<void>> =>
+    bridge().shell.openTerminal({
+      cwd,
+      ...(launch ? { launch } : {}),
+      ...(admin ? { admin: true } : {})
+    }),
   /** shell:open-external — 검증된 http/https URL 을 OS 기본 브라우저로 연다(V1). */
   openExternal: (url: string): Promise<Result<void>> => bridge().shell.openExternal({ url }),
   /**

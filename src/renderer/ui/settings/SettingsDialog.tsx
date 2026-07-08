@@ -76,6 +76,8 @@ export function SettingsDialog(): JSX.Element | null {
   // 카테고리는 스토어 단일 출처 — 딥링크(openSettings('workspace'))와 좌측 네비가 공유.
   const category = useRootStore((s) => s.settingsCategory)
   const setCategory = useRootStore((s) => s.setSettingsCategory)
+  // 자동 업데이트 새 버전 가용 시 "소프트웨어 정보" 카테고리에 배지 표시.
+  const updateAvailable = useRootStore((s) => s.updateAvailable)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const closeBtnRef = useRef<HTMLButtonElement | null>(null)
 
@@ -141,11 +143,14 @@ export function SettingsDialog(): JSX.Element | null {
           >
             {CATEGORIES.map((c) => {
               const selected = category === c.id
+              // "소프트웨어 정보"에 새 업데이트가 있으면 라벨 뒤에 배지를 붙인다.
+              const showBadge = c.id === 'about' && updateAvailable
               return (
                 <button
                   key={c.id}
                   onClick={() => setCategory(c.id)}
                   aria-current={selected ? 'page' : undefined}
+                  aria-label={showBadge ? `${c.label} (새 업데이트 있음)` : undefined}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -163,6 +168,20 @@ export function SettingsDialog(): JSX.Element | null {
                 >
                   <span aria-hidden style={{ width: 18, textAlign: 'center' }}>{c.icon}</span>
                   <span>{c.label}</span>
+                  {showBadge && (
+                    <span
+                      aria-hidden
+                      title="새 버전이 있습니다"
+                      style={{
+                        marginLeft: 'auto',
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: tokens.color.danger,
+                        flex: '0 0 auto'
+                      }}
+                    />
+                  )}
                 </button>
               )
             })}
@@ -543,7 +562,15 @@ function AboutCategory(): JSX.Element {
 
 /** 사용자 주도 업데이트: 확인 → 다운로드 → 재시작 설치. 진행률 표시. */
 function UpdateSection({ packaged }: { packaged: boolean }): JSX.Element {
-  const [status, setStatus] = useState<UpdateStatusEvt | null>(null)
+  // 시작 시 확인으로 이미 새 버전을 발견했으면(전역 배지 상태) 초기 상태를 'available' 로 seed —
+  // About 페이지 진입 즉시 "다운로드" 버튼이 보이도록(배지 클릭 후 곧바로 조치 가능).
+  const updateAvailable = useRootStore((s) => s.updateAvailable)
+  const updateLatestVersion = useRootStore((s) => s.updateLatestVersion)
+  const [status, setStatus] = useState<UpdateStatusEvt | null>(
+    updateAvailable && updateLatestVersion
+      ? { phase: 'available', version: updateLatestVersion }
+      : null
+  )
   const [busy, setBusy] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
 

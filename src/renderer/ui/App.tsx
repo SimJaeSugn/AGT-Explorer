@@ -21,6 +21,7 @@ import { initOpenPathBridge } from '@renderer/app/usecases/launchOpen'
 import { initContentSearchBridge } from '@renderer/app/usecases/contentSearch'
 import { initAgentBridge } from '@renderer/app/usecases/agent'
 import { loadSettings, initPromoSplashBridge } from '@renderer/app/usecases/settings'
+import { initUpdateBridge } from '@renderer/app/usecases/update'
 import { bootWindow } from '@renderer/app/usecases/windowInit'
 import { TabBar } from '@renderer/ui/tabbar/TabBar'
 import { IconBar } from '@renderer/ui/toolbar/IconBar'
@@ -92,6 +93,8 @@ export function App(): JSX.Element {
     initAgentBridge()
     // 스플래시 "앞으로 보지 않기" → showPromoSplash 설정 변경 푸시 → uiSlice 동기화(전역 1회 구독).
     initPromoSplashBridge()
+    // 자동 업데이트: update:status 전역 구독 + 시작 시 1회 확인 → 설정 아이콘·"소프트웨어 정보" 배지.
+    initUpdateBridge()
   }, [])
 
   // 부팅 순서: 설정 로드(테마 적용) → 창 초기화(U3 — primary 면 세션 복원+자동저장,
