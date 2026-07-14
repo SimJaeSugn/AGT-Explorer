@@ -74,10 +74,17 @@ export async function detachTabToCompactWindow(tabId?: string): Promise<void> {
   store.getState().closeTab(id)
 }
 
-/** 빈 새 창을 연다(현재 탭은 그대로 유지). 활성 탭 스냅샷으로 main 에 새 창을 요청한다. */
+/**
+ * 새 창을 연다 — Windows 탐색기 Ctrl+N 관례(commandId `window.new`).
+ *
+ * 현재 위치(활성 탭)를 그대로 가진 창을 하나 더 띄운다. 분리(split)와 달리 **소스 탭은
+ * 닫지 않는다**(복제). 별도 채널 없이 window:split-tab 을 재사용한다(신규 채널 0).
+ *
+ * 잠긴 탭도 복제 대상이다(원본을 건드리지 않으므로 closeTab 가드가 필요 없다). 다만
+ * 새 창의 탭은 잠금 상태를 그대로 물려받는다(스냅샷 충실 복원).
+ * 분리 창과 동일하게 세션 자동저장에는 참여하지 않는다(재시작 시 복원 안 됨 — windowManager).
+ */
 export async function openEmptyWindow(): Promise<void> {
-  // "새 빈 창"은 별도 채널 없이, 활성 탭과 동일 위치의 새 창을 띄우는 것으로 흡수한다
-  // (신규 채널 최소화). 소스 탭은 닫지 않는다(분리가 아니라 복제 창).
   const s = store.getState()
   const snapshot = buildTabSnapshot(s.activeTabId)
   if (!snapshot) return

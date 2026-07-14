@@ -31,6 +31,7 @@ import { startCompare } from './compare'
 import { startDedup } from './dedup'
 import { requestNewTab } from './newTab'
 import { openAgentPanel } from './agent'
+import { openEmptyWindow } from './windowSplit'
 
 /** 현재 활성 패널 id 헬퍼. */
 function activePanel(): string | undefined {
@@ -110,6 +111,12 @@ export function execCommand(commandId: string): boolean {
       return true
     case 'tab.prev':
       s.prevTab()
+      return true
+
+    // ── 창 ───────────────────────────────────────────────────────────
+    // Ctrl+N — 현재 위치를 가진 새 창을 하나 더 연다(소스 탭 유지 = 복제).
+    case 'window.new':
+      void openEmptyWindow()
       return true
 
     // ── 패널 포커스 / 분할 ───────────────────────────────────────────

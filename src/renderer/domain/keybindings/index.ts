@@ -60,6 +60,16 @@ const baseBindings: KeyBinding[] = [
   },
   { chord: 'ctrl+tab', commandId: 'tab.next', context: 'global', label: '다음 탭', group: '탭' },
   {
+    // Windows 탐색기 관례 — 현재 위치를 그대로 가진 새 창을 하나 더 연다(복제).
+    // 소스 탭은 유지된다(탭 분리와 다름). 분리 창과 마찬가지로 세션 자동저장에는
+    // 참여하지 않는다(windowManager 정직 한계 — 재시작 시 복원 안 됨).
+    chord: 'ctrl+n',
+    commandId: 'window.new',
+    context: 'global',
+    label: '새 창(현재 위치 복제)',
+    group: '창'
+  },
+  {
     chord: 'ctrl+shift+tab',
     commandId: 'tab.prev',
     context: 'global',
