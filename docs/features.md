@@ -28,6 +28,7 @@
 > **[2026-06-12 편입·구현 완료(코드)·통합 QA PASS ✅ / 실 GUI·실 패키지 🟡 — §Y Windows 셸 컨텍스트 메뉴 연동 1종(Y1·US-23.1, Should)]** 사용자 직접 요청으로 정식 편입 → 설계 ADR-013 → T1~T6 구현 → 통합 QA PASS([qa-integration-Y](./reviews/qa-integration-Y.md))로 완료(상태 🔜→구현 완료(코드)). **Y1 Windows 셸 컨텍스트 메뉴 연동(Should ✅ 코드)** — 파일/폴더 우클릭 시 앱의 React 컨텍스트 메뉴 하단에 "Windows 메뉴" 섹션을 추가해, Windows에 설치된 프로그램들이 등록한 셸 컨텍스트 메뉴 항목(예: "반디집으로 압축하기", "Cursor로 열기", "AGT-Finder로 열기")을 노출하고 선택 시 실행한다. **기술 방식(확정·실코드): Windows 셸 COM Verbs 열거 + `verb.DoIt()` 실행**(네이티브 N-API 애드온 비채택·신규 네이티브 의존성 0)·메인 프로세스 **상주 PowerShell 워커 `shellVerbsWorker.ps1`**(기존 hash/archive 워커 패턴)로 COM 호출. **신규 IPC 채널 `shell:context-verbs`/`shell:invoke-verb` 2종**(P1 동결 후 신기능 선례 동일 규약)·`os/shellVerbs.ts`(워커 서비스·before-quit dispose)·`os/shellVerbsBlacklist.ts`(자체구현 verb 누출 차단·설계와 달리 분리)·`shellVerbsSection.ts`(메뉴 섹션 병합·설계와 달리 분리)·`shell.handlers.ts`(sender·zod·재열거 교차검증→`EVERB` 거부)·`FileOpErrorCode`에 `'EVERB'` 비파괴 확장·electron.vite ps1 복사·electron-builder asarUnpack. 기존 B6 컨텍스트 메뉴 인프라(`ui/contextmenu/`)·ADR-005 보안 모델의 확장이며 우선순위 **Should**(우클릭 메뉴 내 섹션·신규 키 불요). 검증: typecheck(node+web)/build PASS(out/main/shellVerbsWorker.ps1 생성)·ESLint 0·`verify:shellverbs` 75/0·일회성 실 노드 스모크(ps1 워커 한글 경로 왕복·실 COM 열거·블랙리스트 필터·EVERB 거부·dispose 좀비 0) 통과. **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify·실 노드 스모크로 증명된 항목만 ✅·실 GUI(우클릭 "Windows 메뉴" 섹션 표출·로딩→채움/숨김·verb 클릭→외부 프로그램 DoIt·다중선택/원격/archive 숨김·한글 display 실 렌더)·실 패키지 설치본(asar ps1 경로·ExecutionPolicy·`npm run dist` 미수행)은 런타임 스모크 권장 🟡. 별도 트랙: `verify:worker` FAIL은 §Y 무관 사전 환경 결함(Node 22.17 워커 atomics·clean HEAD 동일 재현·§Y 회귀 아님).** 우선순위 근거는 [PRD §6 "MoSCoW 분류 근거(2026-06-12 §Y)"](./PRD.md#6-범위와-우선순위-moscow). 상세 §Y·user-stories 에픽23(US-23.1)·flows F37·[roadmap.md §0.5 2026-06-12 §Y 단락](./roadmap.md).
 > **[2026-06-14 §Z Agentic 자연어 파일 에이전트 — 읽기 전용 범위 구현 완료(코드)·실 동작 🟡 / 쓰기(US-24.2) 🔜 deferred] Z장(Agentic 자연어 파일 에이전트, US-24.1~24.5·F38~F41)** 사용자 직접 요청으로 정식 편입(설계 ADR-014/015·`docs/architecture/agent-natural-language-design.md` 완료). **읽기 전용 범위(US-24.1 자연어→읽기 도구 자율 탐색·US-24.3 제공자/키·US-24.4 내부 엔드포인트 SSRF·US-24.5 도구 범위/안전 레일)는 코드 구현 완료(실 동작 런타임 스모크 🟡) / 쓰기(US-24.2 plan diff 확인·실행)는 사용자 "읽기 전용으로 완성" 결정으로 🔜 deferred(`agent:confirm`=EUNSUPPORTED).** **상태 단일 출처는 roadmap §0.5 — 본 챕터 수용기준 본문은 행동 계약(무엇을·왜) 수준이며 구현 상태는 roadmap §0.5가 확정한다(✅로 단정 금지).** **Z1 자연어 파일 에이전트(Plan→Confirm→Execute)·Could** — 자연어 지시 → 읽기 도구 자율 탐색 → plan diff 확인·부분 수용 → 기존 `op:*`(휴지통·`Ctrl+Z` undo) 실행. **읽기 자유 / 쓰기는 확인 전 미실행**(쓰기 도구는 plan 적재만)이 안전 핵심. **멀티 AI 제공자(사용자 확정): Claude(Anthropic 2-티어)·OpenAI·내부 자체 모델(OpenAI 호환 HTTP 엔드포인트)** 셋 다 연결(설정 선택·전환·동일 UX 추상화)·내부 base URL **화이트리스트 SSRF 차단**·**BYO 키 safeStorage 암호화**(평문/렌더러 0)·키 미보유/`tool-use` 미지원 시 비활성+안내. **1차 도구 범위: 로컬·휴지통 한정**(영구삭제·원격·압축·셸 제외)·경로 스코프·**내용 전송 명시 동의**(기본 경로·메타만)·비용 상한. 우선순위 근거 [PRD §6 "MoSCoW 분류 근거(2026-06-14 §Z)"](./PRD.md#6-범위와-우선순위-moscow). 신규 채널 `agent:*`·신규 npm 의존성 `@anthropic-ai/sdk`+`openai`(네이티브 0)·`SESSION_SCHEMA_VERSION` 무변(에이전트 상태 휘발). **상태(2026-06-14): 읽기 전용 범위(US-24.1·24.3·24.4·24.5) 구현 완료(코드·verify:agent 225/0·2026-06-14 `open_tab` 내비 도구 추가로 201→225·도구 8종=읽기 7종+`open_tab`[비파괴 내비·파일 쓰기 아님])·실 동작 🟡 / 쓰기(US-24.2 plan·실행) 🔜 deferred(사용자 "읽기 전용으로 완성" 결정·`agent:confirm`=EUNSUPPORTED) — 구현 상태 단일 출처는 roadmap §0.5·✅로 단정 금지.** 상세 §Z·user-stories 에픽24(US-24.1~24.5)·flows F38~F41·PRD §6/§7(D8)/§8/§11(D8)/§12(M11).
 > **[2026-06-10 편입·구현 완료(코드)·통합 검증 PASS ✅ / 실 GUI·실 워커·멀티윈도우 🟡 — 파워기능 M9 2종(§Q·§U) + 신규 Should §U4·§X1]** M9 배정 2종 + 사용자 명시 요청 신규 Should 2건을 구현·통합 검증 완료. **Q1 압축파일 `archive://` 어댑터(§Q·US-16.1, Should ✅ 코드 — **신규 채널 `archive:open/list/close/extract/add` 5종**·**신규 의존성 `yauzl`+`yazl`**[MIT·네이티브 0]·`src/main/archive/*`[`ArchiveService`·`ZipReader`(yauzl)·`ZipWriter`(yazl)·`ArchiveSessionManager`·`archiveProtocol`·`archiveErrors`]·`src/main/workers/archiveWorker.ts`·`src/shared/archive/{safePath,archivePath}.ts`[Zip Slip 순수]·`renderer/app/usecases/archive.ts`·추출/추가=기존 `op:*`·1차 zip만·암호 zip 제외·중첩 zip 제외·Zip Slip 차단[ADR-008]·`verify:archive` 56·`verify:archiveui` 43) · U3 탭 색상/잠금·탭 분리(새 창)(§U·US-20.3, Could ✅ 코드 — 색상/잠금=세션 메타[`Tab.color?`/`locked?`·신규 채널 0·닫기 가드]·탭 분리=멀티 윈도우[`src/main/windows/windowManager.ts`·`renderer/app/usecases/windowSplit.ts`·**신규 채널 `window:split-tab`/`window:get-init` 2종**]·신규 의존성 0).** **신규 Should §U4 탭 사용자 지정 이름(§U·US-20.4, ✅ 코드 — 신규 채널 0·`tabsSlice.setTabName/clearTabName`·`TabBar TabRenameInput`·`TabSnapshot.customName?` 영속) · §X1 좌측 사이드바 "빠른 위치"(§X·US-22.1, ✅ 코드 — **신규 채널 `fs:known-folders` 1종**·`KnownFoldersDTO`·`sidebarSlice.loadKnownFolders`·`Sidebar` 빠른 위치 섹션·당시 다운로드만 렌더·**2026-06-28 다운로드·바탕화면·문서·사진 4개 노드로 확대**).** **Q1만 신규 의존성 추가(yauzl/yazl)·Q1·U3·X1 신규 채널 추가·U4 신규 채널 0.** 검증: `npm run build`(typecheck node+web + archiveWorker.js 번들) PASS·ESLint 0·부팅 스모크 정상·`verify:archive` 56·`verify:archiveui` 43 + store/persistence 증분(전부 0 fail·회귀 0). **정직 한계(은폐 금지·✅ 위장 아님): 헤드리스 verify·코드 정합·부팅 스모크(창 표시)만 ✅. 실 기능 동작(zip 실 열기/추출/추가 IPC 왕복·op:* 진행률·멀티 윈도우 실 분리/이동/복원·탭 인라인 이름변경·색상/잠금·다운로드 노드 이동)은 런타임 스모크 권장 🟡. U3 정직 한계: 멀티 윈도우 세션 복원은 주 창만(분리 창 reopen-only·재시작 복원 안 함·의도적 MVP). M9 잔여 0 — §P~§U 14종 전부 완료(M6~M9 종료·T3 폐기).** 상세 §Q·§U·§X·[roadmap.md §0.5·§1](./roadmap.md).
+> **[2026-07-14 정식 편입 — §U5 새 창(현재 위치 복제) `Ctrl+N` 1종(US-20.5·F43, Should) / 구현 완료(코드)·v1.15.0 게시·실 GUI 🟡]** 이미 구현·게시(v1.15.0·커밋 `acc30bf`)됐으나 기획 항목이 없던 비계획 구현(roadmap §0.5 "⚠️ 스코프 일탈" 플래그)을 **사용자 정식 편입 결정**으로 §U에 정식 추가. **U5 새 창(현재 위치 복제)** — 전역 `Ctrl+N`(탐색기 관례) → commandId `window.new` → 활성 탭 스냅샷(`buildTabSnapshot`)으로 **현재 위치를 그대로 가진 창을 하나 더** 연다(복제). **§U3 "탭 분리(새 창)"(탭을 새 창으로 옮김·소스 탭 제거)와 달리 소스 탭을 닫지 않는다** — 이동 vs 복제로 명확히 구분되는 별개 기능(중복 아님). 명령 팔레트(`Ctrl+Shift+P`)·단축키 도움말 자동 노출(KEYBINDINGS 단일 출처 파생·추가 코드 0)·텍스트 입력 컨텍스트(주소창 편집·검색·이름변경·다이얼로그) 미발화(타이핑 보존)·`Ctrl+Shift+N`(새 폴더) 충돌 0. **렌더러 전용(main 무변경)·신규 IPC 채널 0(기존 `window:split-tab` 재사용)·신규 npm 의존성 0·`SESSION_SCHEMA_VERSION` 무변.** 우선순위 **Should**(근거 [PRD §6 "MoSCoW 분류 근거(2026-07-14 §U5)"](./PRD.md#6-범위와-우선순위-moscow) — U3의 Could 사유였던 멀티 윈도우 복잡도는 U3 구현으로 해소·U5는 그 인프라 재사용이라 비용 작음). 검증: typecheck(node+web) PASS·ESLint 0·`verify:palette` 20/0·`verify:domain` 215/0·`verify:store` 296/0·레지스트리 스모크 OK. **정직 한계(은폐 금지·✅ 위장 아님): 실 GUI(실제 `Ctrl+N` → 새 창 표출)는 Electron 실행 필요 → 런타임 스모크 권장 🟡. 새 창은 primary=false → 세션 자동저장 미참여 → 앱 재시작 시 복원되지 않음(§U3 windowManager 알려진 한계 승계·의도적 MVP).** 상세 §U5·user-stories 에픽20(US-20.5)·flows F43.
 
 ---
 
@@ -1424,10 +1425,10 @@
 
 ---
 
-## U. 빠른 보기·탐색·탭 UX (2026-06-09 신규 기획 — U1·U2 M8 + U3 M9 + U4 구현 완료(코드)·실 GUI·멀티윈도우 🟡)
+## U. 빠른 보기·탐색·탭·창 UX (2026-06-09 신규 기획 — U1·U2 M8 + U3 M9 + U4 + U5 구현 완료(코드)·실 GUI·멀티윈도우 🟡)
 
-> **완성도 UX 묶음.** **U1 Space 퀵룩 오버레이 · U2 브레드크럼 드롭다운 · U3 탭 색상/잠금·탭을 새 창으로** 3기능. 기존 미리보기(D3·J5)·주소 표시줄(C1)·탭 관리(A1)를 확장한다.
-> 우선순위: U1 = **S(Should)**, U2 = **S(Should)**, U3 = **C(Could)**(탭 분리=새 창은 멀티 윈도우 복잡도).
+> **완성도 UX 묶음.** **U1 Space 퀵룩 오버레이 · U2 브레드크럼 드롭다운 · U3 탭 색상/잠금·탭을 새 창으로 · U4 탭 사용자 지정 이름 · U5 새 창(현재 위치 복제)** 5기능. 기존 미리보기(D3·J5)·주소 표시줄(C1)·탭 관리(A1)를 확장한다.
+> 우선순위: U1 = **S(Should)**, U2 = **S(Should)**, U3 = **C(Could)**(탭 분리=새 창은 멀티 윈도우 복잡도), U4 = **S(Should)**, U5 = **S(Should)**(2026-07-14 정식 편입 — U3 멀티 윈도우 인프라 재사용·신규 채널 0).
 > 상태: **U1·U2는 M8 구현 완료(코드)·실 GUI 런타임 스모크 🟡(2026-06-10) / U3는 M9 구현 완료(코드)·실 GUI·멀티윈도우 런타임 스모크 🟡(2026-06-10·색상/잠금 세션 메타 신규 채널 0·탭 분리 신규 채널 `window:split-tab`/`window:get-init`·분리 창 reopen-only) / U4는 구현 완료(코드)·실 GUI 🟡(신규 채널 0)**. U1=신규 채널 0·`ui/quicklook/QuickLookOverlay`(J5 재사용)·`Space` list 컨텍스트·`preview:read` 재사용, U2=신규 채널 0·`ui/toolbar/BreadcrumbDropdown`·`breadcrumbSiblings`·`fs:tree-children` 재사용·원격 ▾ 비표시. **[2026-06-14 동작 확장 정식 편입·2026-06-15 패널별 결함 수정] U3 탭 잠금이 "닫기 방지"에 더해 "루트 잠금"(각 분할 패널이 자기 경로로 독립 잠김·잠긴 루트 밖 이동 차단·🏠 복귀 버튼·패널별 맵 `lockedRoots` 세션 영속·구버전 단일값 하위호환)으로 확장됨 — 렌더러 전용·신규 채널 0·`SESSION_SCHEMA_VERSION` 무변경·구현 완료(코드)·실 GUI 🟡(상태 단일 출처 [roadmap §0.5 2026-06-14·2026-06-15 단락](./roadmap.md)).** 보안: 퀵룩 미리보기는 D3/J5 안전 모델(DOMPurify·CSP·렌더러 직접 파일 접근 없음) 재사용·throw0/Result·IPC guard(ADR-005). 외부 네트워크 전송 없음. 범례: ✅ · 🟡 · 🔜.
 
 ### U1. Space 퀵룩 오버레이 (S) — 구현 완료(코드)·실 GUI 🟡
@@ -1536,6 +1537,46 @@
 - [x] 신규 IPC 채널·신규 npm 의존성 없이 렌더러+세션 영속만으로 동작하며, 기존 탭 관리(A1)·탭 복제/복원·세션 복원(US-5.5)과 충돌·회귀가 없다 — 신규 채널 0·의존성 0·`Tab.customName?` 추가는 표시/영속 계층 한정
 - [ ] 탭 색상·잠금·탭 분리(새 창) — **§U3 소관**(본 항목은 이름 부여만)
 - [ ] 탭 아이콘 변경 — **1차 범위 밖**(텍스트 이름만)
+
+### U5. 새 창(현재 위치 복제) — `Ctrl+N` (S) 구현 완료(코드)·v1.15.0 게시 · 실 GUI 동작 런타임 스모크 🟡
+**목적**: Windows 탐색기 관례대로 `Ctrl+N`을 눌러 **지금 보고 있는 위치를 그대로 가진 창을 하나 더** 띄운다(현재 위치 복제). 원래 보던 창·탭은 그대로 둔 채 같은 위치에서 두 갈래로 작업할 수 있다. (US-20.5)
+
+> **§U3(탭 분리·새 창)와의 구분 — 중복 아님**
+> | 구분 | §U3 탭 분리(새 창) | **§U5 새 창(현재 위치 복제)** |
+> |---|---|---|
+> | 진입 | 탭 우클릭 "새 창으로 분리" / 탭을 창 밖으로 드래그 | **`Ctrl+N`**(전역 단축키) · 명령 팔레트 "새 창(현재 위치 복제)" |
+> | 소스 탭 | **닫힌다(원 창에서 제거 = 이동)** | **닫히지 않는다(유지 = 복제)** |
+> | 결과 | 탭이 새 창으로 **옮겨감** | 같은 위치를 가진 창이 **하나 더** 생김(두 창에 동일 위치) |
+> 즉 U3는 **이동(move)**, U5는 **복제(duplicate)** 다. 둘은 같은 멀티 윈도우 인프라(`window:split-tab`·`windowManager`)를 공유한다(신규 IPC 채널 0).
+
+**조작 · 동작 규칙**
+| 항목 | 동작 규칙 |
+|---|---|
+| 진입(단축키) | 전역 `Ctrl+N`(탐색기 관례·[PRD §8](./PRD.md#8-단축키-체계-확정--충돌-없음) 단축키 표 그룹 "창"이 단일 출처) → commandId `window.new` |
+| 진입(팔레트/도움말) | 명령 팔레트(`Ctrl+Shift+P`)·단축키 도움말에 **"새 창(현재 위치 복제)"** 로 자동 노출(KEYBINDINGS 단일 출처 파생·별도 등록 없음) |
+| 동작 | **활성 탭의 스냅샷**(`buildTabSnapshot` — 경로·분할 레이아웃·보기 등)을 그대로 넘겨 새 창을 만든다 → 새 창이 **현재 위치로 부팅**된다 |
+| 소스 유지 | 소스 창의 탭은 **닫지 않는다**(복제). 잠긴 탭(§U3 locked)도 복제 대상이며(원본 미변경), 새 창의 탭은 색상·잠금 등 스냅샷 상태를 그대로 물려받는다 |
+| 입력 보존 | 텍스트 입력 컨텍스트(주소 표시줄 편집·검색 입력·이름변경 인라인 편집·다이얼로그)에서는 `Ctrl+N`을 **가로채지 않는다**(타이핑 보존) |
+| 충돌 없음 | 기존 `Ctrl+Shift+N`(새 폴더·B3)과 별개 조합 — 충돌 0 |
+| 실패 | 새 창 생성 실패 시 **토스트 안내**("새 창을 열지 못했습니다.")·소스 창 상태 무변경(throw 0·Result) |
+
+**범위 밖 / 정직 한계 (1차)**
+| 항목 | 사유 |
+|---|---|
+| **새 창의 세션 복원** | 새 창은 primary=false → **세션 자동저장에 미참여 → 앱 재시작 시 복원되지 않는다**(§U3 분리 창과 동일한 windowManager의 알려진 한계 승계·의도적 MVP·정직 표기) |
+| 창 간 탭 드래그 이동·창별 워크스페이스·탭 그룹화 | **§U3 1차 제외 범위 그대로**(본 항목이 넓히지 않음) |
+| 빈 창(기본 위치) 열기 옵션 | 1차는 **현재 위치 복제만**(빈 창/시작 위치 선택 옵션 없음) |
+
+**수용 기준** (구현 완료(코드)·v1.15.0 게시 / 실 GUI 동작은 🟡)
+- [x] 전역 `Ctrl+N`을 누르면 **현재 위치(활성 탭)를 그대로 가진 새 창이 하나 더 열린다** — `domain/keybindings/index.ts`(`ctrl+n`→`window.new`·group `창`)·`commandBus.ts`(`case 'window.new'`)·`usecases/windowSplit.ts#openEmptyWindow`(`buildTabSnapshot(activeTabId)` → `windowApi.splitTab`)·기존 채널 `window:split-tab`·`main/windows/windowManager.ts`. ※ 실 GUI 🟡
+- [x] **소스 탭은 닫히지 않는다**(복제) — `openEmptyWindow`는 `closeTab`을 호출하지 않는다(§U3 `splitTabToNewWindow`=성공 시 소스 탭 닫음과 대비). ※ 실 GUI 🟡
+- [x] 명령 팔레트(`Ctrl+Shift+P`)·단축키 도움말에 **"새 창(현재 위치 복제)"** 로 노출된다 — KEYBINDINGS 단일 출처 파생(추가 등록 코드 0)·`verify:palette` 20/0
+- [x] 텍스트 입력 컨텍스트(주소창 편집·검색·이름변경·다이얼로그)에서는 `Ctrl+N`이 발화하지 않아 타이핑이 보존되며, `Ctrl+Shift+N`(새 폴더)과 충돌하지 않는다 — `KeyboardDispatcher` 컨텍스트 가드·`verify:domain` 215/0(레지스트리·충돌 검사)
+- [x] 잠긴 탭에서도 복제할 수 있고(원본 미변경), 새 창의 탭은 스냅샷 상태(색상·잠금 등)를 그대로 물려받는다 — `buildTabSnapshot` 충실 복원(§U3 잠금 가드는 "이동"에만 필요)
+- [x] 새 창 생성 실패 시 토스트로 안내하고 소스 창 상태는 바뀌지 않는다 — `openEmptyWindow` `res.ok` 분기(`pushToast('error', '새 창을 열지 못했습니다.')`)·throw 0
+- [x] **신규 IPC 채널·신규 npm 의존성 없이** 기존 멀티 윈도우 인프라(`window:split-tab`)만 재사용하며, 렌더러 전용(main 무변경)·`SESSION_SCHEMA_VERSION` 무변경으로 기존 탭 관리(A1)·§U3·세션 복원(US-5.5)에 회귀가 없다 — 신규 채널 0·의존성 0·`verify:store` 296/0
+- [ ] **(정직 한계·범위 밖) 새 창은 세션 자동저장에 참여하지 않아 앱 재시작 시 복원되지 않는다**(primary 창만 복원·§U3 분리 창과 동일 한계·의도적 MVP)
+- [ ] (범위 밖) 창 간 탭 드래그 이동·창별 독립 워크스페이스·빈 창(시작 위치) 열기 옵션은 1차 제외
 
 ---
 
