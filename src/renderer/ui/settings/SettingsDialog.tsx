@@ -38,6 +38,7 @@ import {
   toggleIconBarItem
 } from '@renderer/app/usecases/settings'
 import { ICON_BAR_ITEMS, iconBarItemTitle, type IconBarItem } from '@renderer/ui/toolbar/iconBarItems'
+import { Icon } from '@renderer/ui/icons/lucide'
 import { listShortcutGroups, prettyChord } from '@renderer/ui/keyboard/shortcuts'
 import { useFocusTrap } from '@renderer/ui/keyboard/useFocusTrap'
 import { overlayStyle, panelStyle, titleStyle } from '@renderer/ui/dialogs/dialogStyles'
@@ -289,7 +290,9 @@ function LayoutCategory(): JSX.Element {
                           onChange={() => void toggleIconBarItem(it.id)}
                           aria-label={`${it.label} 아이콘 표시`}
                         />
-                        <span aria-hidden style={{ width: 16, textAlign: 'center' }}>{it.icon}</span>
+                        {/* 실제 아이콘바(IconBar)와 동일한 글리프를 렌더한다. 아이콘 팩 키
+                            문자열('panelLeft' 등)을 그대로 출력하면 영문 키가 한글 라벨과 겹쳐 보인다. */}
+                        <Icon name={it.id === 'theme.toggle' ? 'theme' : it.icon} size={16} />
                         <span>{it.label}</span>
                       </label>
                     )
